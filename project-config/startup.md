@@ -19,6 +19,18 @@
 - Włącz **Autobackup & History**: po każdej większej zmianie `git commit`, backup w `backups/<YYYY-MM-DD_HH-MM-SS>/`, wpis w `docs/changelog.md`.
 - Zanim coś usuniesz lub nadpiszesz – zapytaj o zgodę i zrób backup.
 
+## 3A. AUTOMATYCZNE BACKUPY I COMMITY
+- **Automatyczny commit:** Po każdej sesji pracy (min. 1 commit dziennie)
+- **Automatyczny backup:** Przed każdą większą zmianą (nowe funkcje, refaktoring)
+- **Automatyczny changelog:** Po każdej sesji - wpis z podsumowaniem zmian
+- **Skrypty:** Użyj `scripts/auto-backup.sh` i `scripts/auto-commit.sh`
+
+## 3B. DEFINICJE
+- **Większa zmiana:** Nowa funkcja, refaktoring, zmiana API, usunięcie plików
+- **Mniejsza zmiana:** Poprawki błędów, zmiany tekstów, drobne poprawki UI
+- **Backup:** Pełna kopia projektu w `backups/<timestamp>/`
+- **Commit:** Zapisanie zmian w Git z opisowym komunikatem
+
 ## 4. KONTYNUACJA PO PONOWNYM URUCHOMIENIU
 - Po uruchomieniu projektu odczytaj `docs/overview.md`, `changelog.md` i najnowszy `chat-history/`.
 - Przypomnij mi, nad czym pracowaliśmy: `[→] Ostatnio robiliśmy X, mogę kontynuować Y.`
