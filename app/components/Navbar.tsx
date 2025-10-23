@@ -35,9 +35,13 @@ export default function Navbar() {
       dropdown: [
         { href: "/salespeople", label: "Handlowcy" },
         { href: "/warmup", label: "Warmup" },
-        { href: "/inbox", label: "Inbox" },
-        { href: "/inbox/history", label: "Dziennik" }
+        { href: "/inbox", label: "Inbox" }
       ]
+    },
+    { 
+      href: "/archive", 
+      label: "Archiwum",
+      icon: "📚"
     },
     { 
       href: "/reports", 

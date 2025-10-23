@@ -150,3 +150,27 @@ export async function prefetchHolidays(): Promise<void> {
   console.log('[HOLIDAYS] ✓ Prefetch zakończony');
 }
 
+/**
+ * Sprawdza czy potrzebny jest prefetch świąt i wykonuje go tylko w razie potrzeby
+ */
+export async function checkAndPrefetchHolidays(): Promise<void> {
+  const currentYear = new Date().getFullYear();
+  const countries = ['PL', 'DE', 'FR', 'GB', 'US'];
+  
+  // Sprawdź czy mamy dane dla bieżącego roku dla głównych krajów
+  const existingCount = await db.holiday.count({
+    where: {
+      year: currentYear,
+      countryCode: { in: countries }
+    }
+  });
+  
+  // Jeśli mamy mniej niż 50 świąt, wykonaj prefetch
+  if (existingCount < 50) {
+    console.log(`[HOLIDAYS] Brak danych w cache (${existingCount} świąt), wykonuję prefetch...`);
+    await prefetchHolidays();
+  } else {
+    console.log(`[HOLIDAYS] ✓ Dane w cache (${existingCount} świąt), pomijam prefetch`);
+  }
+}
+

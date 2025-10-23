@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 
 export default async function LeadDetailsPage({ params }: { params: { id: string } }) {
   const leadId = Number(params.id);
@@ -8,6 +9,10 @@ export default async function LeadDetailsPage({ params }: { params: { id: string
   if (Number.isNaN(leadId)) {
     notFound();
   }
+
+  // Pobierz referer z nagłówków
+  const headersList = await headers();
+  const referer = headersList.get('referer') || '/archive';
 
   const lead = await db.lead.findUnique({
     where: { id: leadId },
@@ -41,7 +46,24 @@ export default async function LeadDetailsPage({ params }: { params: { id: string
       <h1>Szczegóły kontaktu</h1>
 
       <div style={{ marginBottom: 20 }}>
-        <Link href="/leads">← Wróć do bazy kontaktów</Link>
+        <Link 
+          href={referer}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 16px",
+            backgroundColor: "var(--gray-100)",
+            color: "var(--gray-700)",
+            textDecoration: "none",
+            borderRadius: "var(--radius)",
+            fontSize: "14px",
+            fontWeight: "500",
+            transition: "background-color 0.2s"
+          }}
+        >
+          ← Wróć
+        </Link>
       </div>
 
       {/* Podstawowe dane */}

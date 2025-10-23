@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import Link from "next/link";
+import { headers } from "next/headers";
 import CampaignTextEditor from "./CampaignTextEditor";
 import SalespersonEditor from "./SalespersonEditor";
 import CampaignSender from "./CampaignSender";
@@ -16,6 +17,10 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
   if (Number.isNaN(campaignId)) {
     return <main>Nieprawidłowe ID kampanii.</main>;
   }
+
+  // Pobierz referer z nagłówków
+  const headersList = await headers();
+  const referer = headersList.get('referer') || '/campaigns';
 
   const campaign = await db.campaign.findUnique({
     where: { id: campaignId },
@@ -146,7 +151,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
             📥 Inbox kampanii
           </Link>
           <Link 
-            href="/campaigns"
+            href={referer}
             style={{
               padding: "8px 16px",
               backgroundColor: "var(--gray-500)",
@@ -157,7 +162,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
               fontSize: "14px"
             }}
           >
-            ← Lista kampanii
+            ← Wróć
           </Link>
         </div>
       </div>

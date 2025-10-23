@@ -37,6 +37,15 @@ declare global {
     cleanup: cron.ScheduledTask | null;
     metrics: cron.ScheduledTask | null;
   } | undefined;
+  var warmupCronRunning: {
+    reset: boolean;
+    schedule: boolean;
+    advance: boolean;
+    send: boolean;
+    dns: boolean;
+    cleanup: boolean;
+    metrics: boolean;
+  } | undefined;
 }
 
 if (!global.warmupCronJobs) {
@@ -48,6 +57,18 @@ if (!global.warmupCronJobs) {
     dns: null,
     cleanup: null,
     metrics: null
+  };
+}
+
+if (!global.warmupCronRunning) {
+  global.warmupCronRunning = {
+    reset: false,
+    schedule: false,
+    advance: false,
+    send: false,
+    dns: false,
+    cleanup: false,
+    metrics: false
   };
 }
 
@@ -64,47 +85,81 @@ export function startWarmupCron() {
   console.log(`[WARMUP CRON] Inicjalizacja zadań warmup (NOWY SYSTEM)...`);
   
   // ============================================================================
-  // 00:00 - RESET LICZNIKÓW
+  // 00:10 - RESET LICZNIKÓW (przesunięte o 10 min)
   // ============================================================================
-  global.warmupCronJobs!.reset = cron.schedule('0 0 * * *', async () => {
+  global.warmupCronJobs!.reset = cron.schedule('10 0 * * *', async () => {
+    // Kolejkowanie - zapobiega nakładaniu się zadań
+    if (global.warmupCronRunning!.reset) {
+      console.log(`[WARMUP CRON] ⏭️ Reset cron już działa - pomijam`);
+      return;
+    }
+    
+    global.warmupCronRunning!.reset = true;
     try {
-      console.log(`[WARMUP CRON] 🕐 00:00 - Reset liczników dzienny`);
+      console.log(`[WARMUP CRON] 🕐 00:10 - Reset liczników dzienny`);
       await resetDailyCounters();
     } catch (error) {
       console.error(`[WARMUP CRON] ❌ Błąd resetu liczników:`, error);
+    } finally {
+      global.warmupCronRunning!.reset = false;
     }
   });
   
   // ============================================================================
-  // 00:30 - PLANOWANIE MAILI NA DZIEŃ
+  // 00:35 - PLANOWANIE MAILI NA DZIEŃ (przesunięte o 5 min)
   // ============================================================================
-  global.warmupCronJobs!.schedule = cron.schedule('30 0 * * *', async () => {
+  global.warmupCronJobs!.schedule = cron.schedule('35 0 * * *', async () => {
+    // Kolejkowanie - zapobiega nakładaniu się zadań
+    if (global.warmupCronRunning!.schedule) {
+      console.log(`[WARMUP CRON] ⏭️ Schedule cron już działa - pomijam`);
+      return;
+    }
+    
+    global.warmupCronRunning!.schedule = true;
     try {
-      console.log(`[WARMUP CRON] 🕐 00:30 - Planowanie maili na dzień`);
+      console.log(`[WARMUP CRON] 🕐 00:35 - Planowanie maili na dzień`);
       const result = await scheduleDailyEmailsForAll();
       console.log(`[WARMUP CRON] ✅ Zaplanowano ${result.total} maili dla ${result.mailboxes} skrzynek`);
     } catch (error) {
       console.error(`[WARMUP CRON] ❌ Błąd planowania:`, error);
+    } finally {
+      global.warmupCronRunning!.schedule = false;
     }
   });
   
   // ============================================================================
-  // 01:00 - ZWIĘKSZANIE DNI WARMUP
+  // 01:05 - ZWIĘKSZANIE DNI WARMUP (przesunięte o 5 min)
   // ============================================================================
-  global.warmupCronJobs!.advance = cron.schedule('0 1 * * *', async () => {
+  global.warmupCronJobs!.advance = cron.schedule('5 1 * * *', async () => {
+    // Kolejkowanie - zapobiega nakładaniu się zadań
+    if (global.warmupCronRunning!.advance) {
+      console.log(`[WARMUP CRON] ⏭️ Advance cron już działa - pomijam`);
+      return;
+    }
+    
+    global.warmupCronRunning!.advance = true;
     try {
-      console.log(`[WARMUP CRON] 🕐 01:00 - Zwiększanie dni warmup`);
+      console.log(`[WARMUP CRON] 🕐 01:05 - Zwiększanie dni warmup`);
       const result = await advanceWarmupDays();
       console.log(`[WARMUP CRON] ✅ Zwiększono: ${result.advanced}, Zakończono: ${result.completed}`);
     } catch (error) {
       console.error(`[WARMUP CRON] ❌ Błąd zwiększania dni:`, error);
+    } finally {
+      global.warmupCronRunning!.advance = false;
     }
   });
   
   // ============================================================================
-  // CO 5 MINUT - WYSYŁANIE ZAPLANOWANYCH MAILI
+  // CO 5 MINUT - WYSYŁANIE ZAPLANOWANYCH MAILI (przesunięte o 2 min)
   // ============================================================================
-  global.warmupCronJobs!.send = cron.schedule('*/5 * * * *', async () => {
+  global.warmupCronJobs!.send = cron.schedule('2,7,12,17,22,27,32,37,42,47,52,57 * * * *', async () => {
+    // Kolejkowanie - zapobiega nakładaniu się zadań
+    if (global.warmupCronRunning!.send) {
+      console.log(`[WARMUP CRON] ⏭️ Send cron już działa - pomijam`);
+      return;
+    }
+    
+    global.warmupCronRunning!.send = true;
     try {
       // WAŻNE: Wysyłamy tylko 1 mail na wywołanie!
       // Dzięki temu maile są rozłożone w czasie (nie salwy)
@@ -120,6 +175,8 @@ export function startWarmupCron() {
       
     } catch (error) {
       console.error(`[WARMUP CRON] ❌ Błąd wysyłania:`, error);
+    } finally {
+      global.warmupCronRunning!.send = false;
     }
   });
   

@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+export async function GET() {
+  try {
+    const campaigns = await db.campaign.findMany({
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: campaigns
+    });
+  } catch (error) {
+    console.error("[CAMPAIGNS] Błąd pobierania kampanii:", error);
+    return NextResponse.json(
+      { success: false, error: "Błąd podczas pobierania kampanii" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

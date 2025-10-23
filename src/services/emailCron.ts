@@ -3,7 +3,7 @@ import * as cron from 'node-cron';
 import { fetchUnreadEmails } from '@/integrations/imap/client';
 import { processReply } from '@/integrations/inbox/processor';
 import { processScheduledCampaign } from './scheduledSender';
-import { prefetchHolidays } from './holidays';
+import { prefetchHolidays, checkAndPrefetchHolidays } from './holidays';
 import { autoCreateFollowUps } from './followUpManager';
 import { sendDailyReportEmail } from './dailyReportEmail';
 
@@ -11,6 +11,12 @@ let emailCronJob: cron.ScheduledTask | null = null;
 let campaignCronJob: cron.ScheduledTask | null = null;
 let holidayCronJob: cron.ScheduledTask | null = null;
 let dailyReportCronJob: cron.ScheduledTask | null = null;
+
+// Flagi kolejkowania - zapobiegają nakładaniu się zadań
+let isEmailCronTaskRunning = false;
+let isCampaignCronTaskRunning = false;
+let isHolidayCronTaskRunning = false;
+let isDailyReportCronTaskRunning = false;
 
 /**
  * Uruchamia automatyczne pobieranie maili co 15 minut
@@ -25,6 +31,13 @@ export function startEmailCron() {
   // Uruchom cron job co 15 minut
   // Cron syntax: */15 * * * * = co 15 minut
   emailCronJob = cron.schedule('*/15 * * * *', async () => {
+    // Kolejkowanie - zapobiega nakładaniu się zadań
+    if (isEmailCronTaskRunning) {
+      console.log('[CRON] ⏭️ Email cron już działa - pomijam');
+      return;
+    }
+    
+    isEmailCronTaskRunning = true;
     console.log('[CRON] 🔄 Rozpoczynam automatyczne pobieranie maili ze wszystkich skrzynek...');
     
     try {
@@ -106,6 +119,8 @@ export function startEmailCron() {
       console.log(`[CRON] 🎉 Zakończono: ${totalEmailsCount} maili, ${totalSuccessCount} sukcesów, ${totalErrorCount} błędów`);
     } catch (error: any) {
       console.error('[CRON] ✗ Błąd podczas pobierania maili:', error.message);
+    } finally {
+      isEmailCronTaskRunning = false;
     }
   });
 
@@ -113,18 +128,34 @@ export function startEmailCron() {
   
   // Uruchom cron do wysyłki zaplanowanych kampanii (co 5 minut)
   campaignCronJob = cron.schedule('*/5 * * * *', async () => {
+    // Kolejkowanie - zapobiega nakładaniu się zadań
+    if (isCampaignCronTaskRunning) {
+      console.log('[CRON] ⏭️ Campaign cron już działa - pomijam');
+      return;
+    }
+    
+    isCampaignCronTaskRunning = true;
     console.log('[CRON] 📧 Sprawdzam zaplanowane kampanie...');
     try {
       await processScheduledCampaign();
     } catch (error: any) {
       console.error('[CRON] ✗ Błąd wysyłki kampanii:', error.message);
+    } finally {
+      isCampaignCronTaskRunning = false;
     }
   });
   
   console.log('[CRON] ✓ Campaign cron uruchomiony (sprawdzanie co 5 minut)');
   
-  // Uruchom cron do prefetch świąt + follow-upy (raz dziennie o 00:00)
-  holidayCronJob = cron.schedule('0 0 * * *', async () => {
+  // Uruchom cron do prefetch świąt + follow-upy (raz dziennie o 00:05 - przesunięte o 5 min)
+  holidayCronJob = cron.schedule('5 0 * * *', async () => {
+    // Kolejkowanie - zapobiega nakładaniu się zadań
+    if (isHolidayCronTaskRunning) {
+      console.log('[CRON] ⏭️ Holiday cron już działa - pomijam');
+      return;
+    }
+    
+    isHolidayCronTaskRunning = true;
     console.log('[CRON] 🎄 Prefetch świąt...');
     try {
       await prefetchHolidays();
@@ -137,25 +168,36 @@ export function startEmailCron() {
       await autoCreateFollowUps();
     } catch (error: any) {
       console.error('[CRON] ✗ Błąd follow-upów:', error.message);
+    } finally {
+      isHolidayCronTaskRunning = false;
     }
   });
   
-  console.log('[CRON] ✓ Holiday & Follow-up cron uruchomiony (o 00:00)');
+  console.log('[CRON] ✓ Holiday & Follow-up cron uruchomiony (o 00:05)');
   
   // Uruchom cron do dziennego raportu (o 18:00 codziennie)
   dailyReportCronJob = cron.schedule('0 18 * * *', async () => {
+    // Kolejkowanie - zapobiega nakładaniu się zadań
+    if (isDailyReportCronTaskRunning) {
+      console.log('[CRON] ⏭️ Daily report cron już działa - pomijam');
+      return;
+    }
+    
+    isDailyReportCronTaskRunning = true;
     console.log('[CRON] 📊 Wysyłam dzienny raport...');
     try {
       await sendDailyReportEmail();
     } catch (error: any) {
       console.error('[CRON] ✗ Błąd wysyłki raportu:', error.message);
+    } finally {
+      isDailyReportCronTaskRunning = false;
     }
   });
   
   console.log('[CRON] ✓ Daily Report cron uruchomiony (o 18:00)');
   
-  // Wykonaj prefetch świąt od razu przy starcie
-  prefetchHolidays().catch(err => console.error('[CRON] Błąd initial prefetch:', err));
+  // Prefetch świąt tylko jeśli nie ma danych w cache
+  checkAndPrefetchHolidays().catch(err => console.error('[CRON] Błąd initial prefetch:', err));
 }
 
 /**
