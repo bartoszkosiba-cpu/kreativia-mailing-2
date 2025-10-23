@@ -66,6 +66,12 @@ export default async function LeadDetailsPage({ params }: { params: { id: string
         </Link>
       </div>
 
+      {/* Zarządzanie statusem */}
+      <div style={{ backgroundColor: "#e7f3ff", padding: 20, borderRadius: 8, marginBottom: 20, border: "1px solid #b3d9ff" }}>
+        <h3 style={{ marginTop: 0, color: "#0066cc" }}>🔧 Zarządzanie statusem</h3>
+        <StatusManager leadId={lead.id} currentStatus={lead.status} />
+      </div>
+
       {/* Podstawowe dane */}
       <div style={{ backgroundColor: "#f8f9fa", padding: 20, borderRadius: 8, marginBottom: 20 }}>
         <h2 style={{ marginTop: 0 }}>
@@ -282,5 +288,106 @@ export default async function LeadDetailsPage({ params }: { params: { id: string
         </div>
       )}
     </main>
+  );
+}
+
+// Komponent do zarządzania statusem leada
+function StatusManager({ leadId, currentStatus }: { leadId: number; currentStatus: string }) {
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'Aktywny';
+      case 'BLOCKED': return 'Zablokowany';
+      case 'INACTIVE': return 'Nieaktywny';
+      case 'TEST': return 'Test';
+      case 'NO_GREETING': return 'Brak powitania';
+      default: return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return '#28a745';
+      case 'BLOCKED': return '#dc3545';
+      case 'INACTIVE': return '#ffc107';
+      case 'TEST': return '#17a2b8';
+      case 'NO_GREETING': return '#fd7e14';
+      default: return '#6c757d';
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!confirm(`Czy na pewno chcesz zmienić status na "${getStatusLabel(newStatus)}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/leads/${leadId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          status: newStatus,
+          blockedReason: newStatus === 'BLOCKED' ? 'MANUAL' : undefined
+        })
+      });
+
+      if (response.ok) {
+        alert(`✅ Status zmieniony na ${getStatusLabel(newStatus)}`);
+        window.location.reload(); // Odśwież stronę
+      } else {
+        const error = await response.json();
+        alert(`❌ Błąd: ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Błąd zmiany statusu:", error);
+      alert("❌ Wystąpił błąd podczas zmiany statusu");
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <span style={{ fontWeight: "500" }}>Aktualny status:</span>
+        <span 
+          style={{
+            padding: "6px 12px",
+            backgroundColor: getStatusColor(currentStatus) + "20",
+            color: getStatusColor(currentStatus),
+            border: `2px solid ${getStatusColor(currentStatus)}`,
+            borderRadius: "20px",
+            fontSize: "14px",
+            fontWeight: "600"
+          }}
+        >
+          {currentStatus === 'ACTIVE' && '✓ '}
+          {currentStatus === 'BLOCKED' && '🚫 '}
+          {currentStatus === 'INACTIVE' && '⏸️ '}
+          {currentStatus === 'TEST' && '🧪 '}
+          {getStatusLabel(currentStatus)}
+        </span>
+      </div>
+      
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <span style={{ fontWeight: "500" }}>Zmień na:</span>
+        <select
+          value={currentStatus}
+          onChange={(e) => handleStatusChange(e.target.value)}
+          style={{
+            padding: "8px 12px",
+            border: "2px solid #007bff",
+            borderRadius: "6px",
+            backgroundColor: "white",
+            fontSize: "14px",
+            fontWeight: "500",
+            cursor: "pointer"
+          }}
+        >
+          <option value="ACTIVE">✓ Aktywny</option>
+          <option value="BLOCKED">🚫 Zablokowany</option>
+          <option value="INACTIVE">⏸️ Nieaktywny</option>
+          <option value="TEST">🧪 Test</option>
+          <option value="NO_GREETING">📝 Brak powitania</option>
+        </select>
+      </div>
+    </div>
   );
 }
