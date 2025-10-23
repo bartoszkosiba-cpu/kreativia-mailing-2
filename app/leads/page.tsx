@@ -351,30 +351,6 @@ export default function LeadsPage() {
     }
   };
 
-  // Funkcja do zmiany statusu leada
-  const handleStatusChange = async (leadId: number, newStatus: string, leadName: string) => {
-    try {
-      const response = await fetch(`/api/leads/${leadId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          status: newStatus,
-          blockedReason: newStatus === 'BLOCKED' ? 'MANUAL' : undefined
-        })
-      });
-
-      if (response.ok) {
-        alert(`✅ Status leada "${leadName}" zmieniony na ${getStatusLabel(newStatus)}`);
-        fetchLeads();
-      } else {
-        const error = await response.json();
-        alert(`❌ Błąd: ${error.error}`);
-      }
-    } catch (error) {
-      console.error("Błąd zmiany statusu:", error);
-      alert("❌ Wystąpił błąd podczas zmiany statusu");
-    }
-  };
 
   // Funkcja do wyświetlania etykiet statusów
   const getStatusLabel = (status: string) => {
@@ -785,45 +761,25 @@ export default function LeadsPage() {
                     )}
                   </td>
                   <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px", maxWidth: "140px" }}>
-                      <span 
-                        className="badge" 
-                        style={{ 
-                          backgroundColor: getStatusColor(lead.status) + "20",
-                          color: getStatusColor(lead.status),
-                          border: `1px solid ${getStatusColor(lead.status)}`,
-                          fontSize: "10px",
-                          padding: "2px 6px",
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {lead.status === 'ACTIVE' && '✓'}
-                        {lead.status === 'BLOCKED' && '🚫'}
-                        {lead.status === 'INACTIVE' && '⏸️'}
-                        {lead.status === 'TEST' && '🧪'}
-                        {getStatusLabel(lead.status)}
-                      </span>
-                      <select
-                        value={lead.status}
-                        onChange={(e) => handleStatusChange(lead.id, e.target.value, `${lead.firstName} ${lead.lastName}`)}
-                        style={{
-                          fontSize: "10px",
-                          padding: "2px 4px",
-                          border: "1px solid var(--gray-300)",
-                          borderRadius: "4px",
-                          backgroundColor: "white",
-                          minWidth: "80px",
-                          maxWidth: "100px"
-                        }}
-                        title="Zmień status leada"
-                      >
-                        <option value="ACTIVE">Aktywny</option>
-                        <option value="BLOCKED">Zablokowany</option>
-                        <option value="INACTIVE">Nieaktywny</option>
-                        <option value="TEST">Test</option>
-                        <option value="NO_GREETING">Brak powitania</option>
-                      </select>
-                    </div>
+                    <span 
+                      className="badge" 
+                      style={{ 
+                        backgroundColor: getStatusColor(lead.status) + "20",
+                        color: getStatusColor(lead.status),
+                        border: `1px solid ${getStatusColor(lead.status)}`,
+                        fontSize: "11px",
+                        padding: "4px 8px",
+                        whiteSpace: "nowrap",
+                        display: "inline-block"
+                      }}
+                      title={`Status: ${getStatusLabel(lead.status)}`}
+                    >
+                      {lead.status === 'ACTIVE' && '✓ '}
+                      {lead.status === 'BLOCKED' && '🚫 '}
+                      {lead.status === 'INACTIVE' && '⏸️ '}
+                      {lead.status === 'TEST' && '🧪 '}
+                      {getStatusLabel(lead.status)}
+                    </span>
                   </td>
                   <td>
                     <div className="flex gap-xs" style={{ maxWidth: "120px", flexWrap: "wrap" }}>
