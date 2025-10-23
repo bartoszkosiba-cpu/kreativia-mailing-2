@@ -758,7 +758,7 @@ export default function LeadsPage() {
                   </td>
                   <td>
                     {lead.LeadTag.length > 0 ? (
-                      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", maxWidth: "120px" }}>
                         {lead.LeadTag.map((lt) => (
                           <span
                             key={lt.tag.id}
@@ -766,10 +766,17 @@ export default function LeadsPage() {
                             style={{
                               backgroundColor: lt.tag.color + "30",
                               color: lt.tag.color,
-                              border: `1px solid ${lt.tag.color}`
+                              border: `1px solid ${lt.tag.color}`,
+                              fontSize: "10px",
+                              padding: "2px 6px",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: "60px"
                             }}
+                            title={lt.tag.name}
                           >
-                            {lt.tag.name}
+                            {lt.tag.name.length > 8 ? lt.tag.name.substring(0, 8) + "..." : lt.tag.name}
                           </span>
                         ))}
                       </div>
@@ -778,13 +785,16 @@ export default function LeadsPage() {
                     )}
                   </td>
                   <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", maxWidth: "140px" }}>
                       <span 
                         className="badge" 
                         style={{ 
                           backgroundColor: getStatusColor(lead.status) + "20",
                           color: getStatusColor(lead.status),
-                          border: `1px solid ${getStatusColor(lead.status)}`
+                          border: `1px solid ${getStatusColor(lead.status)}`,
+                          fontSize: "10px",
+                          padding: "2px 6px",
+                          whiteSpace: "nowrap"
                         }}
                       >
                         {lead.status === 'ACTIVE' && '✓'}
@@ -797,11 +807,13 @@ export default function LeadsPage() {
                         value={lead.status}
                         onChange={(e) => handleStatusChange(lead.id, e.target.value, `${lead.firstName} ${lead.lastName}`)}
                         style={{
-                          fontSize: "12px",
+                          fontSize: "10px",
                           padding: "2px 4px",
                           border: "1px solid var(--gray-300)",
                           borderRadius: "4px",
-                          backgroundColor: "white"
+                          backgroundColor: "white",
+                          minWidth: "80px",
+                          maxWidth: "100px"
                         }}
                         title="Zmień status leada"
                       >
@@ -814,16 +826,16 @@ export default function LeadsPage() {
                     </div>
                   </td>
                   <td>
-                    <div className="flex gap-xs">
+                    <div className="flex gap-xs" style={{ maxWidth: "120px", flexWrap: "wrap" }}>
                       <Link href={`/leads/${lead.id}`}>
-                        <button className="btn btn-primary" style={{ fontSize: "12px", padding: "6px 12px" }}>
+                        <button className="btn btn-primary" style={{ fontSize: "10px", padding: "4px 8px", minWidth: "60px" }}>
                           Szczegóły
                         </button>
                       </Link>
                       <button 
                         onClick={() => handleDeleteSingle(lead.id, `${lead.firstName} ${lead.lastName} (${lead.email})`)}
                         className="btn btn-danger" 
-                        style={{ fontSize: "12px", padding: "6px 12px" }}
+                        style={{ fontSize: "10px", padding: "4px 6px", minWidth: "30px" }}
                         title="Usuń leada"
                       >
                         🗑️
