@@ -12,12 +12,10 @@ export default function Navbar() {
   const navItems = [
     { 
       href: "/", 
-      label: "Dashboard",
-      icon: "📊"
+      label: "Dashboard"
     },
     { 
       label: "Kampanie",
-      icon: "📧",
       dropdown: [
         { href: "/campaigns", label: "Kampanie" },
         { href: "/content-planner", label: "Planer treści" },
@@ -26,12 +24,10 @@ export default function Navbar() {
     },
     { 
       href: "/leads", 
-      label: "Leady",
-      icon: "📝"
+      label: "Leady"
     },
     { 
       label: "Handlowcy",
-      icon: "👥",
       dropdown: [
         { href: "/salespeople", label: "Handlowcy" },
         { href: "/warmup", label: "Warmup" },
@@ -40,18 +36,15 @@ export default function Navbar() {
     },
     { 
       href: "/archive", 
-      label: "Archiwum",
-      icon: "📚"
+      label: "Archiwum"
     },
     { 
       href: "/reports", 
-      label: "Raporty",
-      icon: "📈"
+      label: "Raporty"
     },
     { 
       href: "/settings", 
-      label: "Ustawienia",
-      icon: "⚙️"
+      label: "Ustawienia"
     }
   ];
 
@@ -173,7 +166,6 @@ export default function Navbar() {
                       }
                     }}
                   >
-                    <span>{item.icon}</span>
                     <span>{item.label}</span>
                   </Link>
                 );
@@ -209,7 +201,6 @@ export default function Navbar() {
                         cursor: "pointer"
                       }}
                     >
-                      <span>{item.icon}</span>
                       <span>{item.label}</span>
                       <span style={{ 
                         fontSize: "10px",
