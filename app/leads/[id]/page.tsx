@@ -1,44 +1,101 @@
-import { db } from "@/lib/db";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { headers } from "next/headers";
+"use client";
 
-export default async function LeadDetailsPage({ params }: { params: { id: string } }) {
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+interface Lead {
+  id: number;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  company: string | null;
+  title: string | null;
+  industry: string | null;
+  websiteUrl: string | null;
+  linkedinUrl: string | null;
+  companyCity: string | null;
+  companyCountry: string | null;
+  language: string | null;
+  status: string;
+  isBlocked: boolean;
+  blockedReason: string | null;
+  blockedAt: Date | null;
+  personalization: string | null;
+  CampaignLead: Array<{
+    id: number;
+    campaign: {
+      id: number;
+      name: string;
+    };
+  }>;
+  LeadTag: Array<{
+    id: number;
+    tag: {
+      id: number;
+      name: string;
+      color: string;
+    };
+  }>;
+  SendLog: Array<{
+    id: number;
+    campaignId: number;
+    status: string;
+    createdAt: Date;
+  }>;
+  replies: Array<{
+    id: number;
+    subject: string;
+    receivedAt: Date;
+    isRead: boolean;
+    classification: string;
+    aiSummary: string | null;
+  }>;
+}
+
+export default function LeadDetailsPage({ params }: { params: { id: string } }) {
   const leadId = Number(params.id);
-  
-  if (Number.isNaN(leadId)) {
-    notFound();
+  const router = useRouter();
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [referer, setReferer] = useState('/archive');
+
+  useEffect(() => {
+    if (Number.isNaN(leadId)) {
+      router.push('/404');
+      return;
+    }
+
+    // Pobierz referer z document.referrer
+    setReferer(document.referrer || '/archive');
+
+    // Pobierz dane leada
+    const fetchLead = async () => {
+      try {
+        const response = await fetch(`/api/leads/${leadId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setLead(data);
+        } else {
+          router.push('/404');
+        }
+      } catch (error) {
+        console.error('Błąd pobierania leada:', error);
+        router.push('/404');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLead();
+  }, [leadId, router]);
+
+  if (isLoading) {
+    return <main className="container" style={{ paddingTop: "var(--spacing-xl)" }}><h1>Ładowanie...</h1></main>;
   }
 
-  // Pobierz referer z nagłówków
-  const headersList = await headers();
-  const referer = headersList.get('referer') || '/archive';
-
-  const lead = await db.lead.findUnique({
-    where: { id: leadId },
-    include: {
-      CampaignLead: {
-        include: {
-          campaign: true
-        }
-      },
-      LeadTag: {
-        include: {
-          tag: true
-        }
-      },
-      SendLog: {
-        orderBy: { createdAt: "desc" },
-        take: 10
-      },
-      replies: {
-        orderBy: { receivedAt: "desc" }
-      }
-    }
-  });
-
   if (!lead) {
-    notFound();
+    return <main className="container" style={{ paddingTop: "var(--spacing-xl)" }}><h1>Lead nie znaleziony</h1></main>;
   }
 
   return (
