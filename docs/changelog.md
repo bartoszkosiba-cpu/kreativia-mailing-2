@@ -81,3 +81,7 @@
 - `git status` - pokazuje status repozytorium
 - `ls docs/` - pokazuje strukturę dokumentacji
 - `ls backups/` - pokazuje kopie zapasowe
+
+## 2025-10-24_16-57-14 - Auto Backup
+- Utworzono kopię zapasową: `backup-2025-10-24_16-57-14`
+- Lokalizacja: `backups/backup-2025-10-24_16-57-14/`

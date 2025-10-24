@@ -123,12 +123,29 @@ model Lead {
   language       String?   @default("pl") // pl, en, de, fr
   personalization String?  // AI-generated or manually edited personalization
   greetingForm   String?   // "Dzień dobry Panie Krystianie" - odmiana imienia
-  status         String    @default("NO_GREETING") // NO_GREETING, ACTIVE, BLOCKED, INACTIVE, TEST
+  
+  // NEW STATUS SYSTEM
+  status         String    @default("AKTYWNY") // AKTYWNY, ZAINTERESOWANY, BLOKADA, CZEKAJ, TEST
+  subStatus      String?   // ZAINTERESOWANY_CAMPAIGN, BLOKADA_REFUSAL, CZEKAJ_MAYBE, etc.
+  blockedCampaigns String? // JSON array of campaign IDs [1,2,3]
+  reactivatedAt  DateTime? // When was reactivated
+  lastReactivation String? // From which status was reactivated
+  
+  // LEAD RELATIONSHIPS AND SOURCES
+  originalLeadId Int?      // ID of lead that "created" this lead (OOO, REDIRECT)
+  originalLead   Lead?     @relation("LeadDerivatives", fields: [originalLeadId], references: [id])
+  derivativeLeads Lead[]   @relation("LeadDerivatives")
+  source         String?   // CSV_IMPORT, OOO_RESPONSE, REDIRECT_RESPONSE, UNATTACHED
+  sourceDetails  String?   // JSON with additional information
+  
+  // DEPRECATED FIELDS (keep for backward compatibility)
   blockedReason  String?   // SPAM, UNSUBSCRIBE, BOUNCE, INVALID_EMAIL, MANUAL
   blockedAt      DateTime?
   isBlocked      Boolean   @default(false) // Deprecated - użyj status
   campaignId     Int?
   campaign       Campaign? @relation(fields: [campaignId], references: [id])
+  
+  // RELATIONS
   SendLog        SendLog[]
   CampaignLead   CampaignLead[]
   LeadTag        LeadTag[]
