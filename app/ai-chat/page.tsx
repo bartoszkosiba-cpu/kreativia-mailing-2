@@ -158,7 +158,7 @@ export default function AIChatPage() {
         </div>
 
         {/* Main Content - Two Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar - Rules */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm mb-6">
@@ -237,7 +237,7 @@ export default function AIChatPage() {
           </div>
 
           {/* Main Chat Area */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-3">
             <div className="bg-white rounded-lg shadow-sm mb-6">
               <div className="p-4 border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900">
