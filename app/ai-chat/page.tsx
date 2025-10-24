@@ -42,7 +42,7 @@ export default function AIChatPage() {
       const data = await response.json();
       
       if (data.success) {
-        setMessages(data.data || []);
+        setMessages(data.data?.history || []);
       }
     } catch (error) {
       console.error('Błąd pobierania historii chat:', error);
