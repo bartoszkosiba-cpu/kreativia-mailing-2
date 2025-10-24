@@ -214,15 +214,26 @@ model Lead {
 
 ---
 
-## [→] NOTATKI DO IMPLEMENTACJI
+## [→] PLAN WDROŻENIA
 
-### TODO:
-- [ ] Zaimplementować nowe statusy w bazie danych
-- [ ] Zaktualizować AI Agent z nową logiką
-- [ ] Dodać logikę blockedCampaigns
-- [ ] Zaimplementować reaktywację z BLOKADA
-- [ ] Dodać interfejs dla CZEKAJ_REDIRECT
-- [ ] Zaktualizować UI z nowymi kolorami i ikonami
+**Szczegółowy plan implementacji:** [docs/plan-wdrozenia-statusow.md](./plan-wdrozenia-statusow.md)
+
+### FAZY WDROŻENIA:
+1. **FAZA 1:** Przygotowanie bazy danych (DZIEŃ 1)
+2. **FAZA 2:** Aktualizacja AI Agent (DZIEŃ 2)
+3. **FAZA 3:** Logika wysyłki kampanii (DZIEŃ 3)
+4. **FAZA 4:** Interfejs użytkownika (DZIEŃ 4)
+5. **FAZA 5:** System AUTO_FOLLOWUP (DZIEŃ 5)
+6. **FAZA 6:** Testy i walidacja (DZIEŃ 6)
+7. **FAZA 7:** Wdrożenie i monitoring (DZIEŃ 7)
+
+### KRYTERIA SUKCESU:
+- [ ] Wszystkie statusy działają zgodnie z dokumentacją
+- [ ] AI Agent poprawnie klasyfikuje i podejmuje akcje
+- [ ] System wysyłki respektuje nowe reguły
+- [ ] UI wyświetla statusy i pozwala na zarządzanie
+- [ ] 0 błędów TypeScript, wszystkie testy przechodzą
+- [ ] Handlowcy otrzymują powiadomienia o ZAINTERESOWANY
 
 ### UWAGI:
 - System skupia się na generowaniu zainteresowanych leadów
