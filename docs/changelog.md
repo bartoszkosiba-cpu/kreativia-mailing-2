@@ -1,5 +1,25 @@
 # Historia Zmian
 
+## 2024-12-19
+
+### [→] Utworzono dokumentację systemu statusów
+**Co zrobiłem:**
+- Utworzono `docs/system-statusy.md` z kompletną dokumentacją systemu statusów
+- Zdefiniowano 3 główne statusy: AKTYWNY, ZAINTERESOWANY, BLOKADA
+- Dodano podstatusy dla szczegółowej logiki (ZAINTERESOWANY_CAMPAIGN, BLOKADA_REFUSAL, etc.)
+- Określono workflow i logikę AI Agent dla każdego statusu
+- Zdefiniowano strukturę bazy danych z nowymi polami
+- Zaktualizowano `docs/overview.md` z linkiem do nowej dokumentacji
+
+**Gdzie to jest:**
+- `docs/system-statusy.md` - główna dokumentacja systemu statusów
+- `docs/overview.md` - zaktualizowany z linkiem do system-statusy.md
+
+**Jak sprawdzić:**
+- Otwórz `docs/system-statusy.md` - kompletna dokumentacja
+- Sprawdź sekcję "HISTORIA ZMIAN" w dokumentacji
+- Zobacz "NOTATKI DO IMPLEMENTACJI" dla następnych kroków
+
 ## 2025-10-23
 
 ### [→] Uruchomienie procedury startup

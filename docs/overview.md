@@ -54,7 +54,8 @@ docs/                  # Dokumentacja
 ├── changelog.md     # Historia zmian
 ├── decisions.md     # Ważne decyzje
 ├── code-review.md   # Przegląd kodu
-└── code-health.md   # Stan kodu
+├── code-health.md   # Stan kodu
+└── system-statusy.md # System statusów leadów
 
 backups/              # Kopie zapasowe
 project-config/       # Konfiguracja projektu
