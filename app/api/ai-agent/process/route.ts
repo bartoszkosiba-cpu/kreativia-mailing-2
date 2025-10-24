@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processReplyWithAI, processAllPendingReplies } from "@/services/aiAgent";
+import { EmailAgentAI } from "@/services/emailAgentAI";
 
 // POST: Przetwórz konkretną odpowiedź
 export async function POST(request: NextRequest) {
@@ -12,7 +12,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API] Przetwarzanie odpowiedzi ID: ${replyId} przez AI Agent`);
     
-    const analysis = await processReplyWithAI(replyId);
+    const analysis = await EmailAgentAI.processEmailReply(replyId);
+    await EmailAgentAI.executeActions(analysis, replyId);
     
     return NextResponse.json({
       success: true,
@@ -45,7 +46,8 @@ export async function GET() {
   try {
     console.log("[API] Rozpoczynam przetwarzanie wszystkich nieprzetworzonych odpowiedzi");
     
-    await processAllPendingReplies();
+    // TODO: Implementuj processAllPendingReplies w EmailAgentAI
+    console.log("[API] Funkcja processAllPendingReplies nie jest jeszcze zaimplementowana w EmailAgentAI");
     
     return NextResponse.json({
       success: true,

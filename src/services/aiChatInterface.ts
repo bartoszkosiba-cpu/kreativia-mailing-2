@@ -165,9 +165,26 @@ export class AIChatInterface {
 
       const classification = classificationMatch[1].toUpperCase();
       
-      // Wyciągnij keywords
-      const keywordsMatch = ruleText.match(/['"]([^'"]+)['"]/);
-      const keywords = keywordsMatch ? [keywordsMatch[1]] : [];
+      // Wyciągnij keywords - szukaj tekstu między cudzysłowami lub po "pisze"
+      let keywords: string[] = [];
+      
+      // Próbuj wyciągnąć z cudzysłowów
+      const quotedMatch = ruleText.match(/['"]([^'"]+)['"]/);
+      if (quotedMatch) {
+        keywords = [quotedMatch[1].trim()];
+      } else {
+        // Próbuj wyciągnąć po "pisze" do "to" - uwzględnij wielosłowne frazy
+        const piszeMatch = ruleText.match(/pisze\s+([^to]+?)\s+to/i);
+        if (piszeMatch) {
+          keywords = [piszeMatch[1].trim()];
+        } else {
+          // Fallback - wyciągnij wszystko między "pisze" a "to klasyfikuj"
+          const fallbackMatch = ruleText.match(/pisze\s+(.+?)\s+to\s+klasyfikuj/i);
+          if (fallbackMatch) {
+            keywords = [fallbackMatch[1].trim()];
+          }
+        }
+      }
 
       // Domyślne wartości
       const confidence = 0.8;

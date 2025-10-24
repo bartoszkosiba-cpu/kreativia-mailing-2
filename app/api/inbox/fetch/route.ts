@@ -66,8 +66,9 @@ export async function POST() {
             // Automatycznie uruchom AI Agent dla nowej odpowiedzi
             if (result.replyId) {
               try {
-                const { processReplyWithAI } = await import('@/services/aiAgent');
-                await processReplyWithAI(result.replyId);
+                const { EmailAgentAI } = await import('@/services/emailAgentAI');
+                const analysis = await EmailAgentAI.processEmailReply(result.replyId);
+                await EmailAgentAI.executeActions(analysis, result.replyId);
                 console.log(`[FETCH] 🤖 AI Agent przetworzył odpowiedź ID: ${result.replyId}`);
               } catch (aiError: any) {
                 console.error(`[FETCH] ⚠ Błąd AI Agent dla odpowiedzi ${result.replyId}:`, aiError.message);
