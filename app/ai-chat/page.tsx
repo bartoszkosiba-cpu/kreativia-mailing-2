@@ -10,12 +10,6 @@ interface ChatMessage {
   createdAt: Date;
 }
 
-interface ChatResponse {
-  message: string;
-  rulesCreated: string[];
-  suggestions: string[];
-}
-
 export default function AIChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -23,7 +17,7 @@ export default function AIChatPage() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [rules, setRules] = useState<any[]>([]);
 
-  // Pobierz historię chat i zasady przy załadowaniu
+  // Fetch chat history and rules on component mount
   useEffect(() => {
     fetchChatHistory();
     fetchRules();
@@ -48,7 +42,7 @@ export default function AIChatPage() {
       const data = await response.json();
       
       if (data.success) {
-        setMessages(data.data.history);
+        setMessages(data.data || []);
       }
     } catch (error) {
       console.error('Błąd pobierania historii chat:', error);
@@ -62,14 +56,15 @@ export default function AIChatPage() {
     setInputMessage('');
     setIsLoading(true);
 
-    // Dodaj wiadomość użytkownika do UI
+    // Add user message to chat
     const userMsg: ChatMessage = {
-      id: `user_${Date.now()}`,
+      id: Date.now().toString(),
       userMessage,
       aiResponse: '',
       rulesCreated: [],
       createdAt: new Date()
     };
+
     setMessages(prev => [...prev, userMsg]);
 
     try {
@@ -84,33 +79,32 @@ export default function AIChatPage() {
       const data = await response.json();
 
       if (data.success) {
-        const aiResponse: ChatResponse = data.data;
-        
-        // Dodaj odpowiedź AI do UI
         const aiMsg: ChatMessage = {
-          id: `ai_${Date.now()}`,
+          id: (Date.now() + 1).toString(),
           userMessage: '',
-          aiResponse: aiResponse.message,
-          rulesCreated: aiResponse.rulesCreated,
+          aiResponse: data.response,
+          rulesCreated: data.rulesCreated || [],
           createdAt: new Date()
         };
-        
+
         setMessages(prev => [...prev, aiMsg]);
-        setSuggestions(aiResponse.suggestions);
-        
-        // Odśwież zasady jeśli utworzono nowe
-        if (aiResponse.rulesCreated.length > 0) {
+
+        // Refresh rules if new ones were created
+        if (data.rulesCreated && data.rulesCreated.length > 0) {
           fetchRules();
         }
+
+        // Set suggestions
+        if (data.suggestions) {
+          setSuggestions(data.suggestions);
+        }
       } else {
-        throw new Error(data.error || 'Błąd przetwarzania wiadomości');
+        throw new Error(data.error || 'Błąd komunikacji z AI');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Błąd wysyłania wiadomości:', error);
-      
-      // Dodaj wiadomość o błędzie
       const errorMsg: ChatMessage = {
-        id: `error_${Date.now()}`,
+        id: (Date.now() + 1).toString(),
         userMessage: '',
         aiResponse: `❌ Błąd: ${error instanceof Error ? error.message : 'Nieznany błąd'}`,
         rulesCreated: [],
@@ -130,228 +124,227 @@ export default function AIChatPage() {
   };
 
   const formatTime = (date: Date) => {
-    return new Date(date).toLocaleTimeString('pl-PL', {
+    return new Intl.DateTimeFormat('pl-PL', {
       hour: '2-digit',
       minute: '2-digit'
-    });
+    }).format(date);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto p-6" style={{ maxWidth: '1200px', width: '100%' }}>
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                🤖 AI Chat Interface
-              </h1>
-              <p className="text-gray-600">
-                Inteligentny chat do zarządzania zasadami klasyfikacji emaili
-              </p>
+    <div className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
+      <div style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <h1 style={{ fontSize: "2.5rem", marginBottom: "var(--spacing-sm)" }}>
+          AI Chat Interface
+        </h1>
+        <p style={{ fontSize: "1.1rem", color: "var(--gray-600)" }}>
+          Inteligentny chat do zarządzania zasadami klasyfikacji emaili
+        </p>
+      </div>
+
+      {/* Main Content - Two Column Layout */}
+      <div className="grid" style={{ gridTemplateColumns: "1fr 3fr", gap: "var(--spacing-lg)" }}>
+        {/* Sidebar - Rules */}
+        <div>
+          <div className="card" style={{ marginBottom: "var(--spacing-lg)" }}>
+            <div className="card-header">
+              <h3>Zasady AI</h3>
             </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-500">Status</div>
-              <div className="text-green-600 font-semibold">🟢 Online</div>
+            <div>
+              {rules.length > 0 ? (
+                rules.slice(0, 5).map((rule, index) => (
+                  <div key={rule.id} style={{ marginBottom: "var(--spacing-md)", padding: "var(--spacing-sm)", backgroundColor: "var(--gray-50)", borderRadius: "var(--radius)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--spacing-xs)" }}>
+                      <span style={{ fontWeight: "600", color: "var(--color-text)" }}>
+                        {rule.classification}
+                      </span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--gray-500)" }}>
+                        {Math.round(rule.confidence * 100)}%
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--gray-600)" }}>
+                      {rule.keywords.slice(0, 2).join(', ')}
+                      {rule.keywords.length > 2 && '...'}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: "center", color: "var(--gray-500)", padding: "var(--spacing-lg)" }}>
+                  Ładowanie zasad...
+                </div>
+              )}
+              {rules.length > 5 && (
+                <div style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--color-primary)", marginTop: "var(--spacing-sm)" }}>
+                  +{rules.length - 5} więcej zasad
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="card">
+            <div className="card-header">
+              <h3>Szybkie akcje</h3>
+            </div>
+            <div>
+              <button
+                onClick={() => setInputMessage("Pokaż wszystkie zasady")}
+                className="btn"
+                style={{ width: "100%", marginBottom: "var(--spacing-sm)", justifyContent: "flex-start" }}
+              >
+                Pokaż wszystkie zasady
+              </button>
+              <button
+                onClick={() => setInputMessage("Pokaż zasady dla INTERESTED")}
+                className="btn"
+                style={{ width: "100%", marginBottom: "var(--spacing-sm)", justifyContent: "flex-start", backgroundColor: "var(--success)", color: "white" }}
+              >
+                Zasady INTERESTED
+              </button>
+              <button
+                onClick={() => setInputMessage("Pokaż zasady dla NOT_INTERESTED")}
+                className="btn"
+                style={{ width: "100%", marginBottom: "var(--spacing-sm)", justifyContent: "flex-start", backgroundColor: "var(--error)", color: "white" }}
+              >
+                Zasady NOT_INTERESTED
+              </button>
+              <button
+                onClick={() => setInputMessage("Pokaż zasady dla MAYBE_LATER")}
+                className="btn"
+                style={{ width: "100%", justifyContent: "flex-start", backgroundColor: "var(--warning)", color: "white" }}
+              >
+                Zasady MAYBE_LATER
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Main Content - Two Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar - Rules */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm mb-6">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  📋 Zasady AI
-                </h3>
-              </div>
-              <div className="p-4">
-                <div className="space-y-3">
-                  {rules.length > 0 ? (
-                    rules.slice(0, 5).map((rule, index) => (
-                      <div key={rule.id} className="text-sm">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-gray-800">
-                            {rule.classification}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {rule.confidence * 100}%
-                          </span>
-                        </div>
-                        <div className="text-gray-600 text-xs">
-                          {rule.keywords.slice(0, 2).join(', ')}
-                          {rule.keywords.length > 2 && '...'}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-gray-500">
-                      Ładowanie zasad...
-                    </div>
-                  )}
-                  {rules.length > 5 && (
-                    <div className="text-xs text-blue-600 text-center pt-2">
-                      +{rules.length - 5} więcej zasad
-                    </div>
-                  )}
+        {/* Main Chat Area */}
+        <div>
+          <div className="card" style={{ marginBottom: "var(--spacing-lg)" }}>
+            <div className="card-header">
+              <h3>Chat z AI</h3>
+            </div>
+            
+            <div style={{ height: "400px", overflowY: "auto", padding: "var(--spacing-md)" }}>
+              {messages.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--gray-500)", padding: "var(--spacing-2xl)" }}>
+                  <div style={{ fontSize: "4rem", marginBottom: "var(--spacing-lg)" }}>🤖</div>
+                  <p style={{ fontSize: "1.2rem", marginBottom: "var(--spacing-sm)" }}>Witaj w AI Chat Interface!</p>
+                  <p style={{ fontSize: "0.9rem" }}>Rozpocznij rozmowę z AI, aby zarządzać zasadami klasyfikacji.</p>
                 </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow-sm">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  ⚡ Szybkie akcje
-                </h3>
-              </div>
-              <div className="p-4 space-y-2">
-                <button
-                  onClick={() => setInputMessage("Pokaż wszystkie zasady")}
-                  className="w-full text-left px-3 py-2 bg-blue-50 text-blue-700 rounded text-sm hover:bg-blue-100 transition-colors"
-                >
-                  📋 Pokaż wszystkie zasady
-                </button>
-                <button
-                  onClick={() => setInputMessage("Pokaż zasady dla INTERESTED")}
-                  className="w-full text-left px-3 py-2 bg-green-50 text-green-700 rounded text-sm hover:bg-green-100 transition-colors"
-                >
-                  ✅ Zasady INTERESTED
-                </button>
-                <button
-                  onClick={() => setInputMessage("Pokaż zasady dla NOT_INTERESTED")}
-                  className="w-full text-left px-3 py-2 bg-red-50 text-red-700 rounded text-sm hover:bg-red-100 transition-colors"
-                >
-                  ❌ Zasady NOT_INTERESTED
-                </button>
-                <button
-                  onClick={() => setInputMessage("Pokaż zasady dla MAYBE_LATER")}
-                  className="w-full text-left px-3 py-2 bg-yellow-50 text-yellow-700 rounded text-sm hover:bg-yellow-100 transition-colors"
-                >
-                  ⏰ Zasady MAYBE_LATER
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Chat Area */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-sm mb-6">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  💬 Chat z AI
-                </h2>
-              </div>
-              
-              <div className="h-96 overflow-y-auto p-6 space-y-4">
-            {messages.length === 0 ? (
-              <div className="text-center text-gray-500 py-12">
-                <div className="text-6xl mb-4">🤖</div>
-                <p className="text-lg mb-2">Witaj w AI Chat Interface!</p>
-                <p className="text-sm">Rozpocznij rozmowę z AI, aby zarządzać zasadami klasyfikacji.</p>
-              </div>
-            ) : (
-              messages.map((message) => (
-                <div key={message.id} className="space-y-3">
-                  {message.userMessage && (
-                    <div className="flex justify-end">
-                      <div className="bg-blue-500 text-white rounded-lg px-4 py-3 max-w-md shadow-sm">
-                        <p className="text-sm leading-relaxed">{message.userMessage}</p>
-                        <p className="text-xs opacity-75 mt-2 text-right">
-                          {formatTime(message.createdAt)}
-                        </p>
+              ) : (
+                messages.map((message) => (
+                  <div key={message.id} style={{ marginBottom: "var(--spacing-lg)" }}>
+                    {message.userMessage && (
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--spacing-sm)" }}>
+                        <div style={{ backgroundColor: "var(--color-primary)", color: "white", padding: "var(--spacing-md)", borderRadius: "var(--radius-lg)", maxWidth: "70%", boxShadow: "var(--shadow-sm)" }}>
+                          <p style={{ fontSize: "0.9rem", lineHeight: "1.5", marginBottom: "var(--spacing-xs)" }}>{message.userMessage}</p>
+                          <p style={{ fontSize: "0.7rem", opacity: "0.8", textAlign: "right" }}>
+                            {formatTime(message.createdAt)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  
-                  {message.aiResponse && (
-                    <div className="flex justify-start">
-                      <div className="bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-4 py-3 max-w-3xl shadow-sm">
-                        <div className="flex items-start space-x-2">
-                          <div className="text-lg">🤖</div>
-                          <div className="flex-1">
-                            <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                              {message.aiResponse}
-                            </div>
-                            {message.rulesCreated.length > 0 && (
-                              <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
-                                ✅ Utworzono {message.rulesCreated.length} zasad
+                    )}
+                    
+                    {message.aiResponse && (
+                      <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: "var(--spacing-sm)" }}>
+                        <div style={{ backgroundColor: "var(--gray-50)", border: "1px solid var(--gray-200)", color: "var(--color-text)", padding: "var(--spacing-md)", borderRadius: "var(--radius-lg)", maxWidth: "90%", boxShadow: "var(--shadow-sm)" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--spacing-sm)" }}>
+                            <div style={{ fontSize: "1.2rem" }}>🤖</div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ whiteSpace: "pre-wrap", fontSize: "0.9rem", lineHeight: "1.5", marginBottom: "var(--spacing-sm)" }}>
+                                {message.aiResponse}
                               </div>
-                            )}
-                            <p className="text-xs text-gray-500 mt-2">
-                              {formatTime(message.createdAt)}
-                            </p>
+                              {message.rulesCreated.length > 0 && (
+                                <div style={{ marginTop: "var(--spacing-sm)", padding: "var(--spacing-sm)", backgroundColor: "var(--success)", color: "white", borderRadius: "var(--radius)", fontSize: "0.8rem" }}>
+                                  ✅ Utworzono {message.rulesCreated.length} zasad
+                                </div>
+                              )}
+                              <p style={{ fontSize: "0.7rem", color: "var(--gray-500)", marginTop: "var(--spacing-sm)" }}>
+                                {formatTime(message.createdAt)}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-            
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-4 py-3 shadow-sm">
-                  <div className="flex items-center space-x-2">
-                    <div className="text-lg">🤖</div>
-                    <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                      <span className="text-sm">AI analizuje...</span>
-                    </div>
+                    )}
                   </div>
-                </div>
-              </div>
-            )}
-              </div>
-            </div>
+                ))
+              )}
 
-            {/* Input Area */}
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="flex space-x-3">
-                <div className="flex-1">
-                  <textarea
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Napisz wiadomość do AI... (np. 'Dodaj zasadę: jeśli lead pisze nie teraz to klasyfikuj jako MAYBE_LATER')"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
-                    rows={3}
-                    disabled={isLoading}
-                  />
-                </div>
-                <button
-                  onClick={sendMessage}
-                  disabled={!inputMessage.trim() || isLoading}
-                  className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  {isLoading ? '⏳' : '📤'}
-                </button>
-              </div>
-              
-              {/* Suggestions */}
-              {suggestions.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm text-gray-600 mb-2">💡 Sugestie:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestions.map((suggestion, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setInputMessage(suggestion)}
-                        className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm hover:bg-blue-100 transition-colors border border-blue-200"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
+              {isLoading && (
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div style={{ backgroundColor: "var(--gray-50)", border: "1px solid var(--gray-200)", color: "var(--color-text)", padding: "var(--spacing-md)", borderRadius: "var(--radius-lg)", maxWidth: "90%", boxShadow: "var(--shadow-sm)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)" }}>
+                      <div style={{ width: "16px", height: "16px", border: "2px solid var(--gray-300)", borderTop: "2px solid var(--gray-600)", borderRadius: "50%", animation: "spin 1s linear infinite" }}></div>
+                      <span style={{ fontSize: "0.9rem" }}>AI analizuje...</span>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           </div>
-        </div>
 
+          {/* Input Area */}
+          <div className="card">
+            <div style={{ display: "flex", gap: "var(--spacing-md)" }}>
+              <div style={{ flex: 1 }}>
+                <textarea
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Napisz wiadomość do AI... (np. 'Dodaj zasadę: jeśli lead pisze nie teraz to klasyfikuj jako MAYBE_LATER')"
+                  style={{ 
+                    width: "100%", 
+                    padding: "var(--spacing-md)", 
+                    border: "1px solid var(--gray-300)", 
+                    borderRadius: "var(--radius)", 
+                    resize: "none", 
+                    fontSize: "0.9rem",
+                    fontFamily: "inherit"
+                  }}
+                  rows={3}
+                  disabled={isLoading}
+                />
+              </div>
+              <button
+                onClick={sendMessage}
+                disabled={!inputMessage.trim() || isLoading}
+                className="btn btn-primary"
+                style={{ 
+                  padding: "var(--spacing-md) var(--spacing-lg)",
+                  alignSelf: "flex-start"
+                }}
+              >
+                {isLoading ? '⏳' : '📤'}
+              </button>
+            </div>
+            
+            {/* Suggestions */}
+            {suggestions.length > 0 && (
+              <div style={{ marginTop: "var(--spacing-md)" }}>
+                <p style={{ fontSize: "0.9rem", color: "var(--gray-600)", marginBottom: "var(--spacing-sm)" }}>💡 Sugestie:</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-sm)" }}>
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setInputMessage(suggestion)}
+                      className="btn"
+                      style={{ 
+                        fontSize: "0.8rem", 
+                        padding: "var(--spacing-xs) var(--spacing-sm)",
+                        backgroundColor: "var(--color-primary)",
+                        color: "white"
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
