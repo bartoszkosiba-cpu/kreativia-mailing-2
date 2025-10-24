@@ -138,7 +138,7 @@ export default function AIChatPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto p-6" style={{ maxWidth: '1200px' }}>
+      <div className="mx-auto p-6" style={{ maxWidth: '1200px', width: '100%' }}>
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between">
