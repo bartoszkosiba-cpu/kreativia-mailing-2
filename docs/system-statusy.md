@@ -49,10 +49,11 @@
 - **BLOKADA_REFUSAL** - odmowa ("nie jestem zainteresowany")
 - **BLOKADA_BOUNCE** - odbicie emaila
 - **BLOKADA_UNSUBSCRIBE** - prośba o wypisanie
+- **BLOKADA_REDIRECT_COMPLETED** - przekazał kontakt i został zablokowany
 
 ### C) CZEKAJ (nowy status):
 - **CZEKAJ_MAYBE** - "dodaliśmy do bazy, odezwiemy się"
-- **CZEKAJ_REDIRECT** - "przekazałem do odpowiedniego działu"
+- **CZEKAJ_REDIRECT_AWAITING_CONTACT** - "przekazałem do odpowiedniego działu" (czeka na kontakt)
 - **CZEKAJ_OOO** - out of office (czeka na powrót)
 - **CZEKAJ_OOO_WITH_CONTACTS** - OOO z przekazanymi kontaktami zastępczymi
 
