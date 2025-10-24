@@ -53,6 +53,8 @@
 ### C) CZEKAJ (nowy status):
 - **CZEKAJ_MAYBE** - "dodaliśmy do bazy, odezwiemy się"
 - **CZEKAJ_REDIRECT** - "przekazałem do odpowiedniego działu"
+- **CZEKAJ_OOO** - out of office (czeka na powrót)
+- **CZEKAJ_OOO_WITH_CONTACTS** - OOO z przekazanymi kontaktami zastępczymi
 
 ---
 
@@ -81,6 +83,13 @@ Nowy mail → "Proszę o wycenę" → ZAINTERESOWANY (ZAINTERESOWANY_NEW)
 ### 4. **REAKTYWACJA:**
 ```
 BLOKADA → Odpowiedź pozytywna → ZAINTERESOWANY (ZAINTERESOWANY_REACTIVATED)
+```
+
+### 5. **SCENARIUSZ OOO Z NOWYMI LEADAMI:**
+```
+Lead A (AKTYWNY) → Kampania → OOO: "Piszcie do jan.kowalski@firma.pl"
+├── Lead A → CZEKAJ (CZEKAJ_OOO_WITH_CONTACTS) - kontynuuje follow-upy
+└── Lead B (NOWY) → AKTYWNY - dostaje wszystkie emaile od początku kampanii
 ```
 
 ---
@@ -145,6 +154,41 @@ if (classification === "BOUNCE") {
 }
 ```
 
+### D) CZEKAJ - OOO Z NOWYMI LEADAMI:
+```typescript
+// OOO z kontaktami zastępczymi
+if (classification === "OOO" && extractedEmails.length > 0) {
+  // Lead A → CZEKAJ (kontynuuje follow-upy)
+  lead.status = "CZEKAJ";
+  lead.subStatus = "CZEKAJ_OOO_WITH_CONTACTS";
+  lead.blockedCampaigns = [campaignId]; // Zablokuj follow-upy z tej kampanii
+  
+  // Utwórz nowe leady (Lead B, C, D...)
+  for (const email of extractedEmails) {
+    await createDerivativeLead({
+      originalLeadId: lead.id,
+      email: email,
+      source: "OOO_RESPONSE",
+      status: "AKTYWNY",
+      // Skopiuj dane z oryginalnego leada
+      company: lead.company,
+      companyCity: lead.companyCity,
+      companyCountry: lead.companyCountry,
+      industry: lead.industry,
+      // Wygeneruj nowe powitanie
+      greetingForm: await generateGreeting(email, lead.language)
+    });
+  }
+}
+
+// OOO bez kontaktów - standardowa logika
+if (classification === "OOO" && extractedEmails.length === 0) {
+  lead.status = "CZEKAJ";
+  lead.subStatus = "CZEKAJ_OOO";
+  // Brak akcji - czekamy na powrót
+}
+```
+
 ---
 
 ## [→] LOGIKA WYSYŁKI
@@ -173,17 +217,98 @@ const canSendCampaign = (lead, campaignId) => {
 
 ---
 
+## [→] FUNKCJA TWORZENIA LEADÓW POCHODNYCH
+
+```typescript
+async function createDerivativeLead({
+  originalLeadId,
+  email,
+  source,
+  status,
+  company,
+  companyCity,
+  companyCountry,
+  industry,
+  greetingForm
+}) {
+  // Sprawdź czy lead już istnieje
+  const existingLead = await db.lead.findUnique({
+    where: { email }
+  });
+  
+  if (existingLead) {
+    // Aktualizuj istniejący lead
+    return await db.lead.update({
+      where: { id: existingLead.id },
+      data: {
+        status: "AKTYWNY",
+        originalLeadId,
+        source,
+        company: company || existingLead.company,
+        companyCity: companyCity || existingLead.companyCity,
+        companyCountry: companyCountry || existingLead.companyCountry,
+        industry: industry || existingLead.industry,
+        greetingForm: greetingForm || existingLead.greetingForm
+      }
+    });
+  }
+  
+  // Utwórz nowy lead
+  const newLead = await db.lead.create({
+    data: {
+      email,
+      status,
+      originalLeadId,
+      source,
+      company,
+      companyCity,
+      companyCountry,
+      industry,
+      greetingForm,
+      language: "pl" // Domyślny język
+    }
+  });
+  
+  // Dodaj do kampanii z wysokim priorytetem
+  await db.campaignLead.create({
+    data: {
+      campaignId: originalCampaignId,
+      leadId: newLead.id,
+      priority: 1, // Wysoki priorytet - wyślij jako pierwszy!
+      addedAt: new Date()
+    }
+  });
+  
+  // Natychmiastowa wysyłka pierwszego emaila
+  if (!campaign.scheduledAt) {
+    await sendCampaignEmail(newLead, campaign, "IMMEDIATE");
+  }
+  
+  return newLead;
+}
+```
+
+---
+
 ## [→] STRUKTURA BAZY DANYCH
 
 ```sql
 model Lead {
   // ... istniejące pola ...
   
+  // STATUSY I LOGIKA:
   status            String    @default("AKTYWNY") // AKTYWNY, ZAINTERESOWANY, BLOKADA, CZEKAJ
   subStatus         String?   // ZAINTERESOWANY_CAMPAIGN, BLOKADA_REFUSAL, CZEKAJ_MAYBE, etc.
   blockedCampaigns  String?   // JSON array z ID kampanii [1,2,3]
   reactivatedAt     DateTime? // Kiedy został reaktywowany
   lastReactivation  String?   // Z jakiego statusu został reaktywowany
+  
+  // POWIĄZANIA I ŹRÓDŁA:
+  originalLeadId    Int?      // ID leada który "stworzył" tego leada (OOO, REDIRECT)
+  originalLead      Lead?     @relation("LeadDerivatives", fields: [originalLeadId], references: [id])
+  derivativeLeads   Lead[]    @relation("LeadDerivatives")
+  source            String?   // "CSV_IMPORT", "OOO_RESPONSE", "REDIRECT_RESPONSE", "UNATTACHED"
+  sourceDetails     String?   // JSON z dodatkowymi informacjami
 }
 ```
 
@@ -202,6 +327,10 @@ model Lead {
 - **CZEKAJ** - "Wyślij follow-up" (dla CZEKAJ_REDIRECT)
 - **BLOKADA** - "Reaktywuj" (zmiana na AKTYWNY)
 
+### C) OOO - Powiązania leadów:
+- **Lead A (CZEKAJ_OOO_WITH_CONTACTS)** - pokaż utworzone leady pochodne
+- **Lead B (AKTYWNY)** - pokaż z jakiego OOO pochodzi
+
 ---
 
 ## [→] HISTORIA ZMIAN
@@ -211,6 +340,13 @@ model Lead {
 - Dodano podstatusy dla szczegółowej logiki
 - Określono workflow i logikę AI Agent
 - Zdefiniowano strukturę bazy danych
+
+### [2024-12-19] - Scenariusz OOO z nowymi leadami
+- Dodano podstatus: `CZEKAJ_OOO_WITH_CONTACTS`
+- Utworzono funkcję `createDerivativeLead()` dla leadów pochodnych
+- Dodano powiązania: `originalLeadId` i `derivativeLeads`
+- Zdefiniowano logikę: Lead A → CZEKAJ, Lead B → AKTYWNY (wszystkie emaile od początku)
+- Dodano nowe pola w bazie: `source`, `sourceDetails`
 
 ---
 
