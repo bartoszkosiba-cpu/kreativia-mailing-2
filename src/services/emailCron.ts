@@ -98,9 +98,10 @@ export function startEmailCron() {
                 // Automatycznie uruchom AI Agent dla nowej odpowiedzi
                 if (result.replyId) {
                   try {
-                    const { processReplyWithAI } = await import('./aiAgent');
-                    await processReplyWithAI(result.replyId);
-                    console.log(`[CRON] 🤖 AI Agent przetworzył odpowiedź ID: ${result.replyId}`);
+                    const { EmailAgentAI } = await import('./emailAgentAI');
+                    const analysis = await EmailAgentAI.processEmailReply(result.replyId);
+                    await EmailAgentAI.executeActions(analysis, result.replyId);
+                    console.log(`[CRON] 🤖 Email Agent AI przetworzył odpowiedź ID: ${result.replyId}`);
                   } catch (aiError: any) {
                     console.error(`[CRON] ⚠ Błąd AI Agent dla odpowiedzi ${result.replyId}:`, aiError.message);
                   }

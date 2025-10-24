@@ -39,6 +39,10 @@ export default function Navbar() {
       label: "Archiwum"
     },
     { 
+      href: "/ai-chat", 
+      label: "AI Chat"
+    },
+    { 
       href: "/reports", 
       label: "Raporty"
     },

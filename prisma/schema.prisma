@@ -276,6 +276,35 @@ model Holiday {
   @@index([countryCode, year])
 }
 
+model AIRules {
+  id            String   @id @default(cuid())
+  classification String   // INTERESTED, NOT_INTERESTED, etc.
+  pattern        String?  // Regex pattern
+  keywords       String   // JSON array of keywords
+  confidence     Float    // 0.0 - 1.0
+  priority       Int      @default(0) // Wyższy = ważniejszy
+  createdBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  isActive       Boolean  @default(true)
+  description    String?
+  
+  @@index([classification])
+  @@index([isActive])
+  @@index([priority])
+}
+
+model AIChatHistory {
+  id           String   @id @default(cuid())
+  userMessage  String
+  aiResponse   String
+  rulesCreated String?  // JSON array of rule IDs
+  createdAt    DateTime @default(now())
+  userId       String?
+  
+  @@index([createdAt])
+}
+
 model Mailbox {
   id                   Int      @id @default(autoincrement())
   virtualSalespersonId Int
