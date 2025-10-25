@@ -22,9 +22,15 @@ export default function ImportPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [importId, setImportId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ percentage: number; currentStep: string } | null>(null);
+  const [progress, setProgress] = useState<{ 
+    percentage: number; 
+    currentStep: string; 
+    processed: number; 
+    total: number; 
+  } | null>(null);
   const [showNewTagForm, setShowNewTagForm] = useState(false);
   const [newTagName, setNewTagName] = useState("");
+  const [importCompleted, setImportCompleted] = useState(false);
 
   useEffect(() => {
     fetchTags();
@@ -40,7 +46,21 @@ export default function ImportPage() {
         if (response.ok) {
           const data = await response.json();
           setProgress(data);
-          console.log(`[PROGRESS] ${data.percentage}% - ${data.currentStep}`);
+          console.log(`[PROGRESS] ${data.processed}/${data.total} (${data.percentage}%) - ${data.currentStep}`);
+          
+          // Jeśli import zakończony, zresetuj statusy
+          if (data.isComplete) {
+            console.log('[PROGRESS] Import zakończony - resetuję statusy');
+            setIsProcessing(false);
+            setImportCompleted(true);
+            setStatus(`✅ Import zakończony! Dodano: ${data.processed} leadów`);
+            
+            // Ukryj wskaźnik postępu po 5 sekundach
+            setTimeout(() => {
+              setImportId(null);
+              setProgress(null);
+            }, 5000);
+          }
         } else if (response.status === 404) {
           // Import jeszcze się nie rozpoczął - to normalne na początku
           console.log(`[PROGRESS] Import ${importId} jeszcze się nie rozpoczął`);
@@ -52,8 +72,8 @@ export default function ImportPage() {
       }
     };
 
-    // Sprawdź postęp co sekundę
-    const interval = setInterval(pollProgress, 1000);
+    // Sprawdź postęp co 500ms dla lepszej responsywności
+    const interval = setInterval(pollProgress, 500);
     
     // Pierwsze sprawdzenie od razu
     pollProgress();
@@ -185,14 +205,14 @@ export default function ImportPage() {
         const email = get(row, ["email", "e-mail", "mail"]);
         const firstName = get(row, ["firstname", "first name", "imię", "imie", "name", "nazwisko", "nazwa"]);
         const lastName = get(row, ["lastname", "last name", "nazwisko", "surname", "family name"]);
-        const company = get(row, ["company", "firma", "organization", "organizacja"]);
+        const company = get(row, ["company", "company name", "company_name", "firma", "organization", "organizacja"]);
         const title = get(row, ["title", "position", "stanowisko", "job title", "role"]);
         const industry = get(row, ["industry", "branża", "branza", "sector"]);
         const keywords = get(row, ["keywords", "słowa kluczowe", "slowa kluczowe", "tags", "tagi"]);
         const linkedinUrl = get(row, ["linkedin", "linkedin url", "linkedin profile", "profil linkedin"]);
         const website = get(row, ["website", "website url", "url", "strona", "web"]);
-        const companyCity = get(row, ["city", "miasto", "location", "lokalizacja", "company city"]);
-        const companyCountry = get(row, ["country", "kraj", "nation", "company country"]);
+        const companyCity = get(row, ["city", "miasto", "location", "lokalizacja", "company city", "company state", "company_state", "state"]);
+        const companyCountry = get(row, ["country", "kraj", "nation", "company country", "company_country"]);
 
         const lead = {
           firstName: firstName || "",
@@ -220,6 +240,7 @@ export default function ImportPage() {
   const onFile = (file: File) => {
     console.log(`[IMPORT] Rozpoczynam parsowanie pliku: ${file.name} (${file.size} bytes)`);
     setStatus("⏳ Parsowanie pliku...");
+    setImportCompleted(false); // Resetuj stan importu
     
     // Najpierw spróbuj auto-detect
     Papa.parse(file as any, {
@@ -476,23 +497,25 @@ export default function ImportPage() {
           </div>
         )}
 
-        <button
-          onClick={handleSave}
-          disabled={rows.length === 0 || isProcessing || !selectedTagId}
-          style={{
-            padding: "12px 24px",
-            backgroundColor: (rows.length === 0 || isProcessing || !selectedTagId) ? "#ccc" : "#d81e42",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: (rows.length === 0 || isProcessing || !selectedTagId) ? "not-allowed" : "pointer",
-            fontSize: 16,
-            fontWeight: 500,
-            transition: "all 0.2s ease"
-          }}
-        >
-          {isProcessing ? "⏳ Zapisywanie..." : `Zapisz ${rows.length} leadów`}
-        </button>
+        {!importCompleted && (
+          <button
+            onClick={handleSave}
+            disabled={rows.length === 0 || isProcessing || !selectedTagId}
+            style={{
+              padding: "12px 24px",
+              backgroundColor: (rows.length === 0 || isProcessing || !selectedTagId) ? "#ccc" : "#d81e42",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: (rows.length === 0 || isProcessing || !selectedTagId) ? "not-allowed" : "pointer",
+              fontSize: 16,
+              fontWeight: 500,
+              transition: "all 0.2s ease"
+            }}
+          >
+            {isProcessing ? "⏳ Zapisywanie..." : `Zapisz ${rows.length} leadów`}
+          </button>
+        )}
         
         {rows.length > 0 && !isProcessing && (
           <div style={{ marginTop: 12 }}>
@@ -547,7 +570,15 @@ export default function ImportPage() {
         </div>
         {progress && (
           <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
-            {progress.percentage}% ukończone
+            <div style={{ marginBottom: 4 }}>
+              <strong>{progress.processed}</strong> z <strong>{progress.total}</strong> leadów zaimportowanych
+            </div>
+            <div style={{ marginBottom: 4 }}>
+              Pozostało: <strong>{progress.total - progress.processed}</strong> leadów
+            </div>
+            <div>
+              {progress.percentage}% ukończone
+            </div>
           </div>
         )}
         {!importId && (

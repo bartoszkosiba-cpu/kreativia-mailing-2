@@ -73,7 +73,7 @@ async function updateProgress(importId: string, data: {
   error?: string;
 }) {
   try {
-    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/leads/import/progress`, {
+    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3002'}/api/leads/import/progress`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ importId, ...data })
@@ -139,8 +139,8 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < leads.length; i++) {
       const leadData = leads[i];
       
-      // Aktualizuj postęp co 10 leadów lub na końcu
-      if (i % 10 === 0 || i === leads.length - 1) {
+      // Aktualizuj postęp co 5 leadów lub na końcu
+      if (i % 5 === 0 || i === leads.length - 1) {
         await updateProgress(importId, { 
           processed: i + 1,
           currentStep: `Zapisywanie leadów... (${i + 1}/${leads.length})`

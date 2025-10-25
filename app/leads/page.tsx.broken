@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-// import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
-// import { getStatusLabel, getSubStatusLabel } from "@/lib/statusHelpers";
+import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
+import { getStatusLabel, getSubStatusLabel } from "@/lib/statusHelpers";
+import StatusLegend from "@/components/StatusLegend";
 
 interface Lead {
   id: number;
@@ -23,7 +24,7 @@ interface Lead {
   subStatus: string | null;
   blockedReason: string | null;
   isBlocked: boolean;
-  LeadTag?: Array<{ tag: { id: number; name: string; color: string } }>;
+  LeadTag: Array<{ tag: { id: number; name: string; color: string } }>;
 }
 
 // Funkcje pomocnicze do formatowania danych
@@ -95,12 +96,58 @@ export default function LeadsPage() {
     language: "pl"
   });
   const [greetingPreview, setGreetingPreview] = useState("");
+  
+  // Stan paginacji
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalLeads, setTotalLeads] = useState(0);
+  const [itemsPerPage] = useState(50);
+  
+  // Stan filtrów i statystyk
+  const [search, setSearch] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedTag, setSelectedTag] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState("");
+  const [stats, setStats] = useState({
+    total: 0,
+    countries: [],
+    languages: [],
+    statuses: [],
+    industries: [],
+    greetings: { with: 0, without: 0 }
+  });
+
+  // Stan generowania powitań
+  const [greetingProgress, setGreetingProgress] = useState<{
+    currentBatch: number;
+    totalBatches: number;
+    percentage: number;
+    status: 'processing' | 'completed' | 'error' | 'stopped';
+    processedLeads: number;
+    totalLeads: number;
+    estimatedTime: string;
+    errors: string[];
+  } | null>(null);
+  const [greetingProgressId, setGreetingProgressId] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log("useEffect called");
     fetchLeads();
     fetchTags();
   }, []);
+
+  // Automatyczne filtrowanie przy zmianie parametrów (z debounce dla wyszukiwania)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (search || selectedLanguage || selectedCountry || selectedStatus || selectedTag || selectedIndustry) {
+        setCurrentPage(1);
+        fetchLeads(1);
+      }
+    }, search ? 500 : 0); // Debounce tylko dla wyszukiwania tekstowego
+
+    return () => clearTimeout(timeoutId);
+  }, [search, selectedLanguage, selectedCountry, selectedStatus, selectedTag, selectedIndustry]);
 
   const fetchTags = async () => {
     try {
@@ -147,27 +194,149 @@ export default function LeadsPage() {
     return () => clearTimeout(timeoutId);
   }, [formData.firstName, formData.language]);
 
-  const fetchLeads = async () => {
+  const fetchLeads = async (page: number = currentPage) => {
     try {
-      console.log("Fetching leads...");
-      const response = await fetch("/api/leads");
-      console.log("Response status:", response.status);
+      setIsLoading(true);
+      
+      // Buduj parametry URL
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', itemsPerPage.toString());
+      
+      if (search) params.append('search', search);
+      if (selectedLanguage) params.append('language', selectedLanguage);
+      if (selectedCountry) params.append('country', selectedCountry);
+      if (selectedStatus) params.append('status', selectedStatus);
+      if (selectedTag) params.append('tagId', selectedTag);
+      if (selectedIndustry) params.append('industry', selectedIndustry);
+      
+      const response = await fetch(`/api/leads?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        console.log("Data received:", data);
-        console.log("Leads array:", data.leads);
-        setLeads(data.leads || []);
-        console.log("Leads set successfully");
-      } else {
-        console.error("Response not ok:", response.status);
+        setLeads(data.leads);
+        setCurrentPage(data.pagination.page);
+        setTotalPages(data.pagination.totalPages);
+        setTotalLeads(data.pagination.total);
+        setStats(data.stats);
       }
     } catch (error) {
       console.error("Błąd pobierania leadów:", error);
     } finally {
-      console.log("Setting isLoading to false");
       setIsLoading(false);
     }
   };
+
+  // Funkcje nawigacji paginacji
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      fetchLeads(page);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      goToPage(currentPage + 1);
+    }
+  };
+
+  const goToPrevPage = () => {
+    if (currentPage > 1) {
+      goToPage(currentPage - 1);
+    }
+  };
+
+  // Funkcje obsługi filtrów
+  const clearFilters = () => {
+    setSearch("");
+    setSelectedLanguage("");
+    setSelectedCountry("");
+    setSelectedStatus("");
+    setSelectedTag("");
+    setSelectedIndustry("");
+    setCurrentPage(1);
+    fetchLeads(1);
+  };
+
+  // Funkcje generowania powitań
+  const startGreetingGeneration = async (leadIds: number[]) => {
+    try {
+      // NIE ustawiam setIsLoading(true) - strona ma być widoczna!
+      const response = await fetch('/api/leads/prepare-greetings-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          leadIds, 
+          batchSize: 50, 
+          delayMs: 2000 
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGreetingProgressId(data.progressId);
+        setGreetingProgress({
+          currentBatch: 0,
+          totalBatches: Math.ceil(leadIds.length / 50),
+          percentage: 0,
+          status: 'processing',
+          processedLeads: 0,
+          totalLeads: leadIds.length,
+          estimatedTime: "Obliczanie...",
+          errors: []
+        });
+        console.log(`[GREETING] Rozpoczęto generowanie powitań: ${data.progressId}`);
+      } else {
+        const error = await response.json();
+        alert(`Błąd: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Błąd generowania powitań:', error);
+      alert('Wystąpił błąd podczas generowania powitań');
+    }
+  };
+
+  const stopGreetingGeneration = async () => {
+    if (greetingProgressId) {
+      try {
+        await fetch('/api/leads/prepare-greetings-batch', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ progressId: greetingProgressId })
+        });
+        setGreetingProgress(prev => prev ? { ...prev, status: 'stopped' } : null);
+        console.log('[GREETING] Zatrzymano generowanie powitań');
+      } catch (error) {
+        console.error('Błąd zatrzymywania:', error);
+      }
+    }
+  };
+
+  // Polling postępu generowania powitań
+  useEffect(() => {
+    if (!greetingProgressId) return;
+
+    const pollProgress = async () => {
+      try {
+        const response = await fetch(`/api/leads/prepare-greetings-batch?progressId=${greetingProgressId}`);
+        if (response.ok) {
+          const progress = await response.json();
+          setGreetingProgress(progress);
+          
+          if (progress.status === 'completed' || progress.status === 'error' || progress.status === 'stopped') {
+            console.log(`[GREETING] Proces zakończony: ${progress.status}`);
+            setGreetingProgressId(null);
+            // Odśwież leady po zakończeniu
+            fetchLeads(currentPage);
+          }
+        }
+      } catch (error) {
+        console.error('Błąd pobierania postępu:', error);
+      }
+    };
+
+    const interval = setInterval(pollProgress, 2000);
+    return () => clearInterval(interval);
+  }, [greetingProgressId, currentPage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -308,7 +477,7 @@ export default function LeadsPage() {
     }
   };
 
-  const handlePrepareGreetings = async (refresh = false) => {
+  const handlePrepareGreetings = (refresh = false) => {
     if (selectedLeadIds.length === 0) {
       alert("Nie wybrano żadnych leadów");
       return;
@@ -337,52 +506,19 @@ export default function LeadsPage() {
       }
     }
 
-    try {
-      setIsLoading(true);
-      const response = await fetch("/api/leads/prepare-greetings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadIds: selectedLeadIds, refresh })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        alert(`✅ ${result.message}`);
-        setSelectedLeadIds([]);
-        setShowBulkActions(false);
-        fetchLeads();
-      } else {
-        const error = await response.json();
-        alert(`Błąd: ${error.error}`);
-      }
-    } catch (error) {
-      console.error("Błąd przygotowania powitań:", error);
-      alert("Błąd podczas przygotowania powitań");
-    } finally {
-      setIsLoading(false);
-    }
+    // Użyj nowego systemu batch
+    startGreetingGeneration(selectedLeadIds);
+    setSelectedLeadIds([]);
+    setShowBulkActions(false);
   };
 
-
-  // Usunięto stare funkcje - używamy nowych z statusHelpers
-
-  if (isLoading) {
-    return (
-      <main className="container" style={{ paddingTop: "var(--spacing-xl)" }}>
-        <h1>Ładowanie leadów...</h1>
-        <p>Sprawdzam dane... (isLoading: {isLoading.toString()})</p>
-        <p>Liczba leadów: {leads.length}</p>
-      </main>
-    );
-  }
-
   return (
-    <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
+    <div className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
       <div className="flex-between" style={{ marginBottom: "var(--spacing-lg)" }}>
         <div>
           <h1>Baza kontaktów</h1>
           <p style={{ color: "var(--gray-600)" }}>
-            Wszystkie leady ({leads.length} rekordów)
+            Wszystkie leady ({totalLeads} rekordów)
             {selectedLeadIds.length > 0 && (
               <span style={{ color: "var(--primary)", fontWeight: "bold" }}>
                 {" "}• Zaznaczono: {selectedLeadIds.length}
@@ -410,12 +546,238 @@ export default function LeadsPage() {
               🔧 Zarządzaj zaznaczonymi ({selectedLeadIds.length})
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Progress bar generowania powitań */}
+      {greetingProgress && (
+        <div className="card" style={{ marginBottom: "var(--spacing-lg)", border: "2px solid var(--primary)" }}>
+          <div style={{ marginBottom: "var(--spacing-sm)" }}>
+            <h3 style={{ color: "var(--primary)", marginBottom: "var(--spacing-xs)" }}>
+              🔄 Generowanie powitań
+            </h3>
+            <div style={{ fontSize: "14px", color: "var(--gray-600)" }}>
+              Set {greetingProgress.currentBatch}/{greetingProgress.totalBatches} • 
+              {greetingProgress.processedLeads}/{greetingProgress.totalLeads} leadów • 
+              {greetingProgress.percentage}%
+            </div>
+          </div>
+          
+          <div style={{ 
+            width: "100%", 
+            height: "20px", 
+            backgroundColor: "var(--gray-200)", 
+            borderRadius: "10px", 
+            overflow: "hidden",
+            marginBottom: "var(--spacing-sm)"
+          }}>
+            <div style={{
+              width: `${greetingProgress.percentage}%`,
+              height: "100%",
+              backgroundColor: greetingProgress.status === 'error' ? 'var(--danger)' : 
+                              greetingProgress.status === 'stopped' ? 'var(--warning)' : 'var(--primary)',
+              transition: "width 0.3s ease",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              fontSize: "12px",
+              fontWeight: "bold"
+            }}>
+              {greetingProgress.percentage}%
+            </div>
+          </div>
+          
+          <div className="flex-between" style={{ alignItems: "center" }}>
+            <div style={{ fontSize: "12px", color: "var(--gray-600)" }}>
+              ⏱️ {greetingProgress.estimatedTime} • 
+              Status: {greetingProgress.status === 'processing' ? 'Przetwarzanie...' : 
+                      greetingProgress.status === 'completed' ? 'Zakończono' :
+                      greetingProgress.status === 'stopped' ? 'Zatrzymano' : 'Błąd'}
+            </div>
+            
+            {greetingProgress.status === 'processing' && (
+              <button 
+                onClick={stopGreetingGeneration}
+                className="btn btn-warning"
+                style={{ padding: "4px 8px", fontSize: "12px" }}
+              >
+                ⏹️ Zatrzymaj
+              </button>
+            )}
+          </div>
+          
+          {greetingProgress.errors.length > 0 && (
+            <details style={{ marginTop: "var(--spacing-sm)" }}>
+              <summary style={{ cursor: "pointer", color: "var(--danger)", fontSize: "12px" }}>
+                ⚠️ Błędy ({greetingProgress.errors.length})
+              </summary>
+              <div style={{ 
+                marginTop: "var(--spacing-xs)", 
+                fontSize: "11px", 
+                color: "var(--gray-600)",
+                maxHeight: "100px",
+                overflowY: "auto",
+                backgroundColor: "var(--gray-100)",
+                padding: "var(--spacing-xs)",
+                borderRadius: "4px"
+              }}>
+                {greetingProgress.errors.map((error, index) => (
+                  <div key={index} style={{ marginBottom: "2px" }}>• {error}</div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* Statystyki */}
+      <div className="grid grid-4" style={{ marginBottom: "var(--spacing-lg)" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Wszystkie leady</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--primary)" }}>
+            {stats.total}
+          </div>
+        </div>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Z powitaniami</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--success)" }}>
+            {stats.greetings.with}
+          </div>
+        </div>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Bez powitań</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--warning)" }}>
+            {stats.greetings.without}
+          </div>
+        </div>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Kraje</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--info)" }}>
+            {stats.countries.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Legenda statusów */}
+      <StatusLegend />
+
+      {/* Filtry */}
+      <div className="card" style={{ marginBottom: "var(--spacing-lg)" }}>
+        <h2 style={{ marginBottom: "var(--spacing-md)" }}>Filtry i wyszukiwanie</h2>
+        
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--spacing-md)" }}>
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Wyszukiwanie
+            </label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Imię, nazwisko, email, firma..."
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Język
+            </label>
+            <select
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {stats.languages.map(lang => (
+                <option key={lang.language} value={lang.language}>
+                  {lang.language} ({lang.count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Kraj
+            </label>
+            <select
+              value={selectedCountry}
+              onChange={(e) => setSelectedCountry(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {stats.countries.map(country => (
+                <option key={country.country} value={country.country}>
+                  {country.country} ({country.count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Status
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {stats.statuses.map(status => (
+                <option key={status.status} value={status.status}>
+                  {getStatusLabel(status.status)} ({status.count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Tag
+            </label>
+            <select
+              value={selectedTag}
+              onChange={(e) => setSelectedTag(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {tags.map(tag => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Branża
+            </label>
+            <select
+              value={selectedIndustry}
+              onChange={(e) => setSelectedIndustry(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {stats.industries.map(industry => (
+                <option key={industry.industry} value={industry.industry}>
+                  {industry.industry} ({industry.count})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex gap-sm" style={{ marginTop: "var(--spacing-md)" }}>
           <button 
-            onClick={() => setShowDeleteOptions(!showDeleteOptions)}
-            className="btn btn-danger"
-            disabled={leads.length === 0}
+            type="button" 
+            onClick={clearFilters}
+            className="btn btn-secondary"
           >
-            Usuń leady
+            🗑️ Wyczyść filtry
           </button>
         </div>
       </div>
@@ -451,7 +813,7 @@ export default function LeadsPage() {
               onClick={handleBulkDelete}
               className="btn btn-danger"
             >
-              Usuń zaznaczone
+              Usuń leady
             </button>
             <button 
               onClick={() => {
@@ -691,7 +1053,17 @@ export default function LeadsPage() {
               </tr>
             </thead>
           <tbody>
-            {leads.map((lead) => {
+            {isLoading ? (
+              <tr>
+                <td colSpan={14} style={{ textAlign: "center", padding: "var(--spacing-xl)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "var(--spacing-sm)" }}>
+                    <div style={{ width: "20px", height: "20px", border: "2px solid var(--gray-300)", borderTop: "2px solid var(--primary)", borderRadius: "50%", animation: "spin 1s linear infinite" }}></div>
+                    Ładowanie leadów...
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              leads.map((lead) => {
               const www = lead.websiteUrl ? (lead.websiteUrl.startsWith("http") ? lead.websiteUrl : `https://${lead.websiteUrl}`) : null;
               const li = lead.linkedinUrl ? (lead.linkedinUrl.startsWith("http") ? lead.linkedinUrl : `https://${lead.linkedinUrl}`) : null;
               
@@ -713,10 +1085,36 @@ export default function LeadsPage() {
                   </td>
                   <td>{lead.title || "-"}</td>
                   <td>
-                    {lead.company || "-"}
-                    {www && (
-                      <> <a href={www} target="_blank" rel="noreferrer" style={{ fontSize: "11px" }}>🔗</a></>
-                    )}
+                    {(() => {
+                      // Wyciągnij nazwę firmy z różnych źródeł
+                      let companyName = lead.company;
+                      if (!companyName && lead.websiteUrl) {
+                        // Wyciągnij domenę z URL (np. "https://mcon-mannheim.de" → "mcon-mannheim.de")
+                        companyName = lead.websiteUrl.replace(/^https?:\/\//, '').replace(/^www\./, '');
+                      }
+                      if (!companyName && lead.email) {
+                        // Wyciągnij domenę z emaila (np. "daniela@mcon-mannheim.de" → "mcon-mannheim.de")
+                        companyName = lead.email.split('@')[1] || "-";
+                      }
+                      if (!companyName) {
+                        companyName = "-";
+                      }
+
+                      // Jeśli jest www, zrób link
+                      if (www && companyName !== "-") {
+                        return (
+                          <a href={www} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", textDecoration: "none" }}>
+                            {companyName}
+                          </a>
+                        );
+                      } else {
+                        return (
+                          <span style={{ color: companyName === "-" ? "var(--gray-500)" : "inherit" }}>
+                            {companyName}
+                          </span>
+                        );
+                      }
+                    })()}
                   </td>
                   <td>
                     <a href={`mailto:${lead.email}`}>{lead.email}</a>
@@ -730,9 +1128,9 @@ export default function LeadsPage() {
                     </span>
                   </td>
                   <td className="sticky-column sticky-column-right-3">
-                    {lead.LeadTag && lead.LeadTag.length > 0 ? (
+                    {lead.LeadTag.length > 0 ? (
                       <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", maxWidth: "120px" }}>
-                        {lead.LeadTag?.map((lt) => (
+                        {lead.LeadTag.map((lt) => (
                           <span
                             key={lt.tag.id}
                             className="badge"
@@ -759,39 +1157,28 @@ export default function LeadsPage() {
                   </td>
                   <td className="sticky-column sticky-column-right-2">
                     <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-                      <span style={{ 
-                        padding: "2px 6px", 
-                        borderRadius: "4px", 
-                        fontSize: "12px", 
-                        backgroundColor: "#e0e0e0", 
-                        color: "#666" 
-                      }}>
-                        {lead.status}
-                      </span>
-                      {lead.subStatus && (
-                        <span style={{ 
-                          padding: "2px 6px", 
-                          borderRadius: "4px", 
-                          fontSize: "12px", 
-                          backgroundColor: "#f0f0f0", 
-                          color: "#888" 
-                        }}>
-                          {lead.subStatus}
-                        </span>
-                      )}
+                      <StatusBadge 
+                        status={lead.status as any} 
+                        subStatus={lead.subStatus as any}
+                        size="sm"
+                      />
+                      <PriorityBadge 
+                        status={lead.status as any} 
+                        subStatus={lead.subStatus as any}
+                      />
                     </div>
                   </td>
                   <td className="sticky-column sticky-column-right-1">
-                    <div className="flex gap-xs" style={{ maxWidth: "120px", flexWrap: "wrap" }}>
+                    <div className="flex" style={{ maxWidth: "120px", flexDirection: "column", gap: "8px" }}>
                       <Link href={`/leads/${lead.id}`}>
-                        <button className="btn btn-primary" style={{ fontSize: "10px", padding: "4px 8px", minWidth: "60px" }}>
+                        <button className="btn btn-primary leads-table-button" style={{ fontSize: "10px", padding: "4px 8px" }}>
                           Szczegóły
                         </button>
                       </Link>
                       <button 
                         onClick={() => handleDeleteSingle(lead.id, `${lead.firstName} ${lead.lastName} (${lead.email})`)}
-                        className="btn btn-danger" 
-                        style={{ fontSize: "10px", padding: "4px 8px", minWidth: "50px" }}
+                        className="btn btn-secondary leads-table-button" 
+                        style={{ fontSize: "10px", padding: "4px 8px", backgroundColor: "#e0e0e0", color: "#666" }}
                         title="Usuń leada"
                       >
                         Usuń
@@ -800,7 +1187,8 @@ export default function LeadsPage() {
                   </td>
                 </tr>
               );
-            })}
+              })}
+            )}
           </tbody>
           </table>
 
@@ -810,8 +1198,71 @@ export default function LeadsPage() {
             </div>
           )}
         </div>
+
+        {/* Paginacja */}
+        {totalLeads > itemsPerPage && (
+          <div className="card" style={{ marginTop: "var(--spacing-lg)", padding: "var(--spacing-md)" }}>
+            <div className="flex-between" style={{ alignItems: "center" }}>
+              <div style={{ color: "var(--gray-600)", fontSize: "14px" }}>
+                Strona {currentPage} z {totalPages} • 
+                Pokazuję {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalLeads)} z {totalLeads} leadów
+              </div>
+              
+              <div className="flex gap-sm" style={{ alignItems: "center" }}>
+                <button 
+                  onClick={goToPrevPage}
+                  disabled={currentPage === 1 || isLoading}
+                  className="btn btn-secondary"
+                  style={{ padding: "8px 12px" }}
+                >
+                  ← Poprzednia
+                </button>
+                
+                <div className="flex gap-xs" style={{ alignItems: "center" }}>
+                  {/* Numeracja stron */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => goToPage(pageNum)}
+                        disabled={isLoading}
+                        className={currentPage === pageNum ? "btn btn-primary" : "btn btn-secondary"}
+                        style={{ 
+                          padding: "8px 12px",
+                          minWidth: "40px"
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button 
+                  onClick={goToNextPage}
+                  disabled={currentPage === totalPages || isLoading}
+                  className="btn btn-secondary"
+                  style={{ padding: "8px 12px" }}
+                >
+                  Następna →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </main>
+    </div>
   );
 }
 

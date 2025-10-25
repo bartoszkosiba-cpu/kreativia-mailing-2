@@ -216,7 +216,6 @@ table {
   border-collapse: collapse;
   background: white;
   border-radius: 4px;
-  overflow: hidden;
   border: 1px solid var(--color-border);
   font-size: 12px;
 }
@@ -245,23 +244,35 @@ table {
 }
 
 .sticky-column-right-1 {
+  position: sticky;
   right: 0;
   min-width: 120px; /* Actions column */
+  background: white;
+  z-index: 10;
 }
 
 .sticky-column-right-2 {
+  position: sticky;
   right: 120px; /* Width of Actions column */
   min-width: 100px; /* Status column */
+  background: white;
+  z-index: 10;
 }
 
 .sticky-column-right-3 {
+  position: sticky;
   right: 220px; /* Width of Status + Actions columns */
   min-width: 120px; /* Tags column */
+  background: white;
+  z-index: 10;
 }
 
 .sticky-column-right-4 {
+  position: sticky;
   right: 340px; /* Width of Tags + Status + Actions columns */
   min-width: 80px; /* Language column */
+  background: white;
+  z-index: 10;
 }
 
 /* Sticky header columns */
@@ -276,9 +287,43 @@ thead .sticky-column-right {
   box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
 }
 
+thead .sticky-column-right-1 {
+  background: var(--color-bg-neutral);
+  z-index: 20;
+}
+
+thead .sticky-column-right-2 {
+  background: var(--color-bg-neutral);
+  z-index: 20;
+}
+
+thead .sticky-column-right-3 {
+  background: var(--color-bg-neutral);
+  z-index: 20;
+}
+
+thead .sticky-column-right-4 {
+  background: var(--color-bg-neutral);
+  z-index: 20;
+}
+
 /* Ensure table has minimum width for proper sticky behavior */
 .table-container table {
   min-width: 1000px;
+}
+
+/* Custom button styles for leads table */
+.leads-table-button {
+  width: fit-content !important;
+  min-width: unset !important;
+  display: inline !important;
+  white-space: nowrap !important;
+}
+
+/* Spinner animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 thead {

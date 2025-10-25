@@ -89,3 +89,39 @@
 ## 2025-10-25_08-58-54 - Auto Backup
 - Utworzono kopię zapasową: `backup-2025-10-25_08-58-54`
 - Lokalizacja: `backups/backup-2025-10-25_08-58-54/`
+
+## 2025-01-25
+
+### [ok] Implementacja sticky columns w tabeli leadów
+**Co zrobiłem:**
+- Dodano sticky positioning dla kolumn "Język", "Tagi", "Status", "Akcje"
+- Kolumny pozostają widoczne po prawej stronie podczas przewijania poziomego
+- Dodano wizualne rozdzielenie (czerwona linia + cień) dla sticky columns
+- Zaktualizowano CSS z odpowiednimi pozycjami i z-index
+- Zachowano wszystkie istniejące funkcjonalności tabeli
+
+**Gdzie to jest:**
+- `app/globals.css` - nowe klasy CSS dla sticky columns
+- `app/leads/page.tsx` - zaktualizowana struktura tabeli
+- `docs/chat-history/2025-01-25-session-2.md` - zapis konwersacji
+
+**Jak sprawdzić:**
+- Otwórz http://localhost:3002/leads
+- Przewiń tabelę w poziomie - ostatnie 4 kolumny pozostają widoczne
+- Sprawdź wizualne rozdzielenie sticky columns
+
+### [ok] Poprawka zgodności z zasadami Cursora
+**Co zrobiłem:**
+- Zapisano konwersację do `docs/chat-history/`
+- Wykonano commit zmian z opisowym komunikatem
+- Zaktualizowano `docs/changelog.md`
+- Przejście na piktogramy ASCII zamiast emoji
+
+**Gdzie to jest:**
+- `docs/chat-history/2025-01-25-session-2.md`
+- Git commit: `7d66388`
+- Zaktualizowany `changelog.md`
+
+**Jak sprawdzić:**
+- `git log --oneline -1` - ostatni commit
+- `ls docs/chat-history/` - zapisane konwersacje
