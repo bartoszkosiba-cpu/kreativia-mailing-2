@@ -38,7 +38,8 @@ export function getSubStatusLabel(subStatus: LeadSubStatus | null): string {
     'CZEKAJ_MAYBE': 'Może później',
     'CZEKAJ_REDIRECT_AWAITING_CONTACT': 'Czeka na kontakt',
     'CZEKAJ_OOO': 'Nieobecny',
-    'CZEKAJ_OOO_WITH_CONTACTS': 'Nieobecny + kontakty'
+    'CZEKAJ_OOO_WITH_CONTACTS': 'Nieobecny + kontakty',
+    'CZEKAJ_REDIRECT_COMPLETED': 'Redirect zakończony'
   };
   
   return labels[subStatus] || subStatus;
@@ -88,7 +89,8 @@ export function getSubStatusColor(subStatus: LeadSubStatus | null): string {
     'CZEKAJ_MAYBE': '#F59E0B',                // amber-500
     'CZEKAJ_REDIRECT_AWAITING_CONTACT': '#D97706', // amber-600
     'CZEKAJ_OOO': '#EAB308',                  // yellow-500
-    'CZEKAJ_OOO_WITH_CONTACTS': '#CA8A04'     // yellow-600
+    'CZEKAJ_OOO_WITH_CONTACTS': '#CA8A04',    // yellow-600
+    'CZEKAJ_REDIRECT_COMPLETED': '#F97316'    // orange-500
   };
   
   return colors[subStatus] || '#6B7280';
@@ -127,7 +129,8 @@ export function getSubStatusIcon(subStatus: LeadSubStatus | null): string {
     'CZEKAJ_MAYBE': '⏰',
     'CZEKAJ_REDIRECT_AWAITING_CONTACT': '📞',
     'CZEKAJ_OOO': '🏖️',
-    'CZEKAJ_OOO_WITH_CONTACTS': '👥'
+    'CZEKAJ_OOO_WITH_CONTACTS': '👥',
+    'CZEKAJ_REDIRECT_COMPLETED': '✅'
   };
   
   return icons[subStatus] || '';

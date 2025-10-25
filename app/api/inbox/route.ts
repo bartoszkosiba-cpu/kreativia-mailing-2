@@ -52,3 +52,70 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * POST /api/inbox - dodaj nową odpowiedź (do testowania)
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { fromEmail, toEmail, subject, content, receivedAt, mailboxId } = body;
+    
+    if (!fromEmail || !toEmail || !subject || !content) {
+      return NextResponse.json(
+        { error: "Brakuje wymaganych pól: fromEmail, toEmail, subject, content" },
+        { status: 400 }
+      );
+    }
+    
+    // Znajdź leada po emailu
+    const lead = await db.lead.findFirst({
+      where: { email: fromEmail }
+    });
+    
+    if (!lead) {
+      return NextResponse.json(
+        { error: "Lead z tym emailem nie istnieje" },
+        { status: 404 }
+      );
+    }
+    
+    // Utwórz odpowiedź
+    const reply = await db.inboxReply.create({
+      data: {
+        fromEmail,
+        toEmail,
+        subject,
+        content,
+        receivedAt: receivedAt ? new Date(receivedAt) : new Date(),
+        leadId: lead.id,
+        classification: "PENDING", // Będzie przetworzone przez AI Agent
+        isRead: false,
+        messageId: `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      }
+    });
+    
+    // Automatycznie uruchom AI Agent
+    try {
+      const { EmailAgentAI } = await import('@/services/emailAgentAI');
+      const analysis = await EmailAgentAI.processEmailReply(reply.id);
+      await EmailAgentAI.executeActions(analysis, reply.id);
+      console.log(`[INBOX] 🤖 AI Agent przetworzył odpowiedź ID: ${reply.id}`);
+    } catch (aiError: any) {
+      console.error(`[INBOX] ⚠ Błąd AI Agent dla odpowiedzi ${reply.id}:`, aiError.message);
+    }
+    
+    return NextResponse.json({
+      success: true,
+      replyId: reply.id,
+      message: "Odpowiedź dodana i przetworzona przez AI Agent"
+    });
+    
+  } catch (error: any) {
+    console.error("Błąd dodawania odpowiedzi:", error);
+    return NextResponse.json(
+      { error: "Błąd dodawania odpowiedzi", details: error.message },
+      { status: 500 }
+    );
+  }
+}
+

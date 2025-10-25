@@ -15,7 +15,7 @@ export interface EmailClassification {
 }
 
 export interface EmailAction {
-  type: 'FORWARD' | 'BLOCK' | 'UNSUBSCRIBE' | 'ADD_LEAD' | 'SCHEDULE_FOLLOWUP' | 'NO_ACTION';
+  type: 'FORWARD' | 'BLOCK' | 'UNSUBSCRIBE' | 'ADD_LEAD' | 'SCHEDULE_FOLLOWUP' | 'AUTO_FOLLOWUP' | 'NO_ACTION';
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   description: string;
   data?: any;
@@ -230,7 +230,7 @@ export class EmailAgentAI {
           return {
             classification,
             actions: [{
-              type: 'SCHEDULE_FOLLOWUP',
+              type: 'AUTO_FOLLOWUP',
               priority: 'MEDIUM',
               description: 'Wyślij AUTO_FOLLOWUP z prośbą o kontakt'
             }],
@@ -370,9 +370,10 @@ export class EmailAgentAI {
         }
         break;
 
-      case 'SCHEDULE_FOLLOWUP':
-        // TODO: Implementuj AUTO_FOLLOWUP
-        console.log(`[EMAIL AGENT AI] SCHEDULE_FOLLOWUP: Planuję follow-up dla lead ${reply.lead.id}`);
+      case 'AUTO_FOLLOWUP':
+        // AUTO_FOLLOWUP jest obsługiwany przez cron job
+        await this.updateLeadStatus(reply.lead.id, analysis.leadStatus, analysis.leadSubStatus);
+        console.log(`[EMAIL AGENT AI] AUTO_FOLLOWUP: Lead ${reply.lead.id} będzie obsłużony przez cron job`);
         break;
 
       case 'NO_ACTION':

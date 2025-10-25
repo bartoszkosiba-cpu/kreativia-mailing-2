@@ -5,6 +5,7 @@ import { processReply } from '@/integrations/inbox/processor';
 import { processScheduledCampaign } from './scheduledSender';
 import { prefetchHolidays, checkAndPrefetchHolidays } from './holidays';
 import { autoCreateFollowUps } from './followUpManager';
+import { processAutoFollowUps } from './autoFollowUpManager';
 import { sendDailyReportEmail } from './dailyReportEmail';
 
 let emailCronJob: cron.ScheduledTask | null = null;
@@ -169,12 +170,19 @@ export function startEmailCron() {
       await autoCreateFollowUps();
     } catch (error: any) {
       console.error('[CRON] ✗ Błąd follow-upów:', error.message);
+    }
+    
+    console.log('[CRON] 🤖 Sprawdzam AUTO_FOLLOWUP...');
+    try {
+      await processAutoFollowUps();
+    } catch (error: any) {
+      console.error('[CRON] ✗ Błąd AUTO_FOLLOWUP:', error.message);
     } finally {
       isHolidayCronTaskRunning = false;
     }
   });
   
-  console.log('[CRON] ✓ Holiday & Follow-up cron uruchomiony (o 00:05)');
+  console.log('[CRON] ✓ Holiday & Follow-up & AUTO_FOLLOWUP cron uruchomiony (o 00:05)');
   
   // Uruchom cron do dziennego raportu (o 18:00 codziennie)
   dailyReportCronJob = cron.schedule('0 18 * * *', async () => {

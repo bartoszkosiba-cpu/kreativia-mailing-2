@@ -24,7 +24,8 @@ export type LeadSubStatus =
   | "CZEKAJ_MAYBE"
   | "CZEKAJ_REDIRECT_AWAITING_CONTACT"
   | "CZEKAJ_OOO"
-  | "CZEKAJ_OOO_WITH_CONTACTS";
+  | "CZEKAJ_OOO_WITH_CONTACTS"
+  | "CZEKAJ_REDIRECT_COMPLETED";
 
 export type LeadSource = 
   | "CSV_IMPORT"
