@@ -13,7 +13,8 @@ export function getStatusLabel(status: LeadStatus): string {
     'ZAINTERESOWANY': 'Zainteresowany', 
     'BLOKADA': 'Blokada',
     'CZEKAJ': 'Czekaj',
-    'TEST': 'Test'
+    'TEST': 'Test',
+    'NO_GREETING': 'Brak powitania'
   };
   
   return labels[status] || status;
@@ -64,7 +65,8 @@ export function getStatusColor(status: LeadStatus): string {
     'ZAINTERESOWANY': '#9CA3AF', // gray-400 - jasnoszary
     'BLOKADA': '#9CA3AF',      // gray-400 - jasnoszary
     'CZEKAJ': '#9CA3AF',       // gray-400 - jasnoszary
-    'TEST': '#9CA3AF'          // gray-400 - jasnoszary
+    'TEST': '#9CA3AF',         // gray-400 - jasnoszary
+    'NO_GREETING': '#9CA3AF'   // gray-400 - jasnoszary
   };
   
   return colors[status] || '#9CA3AF';
@@ -101,10 +103,11 @@ export function getSubStatusColor(subStatus: LeadSubStatus | null): string {
 export function getStatusIcon(status: LeadStatus): string {
   const icons: Record<LeadStatus, string> = {
     'AKTYWNY': '●',
-    'ZAINTERESOWANY': '●', 
+    'ZAINTERESOWANY': '●',
     'BLOKADA': '●',
     'CZEKAJ': '●',
-    'TEST': '●'
+    'TEST': '●',
+    'NO_GREETING': '●'
   };
   
   return icons[status] || '●';
