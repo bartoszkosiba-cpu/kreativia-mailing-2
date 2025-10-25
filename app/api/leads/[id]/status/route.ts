@@ -7,14 +7,27 @@ export async function PATCH(
 ) {
   try {
     const leadId = parseInt(params.id);
-    const { status, blockedReason } = await request.json();
+    const { status, subStatus, blockedReason } = await request.json();
 
-    // Walidacja statusu
-    const validStatuses = ['ACTIVE', 'BLOCKED', 'INACTIVE', 'TEST'];
+    // Walidacja statusu - używamy polskich statusów
+    const validStatuses = ['AKTYWNY', 'BLOKADA', 'CZEKAJ', 'TEST', 'ZAINTERESOWANY'];
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { error: 'Nieprawidłowy status' },
         { status: 400 }
+      );
+    }
+
+    // Pobierz aktualny lead żeby zapisać historię
+    const currentLead = await db.lead.findUnique({
+      where: { id: leadId },
+      select: { status: true, subStatus: true }
+    });
+
+    if (!currentLead) {
+      return NextResponse.json(
+        { error: 'Lead nie znaleziony' },
+        { status: 404 }
       );
     }
 
@@ -23,9 +36,10 @@ export async function PATCH(
       where: { id: leadId },
       data: {
         status,
-        blockedReason: status === 'BLOCKED' ? (blockedReason || 'MANUAL') : null,
-        blockedAt: status === 'BLOCKED' ? new Date() : null,
-        isBlocked: status === 'BLOCKED', // Zachowaj kompatybilność
+        subStatus: subStatus || null,
+        blockedReason: status === 'BLOKADA' ? (blockedReason || 'MANUAL') : null,
+        blockedAt: status === 'BLOKADA' ? new Date() : null,
+        isBlocked: status === 'BLOKADA', // Zachowaj kompatybilność
       },
       include: {
         LeadTag: {
@@ -36,6 +50,22 @@ export async function PATCH(
         CampaignLead: true
       }
     });
+
+    // Zapisz historię zmiany statusu (tylko jeśli status się zmienił)
+    if (currentLead.status !== status || currentLead.subStatus !== subStatus) {
+      await db.leadStatusHistory.create({
+        data: {
+          leadId,
+          oldStatus: currentLead.status,
+          oldSubStatus: currentLead.subStatus,
+          newStatus: status,
+          newSubStatus: subStatus || null,
+          reason: 'MANUAL',
+          changedBy: 'USER',
+          notes: blockedReason ? `Powód: ${blockedReason}` : null
+        }
+      });
+    }
 
     return NextResponse.json({
       message: 'Status leada zaktualizowany pomyślnie',

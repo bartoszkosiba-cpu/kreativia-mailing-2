@@ -73,7 +73,7 @@ async function updateProgress(importId: string, data: {
   error?: string;
 }) {
   try {
-    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3002'}/api/leads/import/progress`, {
+    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/leads/import/progress`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ importId, ...data })

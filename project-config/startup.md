@@ -38,6 +38,16 @@
 - **Struktura:** Data, czas, użytkownik, AI, treść wiadomości, podsumowanie sesji
 - **Automatyczny:** Po każdej sesji dłuższej niż 10 wiadomości
 
+## 3D. GITHUB I ZDALNE REPOZYTORIA
+- **GitHub CLI:** Zainstaluj `brew install gh` jeśli nie ma
+- **Logowanie:** `gh auth login` - użyj kodu z przeglądarki
+- **Tworzenie repo:** `gh repo create nazwa-projektu --public` (lub --private)
+- **Synchronizacja:** Automatyczny `git push` po każdym commicie
+- **Remote origin:** `git remote add origin https://github.com/USERNAME/REPO.git`
+- **Pierwszy push:** `git push -u origin main`
+- **Sprawdzanie:** `gh repo view` - status repozytorium
+- **Backup w chmurze:** Każdy commit automatycznie w GitHub
+
 ## 4. KONTYNUACJA PO PONOWNYM URUCHOMIENIU
 - Po uruchomieniu projektu odczytaj `docs/overview.md`, `changelog.md` i najnowszy `chat-history/`.
 - Przypomnij mi, nad czym pracowaliśmy: `[→] Ostatnio robiliśmy X, mogę kontynuować Y.`
@@ -84,4 +94,5 @@
 4. W `docs/overview.md` zapisz cel projektu.
 5. W `docs/ideas.md` dodaj pustą listę „Na później".
 6. W `docs/decisions.md` wpisz `[DATA] Uruchomiono Autobackup & History`.
-7. Włącz Autobackup & History i potwierdź gotowość.
+7. **GitHub setup:** `gh auth login` → `gh repo create nazwa-projektu` → `git push -u origin main`
+8. Włącz Autobackup & History i potwierdź gotowość.

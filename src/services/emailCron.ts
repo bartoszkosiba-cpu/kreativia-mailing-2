@@ -185,6 +185,11 @@ export function startEmailCron() {
   console.log('[CRON] ✓ Holiday & Follow-up & AUTO_FOLLOWUP cron uruchomiony (o 00:05)');
   
   // Uruchom cron do dziennego raportu (o 18:00 codziennie)
+  if (dailyReportCronJob) {
+    console.log('[CRON] Daily Report cron już działa');
+    return;
+  }
+  
   dailyReportCronJob = cron.schedule('0 18 * * *', async () => {
     // Kolejkowanie - zapobiega nakładaniu się zadań
     if (isDailyReportCronTaskRunning) {

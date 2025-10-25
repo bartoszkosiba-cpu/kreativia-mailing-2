@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+
+// Removed spinner CSS - keeping it simple
 import Link from "next/link";
 import StatusLegend from "@/components/StatusLegend";
 // import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
@@ -81,6 +83,17 @@ export default function LeadsPage() {
   const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
+  const [greetingProgress, setGreetingProgress] = useState<{
+    isActive: boolean;
+    progressId: string | null;
+    currentBatch: number;
+    totalBatches: number;
+    percentage: number;
+    processedLeads: number;
+    totalLeads: number;
+    estimatedTime: string;
+    status: 'processing' | 'completed' | 'error';
+  } | null>(null);
   const [tags, setTags] = useState<Array<{ id: number; name: string; color: string }>>([]);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -121,13 +134,36 @@ export default function LeadsPage() {
     greetings: { with: 0, without: 0 }
   });
 
-  useEffect(() => {
-    console.log("useEffect called");
-    fetchLeads();
-    fetchTags();
-  }, []);
+  const fetchLeads = async (page = currentPage, limit = itemsPerPage) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
+      
+      if (search) params.append("search", search);
+      if (selectedLanguage) params.append("language", selectedLanguage);
+      if (selectedCountry) params.append("country", selectedCountry);
+      if (selectedStatus) params.append("status", selectedStatus);
+      if (selectedTag) params.append("tagId", selectedTag);
+      if (selectedIndustry) params.append("industry", selectedIndustry);
 
-
+      const response = await fetch(`/api/leads?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setLeads(data.leads || []);
+        setTotalLeads(data.pagination?.total || 0);
+        setTotalPages(data.pagination?.totalPages || 0);
+        setStats(data.stats || {});
+      } else {
+        console.error("Response not ok:", response.status);
+      }
+    } catch (error) {
+      console.error("Błąd pobierania leadów:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchTags = async () => {
     try {
@@ -140,6 +176,27 @@ export default function LeadsPage() {
       console.error("Błąd pobierania tagów:", error);
     }
   };
+
+  // Początkowe ładowanie
+  useEffect(() => {
+    const loadData = async () => {
+      await fetchLeads(1, 50);
+      await fetchTags();
+    };
+    
+    loadData().catch(console.error);
+  }, []);
+
+  // Re-fetch przy zmianie filtrów/paginacji (tylko po pierwszym ładowaniu)
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  useEffect(() => {
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+      return;
+    }
+    fetchLeads(currentPage, itemsPerPage);
+  }, [currentPage, itemsPerPage, search, selectedLanguage, selectedCountry, selectedStatus, selectedTag, selectedIndustry]);
 
   // Sprawdź odmianę imienia przy zmianie
   useEffect(() => {
@@ -174,42 +231,6 @@ export default function LeadsPage() {
     return () => clearTimeout(timeoutId);
   }, [formData.firstName, formData.language]);
 
-  const fetchLeads = async () => {
-    setIsLoading(true);
-    try {
-      console.log("Fetching leads...");
-      const params = new URLSearchParams();
-      params.append("page", currentPage.toString());
-      params.append("limit", itemsPerPage.toString());
-      
-      if (search) params.append("search", search);
-      if (selectedLanguage) params.append("language", selectedLanguage);
-      if (selectedCountry) params.append("country", selectedCountry);
-      if (selectedStatus) params.append("status", selectedStatus);
-      if (selectedTag) params.append("tagId", selectedTag);
-      if (selectedIndustry) params.append("industry", selectedIndustry);
-
-      const response = await fetch(`/api/leads?${params.toString()}`);
-      console.log("Response status:", response.status);
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Data received:", data);
-        console.log("Leads array:", data.leads);
-        setLeads(data.leads || []);
-        setTotalLeads(data.pagination?.total || 0);
-        setTotalPages(data.pagination?.totalPages || 0);
-        setStats(data.stats || {});
-        console.log("Leads set successfully");
-      } else {
-        console.error("Response not ok:", response.status);
-      }
-    } catch (error) {
-      console.error("Błąd pobierania leadów:", error);
-    } finally {
-      console.log("Setting isLoading to false");
-      setIsLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -350,60 +371,164 @@ export default function LeadsPage() {
     }
   };
 
-  const handlePrepareGreetings = async (refresh = false) => {
+  // Funkcja do sprawdzania postępu generowania powitań
+  const checkGreetingProgress = async (progressId: string) => {
+    try {
+      const response = await fetch(`/api/leads/prepare-greetings-batch?progressId=${progressId}`);
+      if (response.ok) {
+        const progress = await response.json();
+        setGreetingProgress({
+          isActive: progress.status === 'processing',
+          progressId,
+          currentBatch: progress.currentBatch,
+          totalBatches: progress.totalBatches,
+          percentage: progress.percentage,
+          processedLeads: progress.processedLeads,
+          totalLeads: progress.totalLeads,
+          estimatedTime: progress.estimatedTime,
+          status: progress.status
+        });
+
+        // Jeśli proces się zakończył, odśwież dane
+        if (progress.status === 'completed') {
+          fetchLeads();
+          setTimeout(() => setGreetingProgress(null), 3000); // Ukryj modal po 3 sekundach
+        }
+      }
+    } catch (error) {
+      console.error("Błąd sprawdzania postępu:", error);
+    }
+  };
+
+  // Funkcja do wysyłania powiadomień dla leadów bez powitań
+  const handleSendNotifications = async () => {
+    if (stats.greetings.without === 0) {
+      alert("Wszystkie leady już mają powitania!");
+      return;
+    }
+
+    if (!confirm(`Wygeneruj powitania dla ${stats.greetings.without} leadów bez powitań?`)) {
+      return;
+    }
+
+    try {
+      // Pobierz wszystkie leady bez powitań z API
+      const leadsResponse = await fetch("/api/leads?withoutGreetings=true&limit=1000");
+      const leadsData = await leadsResponse.json();
+      
+      if (!leadsData.leads || leadsData.leads.length === 0) {
+        alert("Wszystkie leady już mają powitania!");
+        return;
+      }
+
+      const response = await fetch("/api/leads/prepare-greetings-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadIds: leadsData.leads.map((lead: any) => lead.id),
+          batchSize: 25,
+          delayMs: 2000
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Uruchom polling postępu
+        if (result.progressId) {
+          setGreetingProgress({
+            isActive: true,
+            progressId: result.progressId,
+            currentBatch: 0,
+            totalBatches: Math.ceil(leadsData.leads.length / 25),
+            percentage: 0,
+            processedLeads: 0,
+            totalLeads: leadsData.leads.length,
+            estimatedTime: "Obliczanie...",
+            status: 'processing'
+          });
+
+          // Rozpocznij polling co 2 sekundy
+          const interval = setInterval(() => {
+            checkGreetingProgress(result.progressId);
+          }, 2000);
+
+          // Zatrzymaj polling po 10 minutach (bezpieczeństwo)
+          setTimeout(() => {
+            clearInterval(interval);
+            if (greetingProgress?.isActive) {
+              setGreetingProgress(prev => prev ? { ...prev, isActive: false } : null);
+            }
+          }, 600000);
+        } else {
+          alert(`Rozpoczęto generowanie powitań dla ${leadsData.leads.length} leadów!`);
+          fetchLeads();
+        }
+      } else {
+        const error = await response.json();
+        alert(`Błąd: ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Błąd generowania powitań:", error);
+      alert("Błąd podczas generowania powitań");
+    }
+  };
+
+  // Funkcja do generowania powitań dla zaznaczonych leadów
+  const handleGenerateGreetingsForSelected = async () => {
     if (selectedLeadIds.length === 0) {
       alert("Nie wybrano żadnych leadów");
       return;
     }
 
     const selectedLeads = leads.filter(lead => selectedLeadIds.includes(lead.id));
-    
-    if (!refresh) {
-      // Sprawdź czy wybrane leady mają status NO_GREETING
-      const leadsWithoutGreeting = selectedLeads.filter(lead => 
-        lead.status === "NO_GREETING" || !lead.greetingForm
-      );
+    const leadsWithoutGreeting = selectedLeads.filter(lead => 
+      lead.status === "NO_GREETING" || !lead.greetingForm
+    );
 
-      if (leadsWithoutGreeting.length === 0) {
-        alert("Wszystkie wybrane leady już mają przygotowane powitania.\n\nChcesz je odświeżyć? Kliknij 'Odśwież powitania'.");
-        return;
-      }
+    if (leadsWithoutGreeting.length === 0) {
+      alert("Wszystkie wybrane leady już mają przygotowane powitania!");
+      return;
+    }
 
-      if (!confirm(`Przygotować powitania dla ${leadsWithoutGreeting.length} leadów?\n\nTo może zająć kilka minut.`)) {
-        return;
-      }
-    } else {
-      // Odświeżanie - potwierdź dla wszystkich wybranych leadów
-      if (!confirm(`Odświeżyć powitania dla ${selectedLeads.length} leadów?\n\nTo może zająć kilka minut.`)) {
-        return;
-      }
+    if (!confirm(`Przygotować powitania dla ${leadsWithoutGreeting.length} z ${selectedLeadIds.length} wybranych leadów?`)) {
+      return;
     }
 
     try {
-      setIsLoading(true);
-      const response = await fetch("/api/leads/prepare-greetings", {
+      const response = await fetch("/api/leads/prepare-greetings-batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadIds: selectedLeadIds, refresh })
+        body: JSON.stringify({ 
+          leadIds: selectedLeadIds, 
+          batchSize: 25,
+          delayMs: 2000
+        })
       });
 
       if (response.ok) {
         const result = await response.json();
-        alert(`✅ ${result.message}`);
+        console.log("Batch processing started:", result);
+        
+        // Zamknij panel i odśwież dane
         setSelectedLeadIds([]);
         setShowBulkActions(false);
-        fetchLeads();
+        fetchLeads(); // Odśwież dane żeby zobaczyć nowe powitania
       } else {
         const error = await response.json();
-        alert(`Błąd: ${error.error}`);
+        alert(`❌ Błąd: ${error.error}`);
       }
     } catch (error) {
-      console.error("Błąd przygotowania powitań:", error);
-      alert("Błąd podczas przygotowania powitań");
-    } finally {
-      setIsLoading(false);
+      console.error("Błąd generowania powitań:", error);
+      alert("Błąd podczas generowania powitań");
     }
   };
+
+  // Removed handleStopGreetingGeneration - starting fresh
+
+  // Removed handleGenerateAllGreetings - starting fresh
+
+  // Removed polling - keeping it simple
 
   // Funkcje paginacji
   const handlePageChange = (newPage: number) => {
@@ -432,12 +557,10 @@ export default function LeadsPage() {
 
   // Usunięto stare funkcje - używamy nowych z statusHelpers
 
-  if (isLoading) {
+  if (isLoading && leads.length === 0) {
     return (
       <main className="container" style={{ paddingTop: "var(--spacing-xl)" }}>
         <h1>Ładowanie leadów...</h1>
-        <p>Sprawdzam dane... (isLoading: {isLoading.toString()})</p>
-        <p>Liczba leadów: {leads.length}</p>
       </main>
     );
   }
@@ -459,7 +582,7 @@ export default function LeadsPage() {
         <div className="flex gap-sm">
           <Link href="/import">
             <button className="btn btn-primary">
-              📥 Import CSV
+              Import CSV
             </button>
           </Link>
           <button 
@@ -468,14 +591,23 @@ export default function LeadsPage() {
           >
             {showForm ? "❌ Anuluj" : "➕ Dodaj leada"}
           </button>
+          {/* Removed generate all greetings button - starting fresh */}
           {selectedLeadIds.length > 0 && (
-            <button 
+            <button
               onClick={() => setShowBulkActions(!showBulkActions)}
               className="btn btn-warning"
             >
               🔧 Zarządzaj zaznaczonymi ({selectedLeadIds.length})
             </button>
           )}
+          <button
+            onClick={handleSendNotifications}
+            className="btn btn-primary"
+            style={{ marginLeft: "var(--spacing-sm)" }}
+            disabled={stats.greetings.without === 0}
+          >
+            Wygeneruj powitania ({stats.greetings.without})
+          </button>
           <button 
             onClick={() => setShowDeleteOptions(!showDeleteOptions)}
             className="btn btn-danger"
@@ -494,18 +626,11 @@ export default function LeadsPage() {
           </h3>
           <div className="flex gap-md">
             <button 
-              onClick={() => handlePrepareGreetings(false)}
+              onClick={() => handleGenerateGreetingsForSelected()}
               className="btn btn-success"
               disabled={isLoading}
             >
-              🔤 Przygotuj powitania
-            </button>
-            <button 
-              onClick={() => handlePrepareGreetings(true)}
-              className="btn btn-warning"
-              disabled={isLoading}
-            >
-              🔄 Odśwież powitania
+              Generuj powitania
             </button>
             <button 
               onClick={() => setShowTagManager(true)}
@@ -532,6 +657,8 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* Removed progress banner - keeping it simple */}
+
       {/* Statystyki */}
       <div className="grid grid-4" style={{ marginBottom: "var(--spacing-2xl)" }}>
         <div className="card" style={{ textAlign: "center" }}>
@@ -545,6 +672,7 @@ export default function LeadsPage() {
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--success)" }}>
             {stats.greetings.with}
           </div>
+          {/* Removed progress info - keeping it simple */}
         </div>
         <div className="card" style={{ textAlign: "center" }}>
           <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Bez powitań</h3>
@@ -859,7 +987,7 @@ export default function LeadsPage() {
                 border: "1px solid var(--gray-200)"
               }}>
                 <label style={{ fontSize: "12px", color: "var(--gray-600)", marginBottom: "var(--spacing-xs)" }}>
-                  🔤 Podgląd powitania:
+                  Podgląd powitania:
                 </label>
                 <div style={{ 
                   fontStyle: "italic", 
@@ -961,7 +1089,15 @@ export default function LeadsPage() {
                   <td>{lead.firstName || "-"}</td>
                   <td>{lead.lastName || "-"}</td>
                   <td style={{ fontSize: "12px", color: "var(--color-primary)", fontStyle: "italic" }}>
-                    {lead.greetingForm || "Brak odmiany"}
+                    {lead.greetingForm ? (
+                      <span style={{ color: "#4caf50", fontWeight: "bold" }}>
+                        ✅ {lead.greetingForm}
+                      </span>
+                    ) : (
+                      <span style={{ color: "#ff9800" }}>
+                        ⏳ Brak odmiany
+                      </span>
+                    )}
                   </td>
                   <td>{lead.title || "-"}</td>
                   <td>
@@ -1034,7 +1170,7 @@ export default function LeadsPage() {
                     </div>
                   </td>
                   <td className="sticky-column sticky-column-right-1">
-                    <div className="flex gap-xs" style={{ maxWidth: "120px", flexWrap: "wrap" }}>
+                    <div className="flex" style={{ maxWidth: "120px", flexWrap: "wrap", gap: "16px" }}>
                       <Link href={`/leads/${lead.id}`}>
                         <button className="btn btn-primary" style={{ fontSize: "10px", padding: "4px 8px", minWidth: "60px" }}>
                           Szczegóły
@@ -1042,8 +1178,19 @@ export default function LeadsPage() {
                       </Link>
                       <button 
                         onClick={() => handleDeleteSingle(lead.id, `${lead.firstName} ${lead.lastName} (${lead.email})`)}
-                        className="btn btn-danger" 
-                        style={{ fontSize: "10px", padding: "4px 8px", minWidth: "50px" }}
+                        style={{ 
+                          fontSize: "10px", 
+                          padding: "4px 8px", 
+                          minWidth: "50px",
+                          backgroundColor: "#6c757d",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          transition: "background-color 0.2s"
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#5a6268"}
+                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#6c757d"}
                         title="Usuń leada"
                       >
                         Usuń
@@ -1132,6 +1279,80 @@ export default function LeadsPage() {
           </div>
         )}
       </div>
+
+      {/* Modal z postępem generowania powitań */}
+      {greetingProgress && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '8px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '1rem', color: '#0066cc' }}>
+              {greetingProgress.status === 'completed' ? '✅ Zakończono!' : '🔄 Generowanie powitań...'}
+            </h3>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span>Postęp:</span>
+                <span>{greetingProgress.percentage}%</span>
+              </div>
+              <div style={{
+                width: '100%',
+                height: '20px',
+                backgroundColor: '#e0e0e0',
+                borderRadius: '10px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  width: `${greetingProgress.percentage}%`,
+                  height: '100%',
+                  backgroundColor: greetingProgress.status === 'completed' ? '#28a745' : '#007bff',
+                  transition: 'width 0.3s ease'
+                }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem', fontSize: '14px', color: '#666' }}>
+              <div>Batch: {greetingProgress.currentBatch} / {greetingProgress.totalBatches}</div>
+              <div>Leady: {greetingProgress.processedLeads} / {greetingProgress.totalLeads}</div>
+              {greetingProgress.estimatedTime && (
+                <div>Szacowany czas: {greetingProgress.estimatedTime}</div>
+              )}
+            </div>
+
+            {greetingProgress.status === 'completed' && (
+              <button
+                onClick={() => setGreetingProgress(null)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Zamknij
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

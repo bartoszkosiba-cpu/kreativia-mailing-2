@@ -223,7 +223,7 @@ export default function HomePage() {
           <NavLink href="/leads" icon="👥" label="Leady" desc="Baza kontaktów" />
           <NavLink href="/salespeople" icon="👤" label="Handlowcy" desc="Wirtualni handlowcy" />
           <NavLink href="/tags" icon="🏷️" label="Tagi" desc="Zarządzanie tagami" />
-          <NavLink href="/import" icon="📥" label="Import" desc="Import CSV" />
+          <NavLink href="/import" icon="" label="Import" desc="Import CSV" />
           <NavLink href="/settings" icon="⚙️" label="Ustawienia" desc="Konfiguracja" />
         </div>
       </div>

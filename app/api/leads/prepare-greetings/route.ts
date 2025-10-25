@@ -124,20 +124,20 @@ export async function POST(req: NextRequest) {
           });
           
           processedCount++;
-          console.log(`[PREPARE GREETINGS] ✅ Zaktualizowano lead ${lead.id} (${lead.email})`);
+          console.log(`[PREPARE GREETINGS] Zaktualizowano lead ${lead.id} (${lead.email})`);
         } else {
           errorCount++;
           errors.push(`Brak powitania dla: ${lead.firstName} (${lead.email})`);
-          console.warn(`[PREPARE GREETINGS] ❌ Brak powitania dla: ${lead.firstName}`);
+          console.warn(`[PREPARE GREETINGS] Brak powitania dla: ${lead.firstName}`);
         }
       } catch (error: any) {
         errorCount++;
         errors.push(`Błąd aktualizacji leada ${lead.id}: ${error.message}`);
-        console.error(`[PREPARE GREETINGS] ❌ Błąd aktualizacji leada ${lead.id}:`, error);
+        console.error(`[PREPARE GREETINGS] Błąd aktualizacji leada ${lead.id}:`, error);
       }
     }
 
-    console.log(`[PREPARE GREETINGS] ✅ Zakończono. Zaktualizowano ${processedCount} leadów, ${errorCount} błędów.`);
+    console.log(`[PREPARE GREETINGS] Zakończono. Zaktualizowano ${processedCount} leadów, ${errorCount} błędów.`);
 
     return NextResponse.json({
       success: true,

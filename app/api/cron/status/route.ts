@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isEmailCronRunning, startEmailCron, stopEmailCron } from "../../../../src/services/emailCron";
+import '@/services/startCron'; // Uruchom cron jobs tylko raz
 
 // GET - Sprawdź status crona
 export async function GET() {

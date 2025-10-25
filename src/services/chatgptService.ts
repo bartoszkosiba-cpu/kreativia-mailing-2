@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { trackTokenUsage } from './tokenTracker';
 
 function getSystemPrompt(language: string): string {
   switch (language.toLowerCase()) {
@@ -155,6 +156,22 @@ export class ChatGPTService {
         const endTime = Date.now();
         console.log(`[ChatGPT] Odpowiedź otrzymana w ${endTime - startTime}ms`);
 
+        // Śledź użycie tokenów
+        if (response.usage) {
+          await trackTokenUsage({
+            operation: 'greeting_generation',
+            model: 'gpt-4o-mini',
+            promptTokens: response.usage.prompt_tokens,
+            completionTokens: response.usage.completion_tokens,
+            metadata: {
+              language,
+              namesCount: data.firstNames.length,
+              responseTime: endTime - startTime
+            }
+          });
+          console.log(`[ChatGPT] Tokeny: ${response.usage.prompt_tokens} input + ${response.usage.completion_tokens} output = ${response.usage.total_tokens} total`);
+        }
+
         const content = response.choices[0]?.message?.content;
         if (!content) {
           throw new Error('Brak odpowiedzi od ChatGPT');
@@ -195,6 +212,13 @@ export class ChatGPTService {
         
         console.log(`[ChatGPT] Wynik (${language}): ${results.length} odmian`);
         console.log(`[ChatGPT] Szczegóły wyników (${language}):`, results.map(r => `${r.originalName} → "${r.greetingForm}"`).join(', '));
+      }
+      
+      // WERYFIKACJA: Sprawdź czy wszystkie wyniki są przypisane
+      const undefinedCount = allResults.filter(r => r === undefined).length;
+      if (undefinedCount > 0) {
+        console.error(`[ChatGPT] ❌ BŁĄD: ${undefinedCount} wyników nie zostało przypisanych!`);
+        console.error(`[ChatGPT] allResults:`, allResults.map((r, i) => `${i}: ${r ? r.greetingForm : 'UNDEFINED'}`));
       }
       
       return allResults;

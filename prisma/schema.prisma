@@ -150,6 +150,7 @@ model Lead {
   CampaignLead   CampaignLead[]
   LeadTag        LeadTag[]
   replies        InboxReply[]
+  statusHistory  LeadStatusHistory[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @default(now()) @updatedAt
 }
@@ -685,5 +686,29 @@ model WarmupQueue {
   @@index([mailboxId])
   @@index([scheduledAt, status])
   @@index([status])
+}
+
+model LeadStatusHistory {
+  id          Int      @id @default(autoincrement())
+  leadId      Int
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  
+  // Status change details
+  oldStatus   String?  // Previous status
+  oldSubStatus String? // Previous sub-status
+  newStatus   String   // New status
+  newSubStatus String? // New sub-status
+  
+  // Change reason and metadata
+  reason      String?  // Reason for change (e.g., "MANUAL", "AI_CLASSIFICATION", "REACTIVATION")
+  changedBy   String?  // Who made the change (e.g., "USER", "AI", "SYSTEM")
+  notes       String?  // Additional notes
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  
+  @@index([leadId])
+  @@index([createdAt])
+  @@index([newStatus])
 }
 

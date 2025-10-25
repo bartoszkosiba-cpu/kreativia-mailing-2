@@ -38,7 +38,11 @@ export default function ImportPage() {
 
   // Śledzenie postępu importu
   useEffect(() => {
-    if (!importId) return;
+    console.log(`[PROGRESS] useEffect uruchomiony - importId: ${importId}, importCompleted: ${importCompleted}`);
+    if (!importId || importCompleted) {
+      console.log(`[PROGRESS] useEffect zakończony - brak importId lub importCompleted`);
+      return;
+    }
 
     const pollProgress = async () => {
       try {
@@ -48,18 +52,13 @@ export default function ImportPage() {
           setProgress(data);
           console.log(`[PROGRESS] ${data.processed}/${data.total} (${data.percentage}%) - ${data.currentStep}`);
           
-          // Jeśli import zakończony, zresetuj statusy
+          // Jeśli import zakończony, zresetuj statusy i PRZESTAŃ polling
           if (data.isComplete) {
             console.log('[PROGRESS] Import zakończony - resetuję statusy');
             setIsProcessing(false);
             setImportCompleted(true);
             setStatus(`✅ Import zakończony! Dodano: ${data.processed} leadów`);
-            
-            // NIE resetuj importId i progress - pozostaw efekt końcowy
-            // setTimeout(() => {
-            //   setImportId(null);
-            //   setProgress(null);
-            // }, 5000);
+            return; // Wyjdź z funkcji - nie kontynuuj polling
           }
         } else if (response.status === 404) {
           // Import jeszcze się nie rozpoczął - to normalne na początku
@@ -75,10 +74,24 @@ export default function ImportPage() {
     // Sprawdź postęp co 500ms dla lepszej responsywności
     const interval = setInterval(pollProgress, 500);
     
-    // Pierwsze sprawdzenie od razu
-    pollProgress();
+    // Dodaj małe opóźnienie żeby upewnić się, że importId jest ustawiony
+    const timeoutId = setTimeout(() => {
+      console.log(`[PROGRESS] Timeout uruchomiony - importId: ${importId}`);
+      // Rozpocznij polling po timeout
+      pollProgress();
+    }, 100);
+    
+    console.log(`[PROGRESS] Rozpoczęto polling dla importId: ${importId}`);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeoutId);
+    };
+  }, [importId, importCompleted]);
+
+  // Debug: useEffect który będzie się uruchamiał za każdym razem gdy importId się zmieni
+  useEffect(() => {
+    console.log(`[DEBUG] importId zmieniony na: ${importId}`);
   }, [importId]);
 
   const fetchTags = async () => {
@@ -301,6 +314,12 @@ export default function ImportPage() {
     const newImportId = `import_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log(`[FRONTEND] Ustawiam importId PRZED importem:`, newImportId);
     setImportId(newImportId);
+    console.log(`[FRONTEND] importId ustawiony, powinien uruchomić useEffect`);
+    
+    // Sprawdź czy importId jest rzeczywiście ustawiony
+    setTimeout(() => {
+      console.log(`[FRONTEND] Sprawdzam importId po 200ms:`, importId);
+    }, 200);
 
     console.log(`[FRONTEND] Rozpoczynam import ${rows.length} leadów...`);
     console.log(`[FRONTEND] Pierwsze 3 leady:`, rows.slice(0, 3));
@@ -326,10 +345,9 @@ export default function ImportPage() {
         const result = await response.json();
         console.log(`[FRONTEND] Wynik importu:`, result);
         
-        // Ustaw importId dla śledzenia postępu
+        // importId już jest ustawiony przed wysłaniem
         if (result.importId) {
-          console.log(`[FRONTEND] Ustawiam importId:`, result.importId);
-          setImportId(result.importId);
+          console.log(`[FRONTEND] Serwer zwrócił importId:`, result.importId);
         } else {
           // Fallback dla starych odpowiedzi bez importId
           const totalCount = (result.importedCount || 0) + (result.updatedCount || 0);

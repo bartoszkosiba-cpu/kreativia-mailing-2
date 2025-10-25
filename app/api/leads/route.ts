@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || '';
     const tagId = searchParams.get('tagId') || '';
     const industry = searchParams.get('industry') || '';
+    const withoutGreetings = searchParams.get('withoutGreetings') === 'true';
 
     // Buduj warunki WHERE
     const whereConditions: any = {};
@@ -52,6 +53,18 @@ export async function GET(request: NextRequest) {
           tagId: parseInt(tagId)
         }
       };
+    }
+
+    if (withoutGreetings) {
+      whereConditions.OR = [
+        { status: "NO_GREETING" },
+        { greetingForm: null },
+        { greetingForm: "" },
+        { greetingForm: "Dzień dobry" },
+        { greetingForm: "Hello" },
+        { greetingForm: "Guten Tag" },
+        { greetingForm: "Bonjour" }
+      ];
     }
 
     // Pobierz całkowitą liczbę leadów z filtrami
@@ -202,10 +215,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Lead z tym emailem już istnieje" }, { status: 400 });
     }
 
-    // Pobierz odmianę imienia
-    const greetingForm = data.firstName 
-      ? await morfeuszService.getGreetingForm(data.firstName, data.language || "pl")
-      : "Dzień dobry";
+    // Pobierz odmianę imienia - tylko jeśli nie jest NO_GREETING
+    const greetingForm = data.status === 'NO_GREETING' 
+      ? null 
+      : data.firstName 
+        ? await morfeuszService.getGreetingForm(data.firstName, data.language || "pl")
+        : "Dzień dobry";
 
     const lead = await db.lead.create({
       data: {
@@ -220,7 +235,8 @@ export async function POST(req: NextRequest) {
         companyCity: data.companyCity || null,
         companyCountry: data.companyCountry || null,
         language: data.language || "pl",
-        greetingForm: greetingForm
+        greetingForm: greetingForm,
+        status: data.status || "AKTYWNY"
       }
     });
 

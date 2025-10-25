@@ -72,10 +72,10 @@ export async function POST(request: NextRequest) {
     if (currentStep !== undefined) progress.currentStep = currentStep;
     if (error) progress.errors.push(error);
     
-    // Usuń stare importy (starsze niż 1 godzina)
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    // Usuń stare importy (starsze niż 2 godziny) - daj więcej czasu na zakończenie
+    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
     for (const [id, p] of importProgress.entries()) {
-      if (p.startTime < oneHourAgo) {
+      if (p.startTime < twoHoursAgo) {
         importProgress.delete(id);
       }
     }

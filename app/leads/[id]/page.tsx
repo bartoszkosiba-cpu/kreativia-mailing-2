@@ -26,6 +26,7 @@ interface Lead {
   blockedReason: string | null;
   blockedAt: Date | null;
   personalization: string | null;
+  greetingForm: string | null;
   CampaignLead: Array<{
     id: number;
     campaign: {
@@ -62,7 +63,9 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
   const router = useRouter();
   const [lead, setLead] = useState<Lead | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [referer, setReferer] = useState('/archive');
+  const [referer, setReferer] = useState('/leads');
+  const [isEditingGreeting, setIsEditingGreeting] = useState(false);
+  const [greetingValue, setGreetingValue] = useState('');
 
   const fetchLead = async () => {
     try {
@@ -106,6 +109,37 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
     }
   };
 
+  const handleGreetingEdit = () => {
+    setGreetingValue(lead?.greetingForm || '');
+    setIsEditingGreeting(true);
+  };
+
+  const handleGreetingSave = async () => {
+    try {
+      const response = await fetch(`/api/leads/${leadId}/greeting`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ greetingForm: greetingValue })
+      });
+
+      if (response.ok) {
+        await fetchLead();
+        setIsEditingGreeting(false);
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Błąd aktualizacji powitania');
+      }
+    } catch (error: any) {
+      console.error("Błąd aktualizacji powitania:", error);
+      alert("Błąd aktualizacji powitania: " + error.message);
+    }
+  };
+
+  const handleGreetingCancel = () => {
+    setIsEditingGreeting(false);
+    setGreetingValue('');
+  };
+
   useEffect(() => {
     if (Number.isNaN(leadId)) {
       router.push('/404');
@@ -113,7 +147,7 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
     }
 
     // Pobierz referer z document.referrer
-    setReferer(document.referrer || '/archive');
+    setReferer(document.referrer || '/leads');
 
     fetchLead();
   }, [leadId, router]);
@@ -128,32 +162,48 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
 
   return (
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <h1>Szczegóły kontaktu</h1>
-
-      <div style={{ marginBottom: 20 }}>
-        <Link 
-          href={referer}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            backgroundColor: "var(--gray-100)",
-            color: "var(--gray-700)",
-            textDecoration: "none",
-            borderRadius: "var(--radius)",
-            fontSize: "14px",
-            fontWeight: "500",
-            transition: "background-color 0.2s"
-          }}
-        >
-          ← Wróć
-        </Link>
+      <div style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-md)", marginBottom: "var(--spacing-sm)" }}>
+          <Link 
+            href={referer}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "var(--spacing-xs)",
+              padding: "var(--spacing-sm) var(--spacing-md)",
+              backgroundColor: "var(--gray-100)",
+              color: "var(--gray-700)",
+              textDecoration: "none",
+              borderRadius: "var(--radius)",
+              fontSize: "14px",
+              fontWeight: "500",
+              transition: "all 0.2s ease",
+              border: "1px solid var(--gray-200)"
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--gray-200)";
+              e.currentTarget.style.borderColor = "var(--gray-300)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--gray-100)";
+              e.currentTarget.style.borderColor = "var(--gray-200)";
+            }}
+          >
+            <span>←</span>
+            <span>Wróć do listy leadów</span>
+          </Link>
+        </div>
+        <h1 style={{ fontSize: "2.5rem", marginBottom: "var(--spacing-sm)", margin: 0 }}>
+          {lead.firstName} {lead.lastName}
+        </h1>
+        <p style={{ fontSize: "1.1rem", color: "var(--gray-600)", margin: 0 }}>
+          Szczegóły leada i zarządzanie statusem
+        </p>
       </div>
 
       {/* Zarządzanie statusem */}
       <div style={{ backgroundColor: "#e7f3ff", padding: 20, borderRadius: 8, marginBottom: 20, border: "1px solid #b3d9ff" }}>
-        <h3 style={{ marginTop: 0, color: "#0066cc" }}>🔧 Zarządzanie statusem</h3>
+        <h3 style={{ marginTop: 0, color: "#0066cc" }}>Zarządzanie statusem</h3>
         <StatusManager 
           leadId={lead.id} 
           currentStatus={lead.status as LeadStatus} 
@@ -176,7 +226,7 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
               borderRadius: 12, 
               fontSize: "14px" 
             }}>
-              🚫 ZABLOKOWANY
+              ZABLOKOWANY
             </span>
           )}
         </h2>
@@ -378,6 +428,90 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
           <p style={{ whiteSpace: "pre-wrap", fontSize: "14px" }}>{lead.personalization}</p>
         </div>
       )}
+
+      {/* Powitanie */}
+      <div style={{ backgroundColor: "#e8f5e8", padding: 16, borderRadius: 8, marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <h4 style={{ margin: 0 }}>Powitanie</h4>
+          {!isEditingGreeting && (
+            <button
+              onClick={handleGreetingEdit}
+              style={{
+                padding: "6px 12px",
+                backgroundColor: "#28a745",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "12px",
+                cursor: "pointer",
+                transition: "background-color 0.2s"
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#218838"}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#28a745"}
+            >
+              Edytuj
+            </button>
+          )}
+        </div>
+        
+        {isEditingGreeting ? (
+          <div>
+            <textarea
+              value={greetingValue}
+              onChange={(e) => setGreetingValue(e.target.value)}
+              placeholder="Wprowadź powitanie..."
+              style={{
+                width: "100%",
+                minHeight: "80px",
+                padding: "8px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                fontSize: "14px",
+                fontFamily: "inherit",
+                resize: "vertical"
+              }}
+            />
+            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+              <button
+                onClick={handleGreetingSave}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: "#007bff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer"
+                }}
+              >
+                Zapisz
+              </button>
+              <button
+                onClick={handleGreetingCancel}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer"
+                }}
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        ) : (
+          lead.greetingForm ? (
+            <p style={{ whiteSpace: "pre-wrap", fontSize: "14px", margin: 0 }}>{lead.greetingForm}</p>
+          ) : (
+            <p style={{ fontSize: "14px", color: "#666", fontStyle: "italic", margin: 0 }}>
+              Brak przygotowanego powitania
+            </p>
+          )
+        )}
+      </div>
     </main>
   );
 }
