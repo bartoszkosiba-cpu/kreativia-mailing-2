@@ -100,14 +100,14 @@ export function getSubStatusColor(subStatus: LeadSubStatus | null): string {
 
 export function getStatusIcon(status: LeadStatus): string {
   const icons: Record<LeadStatus, string> = {
-    'AKTYWNY': '🟢',
-    'ZAINTERESOWANY': '🔵', 
-    'BLOKADA': '🔴',
-    'CZEKAJ': '🟡',
-    'TEST': '⚪'
+    'AKTYWNY': '●',
+    'ZAINTERESOWANY': '●', 
+    'BLOKADA': '●',
+    'CZEKAJ': '●',
+    'TEST': '●'
   };
   
-  return icons[status] || '⚪';
+  return icons[status] || '●';
 }
 
 export function getSubStatusIcon(subStatus: LeadSubStatus | null): string {
@@ -115,22 +115,22 @@ export function getSubStatusIcon(subStatus: LeadSubStatus | null): string {
   
   const icons: Record<LeadSubStatus, string> = {
     // ZAINTERESOWANY
-    'ZAINTERESOWANY_CAMPAIGN': '📧',
-    'ZAINTERESOWANY_NEW': '🆕',
-    'ZAINTERESOWANY_REACTIVATED': '🔄',
+    'ZAINTERESOWANY_CAMPAIGN': '✉',
+    'ZAINTERESOWANY_NEW': '★',
+    'ZAINTERESOWANY_REACTIVATED': '↻',
     
     // BLOKADA
-    'BLOKADA_REFUSAL': '❌',
-    'BLOKADA_BOUNCE': '↩️',
-    'BLOKADA_UNSUBSCRIBE': '🚫',
-    'BLOKADA_REDIRECT_COMPLETED': '↗️',
+    'BLOKADA_REFUSAL': '✗',
+    'BLOKADA_BOUNCE': '↩',
+    'BLOKADA_UNSUBSCRIBE': '⊘',
+    'BLOKADA_REDIRECT_COMPLETED': '↗',
     
     // CZEKAJ
-    'CZEKAJ_MAYBE': '⏰',
-    'CZEKAJ_REDIRECT_AWAITING_CONTACT': '📞',
-    'CZEKAJ_OOO': '🏖️',
+    'CZEKAJ_MAYBE': '⏱',
+    'CZEKAJ_REDIRECT_AWAITING_CONTACT': '☎',
+    'CZEKAJ_OOO': '☀',
     'CZEKAJ_OOO_WITH_CONTACTS': '👥',
-    'CZEKAJ_REDIRECT_COMPLETED': '✅'
+    'CZEKAJ_REDIRECT_COMPLETED': '✓'
   };
   
   return icons[subStatus] || '';

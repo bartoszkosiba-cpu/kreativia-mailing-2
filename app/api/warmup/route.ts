@@ -1,16 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { startWarmupCron } from '@/services/warmup/cron';
-import { startEmailCron } from '@/services/emailCron';
-
-// Uruchom crony przy pierwszym wywołaniu API
-let cronsStarted = false;
-if (!cronsStarted) {
-  console.log('[API WARMUP] 🚀 Uruchamiam crony...');
-  startWarmupCron();
-  startEmailCron();
-  cronsStarted = true;
-}
 
 /**
  * GET /api/warmup - Pobierz listę wszystkich skrzynek z warmup

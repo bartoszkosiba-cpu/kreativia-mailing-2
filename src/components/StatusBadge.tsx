@@ -40,14 +40,14 @@ export function StatusBadge({
   };
   
   return (
-    <div className={`inline-flex items-center gap-1 ${sizeClasses[size]} ${className}`}>
+    <div className={`inline-flex items-center gap-1 ${className}`}>
       {/* Main Status */}
       <div 
-        className="inline-flex items-center gap-1 rounded-full font-medium text-white"
+        className={`inline-flex items-center gap-1 rounded-full font-medium text-white ${sizeClasses[size]}`}
         style={{ backgroundColor: statusColor }}
       >
-        {showIcon && (
-          <span className="text-xs">
+        {showIcon && statusIcon && (
+          <span style={{ fontSize: '14px', lineHeight: '1' }}>
             {statusIcon}
           </span>
         )}
@@ -57,15 +57,15 @@ export function StatusBadge({
       {/* Sub Status */}
       {showSubStatus && subStatus && (
         <div 
-          className="inline-flex items-center gap-1 rounded-full font-medium text-white"
+          className="inline-flex items-center gap-1 rounded-full font-medium text-white text-xs px-2 py-1"
           style={{ backgroundColor: subStatusColor }}
         >
           {showIcon && subStatusIcon && (
-            <span className="text-xs">
+            <span style={{ fontSize: '12px', lineHeight: '1' }}>
               {subStatusIcon}
             </span>
           )}
-          <span className="text-xs">
+          <span>
             {getSubStatusLabel(subStatus)}
           </span>
         </div>
