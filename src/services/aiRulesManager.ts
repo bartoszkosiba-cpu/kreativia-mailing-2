@@ -56,6 +56,9 @@ export class AIRulesManager {
     return rules.map(rule => ({
       ...rule,
       keywords: JSON.parse(rule.keywords),
+      pattern: rule.pattern || undefined,
+      createdBy: rule.createdBy || undefined,
+      description: rule.description || undefined,
       createdAt: rule.createdAt,
       updatedAt: rule.updatedAt
     }));
@@ -79,6 +82,9 @@ export class AIRulesManager {
     return rules.map(rule => ({
       ...rule,
       keywords: JSON.parse(rule.keywords),
+      pattern: rule.pattern || undefined,
+      createdBy: rule.createdBy || undefined,
+      description: rule.description || undefined,
       createdAt: rule.createdAt,
       updatedAt: rule.updatedAt
     }));
@@ -103,6 +109,9 @@ export class AIRulesManager {
     return {
       ...rule,
       keywords: JSON.parse(rule.keywords),
+      pattern: rule.pattern || undefined,
+      createdBy: rule.createdBy || undefined,
+      description: rule.description || undefined,
       createdAt: rule.createdAt,
       updatedAt: rule.updatedAt
     };
@@ -125,6 +134,9 @@ export class AIRulesManager {
     return {
       ...rule,
       keywords: JSON.parse(rule.keywords),
+      pattern: rule.pattern || undefined,
+      createdBy: rule.createdBy || undefined,
+      description: rule.description || undefined,
       createdAt: rule.createdAt,
       updatedAt: rule.updatedAt
     };

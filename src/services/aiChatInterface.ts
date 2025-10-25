@@ -304,7 +304,8 @@ export class AIChatInterface {
     return history.map(msg => ({
       ...msg,
       rulesCreated: JSON.parse(msg.rulesCreated || '[]'),
-      createdAt: msg.createdAt
+      createdAt: msg.createdAt,
+      userId: msg.userId || undefined
     }));
   }
 

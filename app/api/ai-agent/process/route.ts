@@ -19,10 +19,10 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "Odpowiedź przetworzona przez AI Agent",
       analysis: {
-        classification: analysis.classification,
-        sentiment: analysis.sentiment,
-        summary: analysis.summary,
-        suggestedAction: analysis.suggestedAction,
+        classification: analysis.classification.classification,
+        confidence: analysis.classification.confidence,
+        leadStatus: analysis.leadStatus,
+        leadSubStatus: analysis.leadSubStatus,
         actionsTaken: analysis.actions.length,
         actions: analysis.actions.map(action => ({
           type: action.type,

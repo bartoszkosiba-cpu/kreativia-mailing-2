@@ -38,6 +38,12 @@
       ],
       "@/services/*": [
         "src/services/*"
+      ],
+      "@/components/*": [
+        "src/components/*"
+      ],
+      "@/types/*": [
+        "src/types/*"
       ]
     },
     "esModuleInterop": true,

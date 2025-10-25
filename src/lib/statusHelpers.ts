@@ -26,6 +26,7 @@ export function getSubStatusLabel(subStatus: LeadSubStatus | null): string {
     // ZAINTERESOWANY sub-statuses
     'ZAINTERESOWANY_CAMPAIGN': 'Z kampanii',
     'ZAINTERESOWANY_NEW': 'Nowy lead',
+    'ZAINTERESOWANY_REACTIVATED': 'Reaktywowany',
     
     // BLOKADA sub-statuses  
     'BLOKADA_REFUSAL': 'Odmowa',
@@ -75,6 +76,7 @@ export function getSubStatusColor(subStatus: LeadSubStatus | null): string {
     // ZAINTERESOWANY - blue variants
     'ZAINTERESOWANY_CAMPAIGN': '#3B82F6',     // blue-500
     'ZAINTERESOWANY_NEW': '#1D4ED8',          // blue-700
+    'ZAINTERESOWANY_REACTIVATED': '#2563EB',  // blue-600
     
     // BLOKADA - red variants
     'BLOKADA_REFUSAL': '#EF4444',             // red-500
@@ -113,6 +115,7 @@ export function getSubStatusIcon(subStatus: LeadSubStatus | null): string {
     // ZAINTERESOWANY
     'ZAINTERESOWANY_CAMPAIGN': '📧',
     'ZAINTERESOWANY_NEW': '🆕',
+    'ZAINTERESOWANY_REACTIVATED': '🔄',
     
     // BLOKADA
     'BLOKADA_REFUSAL': '❌',

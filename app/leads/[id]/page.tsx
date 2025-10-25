@@ -64,6 +64,48 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
   const [isLoading, setIsLoading] = useState(true);
   const [referer, setReferer] = useState('/archive');
 
+  const fetchLead = async () => {
+    try {
+      const response = await fetch(`/api/leads/${leadId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setLead(data);
+      } else {
+        router.push('/404');
+      }
+    } catch (error) {
+      console.error('Błąd pobierania leada:', error);
+      router.push('/404');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: LeadStatus, newSubStatus: LeadSubStatus | null) => {
+    try {
+      const response = await fetch(`/api/leads/${leadId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          status: newStatus,
+          subStatus: newSubStatus,
+          blockedReason: newStatus === 'BLOKADA' ? 'MANUAL' : undefined
+        })
+      });
+
+      if (response.ok) {
+        // Odśwież dane leada
+        await fetchLead();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Błąd zmiany statusu');
+      }
+    } catch (error: any) {
+      console.error("Błąd zmiany statusu:", error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     if (Number.isNaN(leadId)) {
       router.push('/404');
@@ -72,49 +114,6 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
 
     // Pobierz referer z document.referrer
     setReferer(document.referrer || '/archive');
-
-    // Pobierz dane leada
-    const fetchLead = async () => {
-      try {
-        const response = await fetch(`/api/leads/${leadId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setLead(data);
-        } else {
-          router.push('/404');
-        }
-      } catch (error) {
-        console.error('Błąd pobierania leada:', error);
-        router.push('/404');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const handleStatusChange = async (newStatus: LeadStatus, newSubStatus: LeadSubStatus | null) => {
-      try {
-        const response = await fetch(`/api/leads/${leadId}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            status: newStatus,
-            subStatus: newSubStatus,
-            blockedReason: newStatus === 'BLOKADA' ? 'MANUAL' : undefined
-          })
-        });
-
-        if (response.ok) {
-          // Odśwież dane leada
-          await fetchLead();
-        } else {
-          const error = await response.json();
-          throw new Error(error.error || 'Błąd zmiany statusu');
-        }
-      } catch (error: any) {
-        console.error("Błąd zmiany statusu:", error);
-        throw error;
-      }
-    };
 
     fetchLead();
   }, [leadId, router]);
