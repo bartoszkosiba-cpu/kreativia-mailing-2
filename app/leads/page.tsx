@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import StatusLegend from "@/components/StatusLegend";
 // import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 // import { getStatusLabel, getSubStatusLabel } from "@/lib/statusHelpers";
 
@@ -96,11 +97,37 @@ export default function LeadsPage() {
   });
   const [greetingPreview, setGreetingPreview] = useState("");
 
+  // Paginacja
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [totalLeads, setTotalLeads] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  // Filtry
+  const [search, setSearch] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedTag, setSelectedTag] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState("");
+
+  // Statystyki
+  const [stats, setStats] = useState({
+    total: 0,
+    countries: [] as Array<{ country: string; count: number }>,
+    languages: [] as Array<{ language: string; count: number }>,
+    statuses: [] as Array<{ status: string; count: number }>,
+    industries: [] as Array<{ industry: string; count: number }>,
+    greetings: { with: 0, without: 0 }
+  });
+
   useEffect(() => {
     console.log("useEffect called");
     fetchLeads();
     fetchTags();
   }, []);
+
+
 
   const fetchTags = async () => {
     try {
@@ -148,15 +175,30 @@ export default function LeadsPage() {
   }, [formData.firstName, formData.language]);
 
   const fetchLeads = async () => {
+    setIsLoading(true);
     try {
       console.log("Fetching leads...");
-      const response = await fetch("/api/leads");
+      const params = new URLSearchParams();
+      params.append("page", currentPage.toString());
+      params.append("limit", itemsPerPage.toString());
+      
+      if (search) params.append("search", search);
+      if (selectedLanguage) params.append("language", selectedLanguage);
+      if (selectedCountry) params.append("country", selectedCountry);
+      if (selectedStatus) params.append("status", selectedStatus);
+      if (selectedTag) params.append("tagId", selectedTag);
+      if (selectedIndustry) params.append("industry", selectedIndustry);
+
+      const response = await fetch(`/api/leads?${params.toString()}`);
       console.log("Response status:", response.status);
       if (response.ok) {
         const data = await response.json();
         console.log("Data received:", data);
         console.log("Leads array:", data.leads);
         setLeads(data.leads || []);
+        setTotalLeads(data.pagination?.total || 0);
+        setTotalPages(data.pagination?.totalPages || 0);
+        setStats(data.stats || {});
         console.log("Leads set successfully");
       } else {
         console.error("Response not ok:", response.status);
@@ -363,6 +405,30 @@ export default function LeadsPage() {
     }
   };
 
+  // Funkcje paginacji
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    fetchLeads();
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+    fetchLeads();
+  };
+
+  // Funkcje filtrowania
+  const clearFilters = () => {
+    setSearch("");
+    setSelectedLanguage("");
+    setSelectedCountry("");
+    setSelectedStatus("");
+    setSelectedTag("");
+    setSelectedIndustry("");
+    setCurrentPage(1);
+    fetchLeads();
+  };
+
 
   // Usunięto stare funkcje - używamy nowych z statusHelpers
 
@@ -382,7 +448,7 @@ export default function LeadsPage() {
         <div>
           <h1>Baza kontaktów</h1>
           <p style={{ color: "var(--gray-600)" }}>
-            Wszystkie leady ({leads.length} rekordów)
+            Wszystkie leady ({totalLeads} rekordów)
             {selectedLeadIds.length > 0 && (
               <span style={{ color: "var(--primary)", fontWeight: "bold" }}>
                 {" "}• Zaznaczono: {selectedLeadIds.length}
@@ -465,6 +531,163 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+
+      {/* Statystyki */}
+      <div className="grid grid-4" style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Wszystkie leady</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--primary)" }}>
+            {stats.total}
+          </div>
+        </div>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Z powitaniami</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--success)" }}>
+            {stats.greetings.with}
+          </div>
+        </div>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Bez powitań</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--warning)" }}>
+            {stats.greetings.without}
+          </div>
+        </div>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Kraje</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--info)" }}>
+            {stats.countries.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Filtry */}
+      <div className="card" style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <h2 style={{ marginBottom: "var(--spacing-lg)" }}>Filtry i wyszukiwanie</h2>
+        
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--spacing-md)" }}>
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Wyszukiwanie
+            </label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Szukaj w imieniu, nazwisku, emailu, firmie..."
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Język
+            </label>
+            <select
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              <option value="pl">Polski</option>
+              <option value="en">Angielski</option>
+              <option value="de">Niemiecki</option>
+              <option value="fr">Francuski</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Kraj
+            </label>
+            <select
+              value={selectedCountry}
+              onChange={(e) => setSelectedCountry(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {stats.countries.map((country) => (
+                <option key={country.country} value={country.country}>
+                  {country.country} ({country.count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Status
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {stats.statuses.map((status) => (
+                <option key={status.status} value={status.status}>
+                  {status.status} ({status.count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Tag
+            </label>
+            <select
+              value={selectedTag}
+              onChange={(e) => setSelectedTag(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {tags.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Branża
+            </label>
+            <select
+              value={selectedIndustry}
+              onChange={(e) => setSelectedIndustry(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              {stats.industries.map((industry) => (
+                <option key={industry.industry} value={industry.industry}>
+                  {industry.industry} ({industry.count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button
+              onClick={clearFilters}
+              style={{
+                padding: "var(--spacing-sm) var(--spacing-lg)",
+                backgroundColor: "var(--gray-500)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius)",
+                cursor: "pointer",
+                fontWeight: "600"
+              }}
+            >
+              Wyczyść filtry
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Legenda statusów */}
+      <StatusLegend />
 
       {/* Panel zarządzania tagami */}
       {showTagManager && (
@@ -662,6 +885,35 @@ export default function LeadsPage() {
 
       {/* Tabela leadów */}
       <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-lg)" }}>
+          <h2>Lista Leadów</h2>
+          
+          {/* Kontrolki paginacji */}
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-md)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)" }}>
+              <label style={{ fontSize: "14px", fontWeight: "600" }}>Wierszy na stronę:</label>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => handleItemsPerPageChange(parseInt(e.target.value))}
+                style={{ padding: "4px 8px", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+            </div>
+            
+            <div style={{ fontSize: "14px", color: "var(--gray-600)" }}>
+              {totalLeads > 0 ? (
+                <>Strona {currentPage} z {totalPages} ({totalLeads} leadów)</>
+              ) : (
+                "Brak leadów"
+              )}
+            </div>
+          </div>
+        </div>
+        
         <div className="table-container">
           <table>
             <thead>
@@ -810,6 +1062,75 @@ export default function LeadsPage() {
             </div>
           )}
         </div>
+
+        {/* Paginacja */}
+        {totalPages > 1 && (
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "var(--spacing-sm)", marginTop: "var(--spacing-lg)", paddingTop: "var(--spacing-lg)", borderTop: "1px solid var(--gray-200)" }}>
+            <button
+              onClick={() => handlePageChange(1)}
+              disabled={currentPage === 1}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid var(--gray-300)",
+                backgroundColor: currentPage === 1 ? "var(--gray-100)" : "white",
+                borderRadius: "var(--radius)",
+                cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                fontSize: "14px"
+              }}
+            >
+              Pierwsza
+            </button>
+            
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid var(--gray-300)",
+                backgroundColor: currentPage === 1 ? "var(--gray-100)" : "white",
+                borderRadius: "var(--radius)",
+                cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                fontSize: "14px"
+              }}
+            >
+              Poprzednia
+            </button>
+            
+            <div style={{ padding: "8px 16px", fontSize: "14px", fontWeight: "600" }}>
+              {currentPage} / {totalPages}
+            </div>
+            
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid var(--gray-300)",
+                backgroundColor: currentPage >= totalPages ? "var(--gray-100)" : "white",
+                borderRadius: "var(--radius)",
+                cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+                fontSize: "14px"
+              }}
+            >
+              Następna
+            </button>
+            
+            <button
+              onClick={() => handlePageChange(totalPages)}
+              disabled={currentPage >= totalPages}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid var(--gray-300)",
+                backgroundColor: currentPage >= totalPages ? "var(--gray-100)" : "white",
+                borderRadius: "var(--radius)",
+                cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+                fontSize: "14px"
+              }}
+            >
+              Ostatnia
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );

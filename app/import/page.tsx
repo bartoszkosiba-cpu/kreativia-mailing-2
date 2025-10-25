@@ -55,11 +55,11 @@ export default function ImportPage() {
             setImportCompleted(true);
             setStatus(`✅ Import zakończony! Dodano: ${data.processed} leadów`);
             
-            // Ukryj wskaźnik postępu po 5 sekundach
-            setTimeout(() => {
-              setImportId(null);
-              setProgress(null);
-            }, 5000);
+            // NIE resetuj importId i progress - pozostaw efekt końcowy
+            // setTimeout(() => {
+            //   setImportId(null);
+            //   setProgress(null);
+            // }, 5000);
           }
         } else if (response.status === 404) {
           // Import jeszcze się nie rozpoczął - to normalne na początku
@@ -241,6 +241,8 @@ export default function ImportPage() {
     console.log(`[IMPORT] Rozpoczynam parsowanie pliku: ${file.name} (${file.size} bytes)`);
     setStatus("⏳ Parsowanie pliku...");
     setImportCompleted(false); // Resetuj stan importu
+    setImportId(null); // Resetuj importId
+    setProgress(null); // Resetuj postęp
     
     // Najpierw spróbuj auto-detect
     Papa.parse(file as any, {

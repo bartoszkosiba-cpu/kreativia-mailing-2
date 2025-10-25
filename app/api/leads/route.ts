@@ -17,33 +17,68 @@ export async function GET(request: NextRequest) {
     const tagId = searchParams.get('tagId') || '';
     const industry = searchParams.get('industry') || '';
 
-    // Pobierz całkowitą liczbę leadów
-    const total = await db.lead.count();
+    // Buduj warunki WHERE
+    const whereConditions: any = {};
 
-    // Pobierz leady z paginacją
+    if (search) {
+      whereConditions.OR = [
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+        { email: { contains: search } },
+        { company: { contains: search } },
+        { industry: { contains: search } }
+      ];
+    }
+
+    if (language) {
+      whereConditions.language = language;
+    }
+
+    if (country) {
+      whereConditions.companyCountry = { contains: country };
+    }
+
+    if (status) {
+      whereConditions.status = status;
+    }
+
+    if (industry) {
+      whereConditions.industry = { contains: industry };
+    }
+
+    if (tagId) {
+      whereConditions.LeadTag = {
+        some: {
+          tagId: parseInt(tagId)
+        }
+      };
+    }
+
+    // Pobierz całkowitą liczbę leadów z filtrami
+    const total = await db.lead.count({ where: whereConditions });
+
+    // Pobierz leady z paginacją i filtrami
     const leads = await db.lead.findMany({
+      where: whereConditions,
+      include: {
+        LeadTag: {
+          include: {
+            tag: true
+          }
+        }
+      },
       orderBy: { createdAt: "desc" },
       skip: offset,
       take: limit
     });
 
-    // Uproszczone - bez filtrowania tagów
-    const filteredLeads = leads;
-
     const totalPages = Math.ceil(total / limit);
 
-    // Pobierz statystyki (uproszczone)
-    const stats = {
-      total,
-      countries: [],
-      languages: [],
-      statuses: [],
-      industries: [],
-      greetings: { with: 0, without: 0 }
-    };
+    // Pobierz statystyki
+    const stats = await getLeadStats();
 
     return NextResponse.json({
-      leads: filteredLeads,
+      leads,
       pagination: {
         page,
         limit,
@@ -57,6 +92,94 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Błąd pobierania leadów:", error);
     return NextResponse.json({ error: "Wystąpił błąd podczas pobierania leadów" }, { status: 500 });
+  }
+}
+
+// Funkcja do pobierania statystyk leadów
+async function getLeadStats() {
+  try {
+    const total = await db.lead.count();
+
+    // Statystyki krajów
+    const countries = await db.lead.groupBy({
+      by: ['companyCountry'],
+      _count: { companyCountry: true },
+      where: {
+        companyCountry: { not: null }
+      }
+    }).then(results => 
+      results.map(item => ({
+        country: item.companyCountry || 'Nieznany',
+        count: item._count.companyCountry
+      }))
+    );
+
+    // Statystyki języków
+    const languages = await db.lead.groupBy({
+      by: ['language'],
+      _count: { language: true }
+    }).then(results => 
+      results.map(item => ({
+        language: item.language || 'pl',
+        count: item._count.language
+      }))
+    );
+
+    // Statystyki statusów
+    const statuses = await db.lead.groupBy({
+      by: ['status'],
+      _count: { status: true }
+    }).then(results => 
+      results.map(item => ({
+        status: item.status,
+        count: item._count.status
+      }))
+    );
+
+    // Statystyki branż
+    const industries = await db.lead.groupBy({
+      by: ['industry'],
+      _count: { industry: true },
+      where: {
+        industry: { not: null }
+      }
+    }).then(results => 
+      results.map(item => ({
+        industry: item.industry || 'Nieznana',
+        count: item._count.industry
+      }))
+    );
+
+    // Statystyki powitań
+    const greetingsWith = await db.lead.count({
+      where: {
+        greetingForm: { not: null }
+      }
+    });
+
+    const greetingsWithout = total - greetingsWith;
+
+    return {
+      total,
+      countries,
+      languages,
+      statuses,
+      industries,
+      greetings: {
+        with: greetingsWith,
+        without: greetingsWithout
+      }
+    };
+  } catch (error) {
+    console.error("Błąd pobierania statystyk:", error);
+    return {
+      total: 0,
+      countries: [],
+      languages: [],
+      statuses: [],
+      industries: [],
+      greetings: { with: 0, without: 0 }
+    };
   }
 }
 
