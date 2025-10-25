@@ -1,5 +1,75 @@
 # Changelog - Kreativia Mailing 2
 
+## [2025-10-26] - Poprawka archiwum i kategoryzacji maili
+
+### 🔧 Poprawki techniczne
+
+#### 1. Naprawa kategoryzacji BOUNCE w archiwum
+- **Problem**: Maile BOUNCE były kategoryzowane jako CAMPAIGN w archiwum
+- **Rozwiązanie**: Dodano specjalną obsługę klasyfikacji BOUNCE → emailType: UNKNOWN, source: bounce
+- **Plik**: `app/api/archive/route.ts`
+
+#### 2. Usunięcie external warmup
+- **Problem**: System miał logikę do wysyłania warmup do zewnętrznych skrzynek (seed emails)
+- **Rozwiązanie**: 
+  - Usunięto `SEED_EMAILS` z konfiguracji
+  - Usunięto `warmupSeedEmails` z modelu Mailbox
+  - Warmup działa TYLKO między naszymi skrzynkami (internal)
+- **Pliki**: 
+  - `src/services/warmup/config.ts`
+  - `src/services/warmup/scheduler.ts`
+  - `src/services/warmupManager.ts`
+  - `app/api/admin/reset-warmup-history/route.ts`
+  - `prisma/schema.prisma`
+
+#### 3. Poprawka zapisywania maili przychodzących
+- **Problem**: Maile przychodzące nie trafiały do archiwum
+- **Rozwiązanie**: 
+  - Dodano poprawne mapowanie `toEmail` w procesorze
+  - Wszystkie maile (campaign, test, warmup, bounce) trafiają do archiwum
+- **Plik**: `src/integrations/inbox/processor.ts`
+
+### 📝 Dokumentacja
+
+#### Nowa dokumentacja email-types.md
+- **Lokalizacja**: `docs/email-types.md`
+- **Zawartość**: Pełna dokumentacja wszystkich typów maili w systemie
+- **Kategorie**: TESTOWE, WARMUP, KAMPANIE WYCHODZĄCE, KAMPANIE PRZYCHODZĄCE, OBCE
+- **Szczegóły**: 
+  - Źródło każdego typu maila
+  - Charakterystyka (campaignId, leadId, mailboxId)
+  - Klasyfikacja AI
+  - Tabele w bazie danych
+  - Logika WEWNĘTRZNE vs ZEWNĘTRZNE
+
+### ✅ Testowanie
+
+Potwierdzono działanie:
+- ✅ Pobieranie maili przychodzących przez cron
+- ✅ Zapisywanie maili do InboxReply
+- ✅ Klasyfikacja AI działa poprawnie
+- ✅ Wszystkie typy maili trafiają do archiwum z poprawną kategorią
+- ✅ BOUNCE kategoryzowane jako UNKNOWN ze source: bounce
+- ✅ Test weryfikacyjny skrzynki trafia do archiwum
+- ✅ Warmup tylko między naszymi skrzynkami
+
+### 🗄️ Zmiany w bazie danych
+
+```sql
+-- Usunięto kolumnę z modelu Mailbox
+-- warmupSeedEmails (nie używana)
+
+-- Dodano opcjonalność dla campaignId i leadId w SendLog
+ALTER TABLE "SendLog" ALTER COLUMN "campaignId" TYPE INTEGER;
+ALTER TABLE "SendLog" ALTER COLUMN "leadId" TYPE INTEGER;
+```
+
+### 📦 Backup
+
+Utworzono backup: `Kreativia Mailing 2-backup-20251026-011124`
+
+---
+
 ## [2025-01-25] - Aktualizacja UI i funkcjonalności leadów
 
 ### ✨ Nowe funkcjonalności
