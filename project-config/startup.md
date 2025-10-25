@@ -31,10 +31,18 @@
 - **Backup:** Pełna kopia projektu w `backups/<timestamp>/`
 - **Commit:** Zapisanie zmian w Git z opisowym komunikatem
 
+## 3C. AUTOMATYCZNY ZAPIS KONWERSACJI
+- **Po każdej sesji:** Zapisuj całą konwersację do `docs/chat-history/YYYY-MM-DD-session-N.md`
+- **Format:** Markdown z timestampami, podziałem na wiadomości użytkownika i AI
+- **Backup:** Zachowuj ostatnie 30 dni konwersacji w `docs/chat-history/`
+- **Struktura:** Data, czas, użytkownik, AI, treść wiadomości, podsumowanie sesji
+- **Automatyczny:** Po każdej sesji dłuższej niż 10 wiadomości
+
 ## 4. KONTYNUACJA PO PONOWNYM URUCHOMIENIU
 - Po uruchomieniu projektu odczytaj `docs/overview.md`, `changelog.md` i najnowszy `chat-history/`.
 - Przypomnij mi, nad czym pracowaliśmy: `[→] Ostatnio robiliśmy X, mogę kontynuować Y.`
 - Przywróć środowisko. Jeśli brakuje kontekstu – zapytaj, czy odtworzyć z backupu.
+- **Odtwórz kontekst:** Z ostatniej konwersacji w `docs/chat-history/` - kluczowe decyzje, problemy, rozwiązania.
 
 ## 5. TRYB PRACY
 - Zanim zaczniesz nowy etap – streść plan i zapytaj o zgodę.
@@ -53,6 +61,7 @@
 
 ## 7. TRYB REFLEKSJI I MAPOWANIE
 - Po każdej dłuższej sesji dopisz krótkie podsumowanie do `docs/changelog.md`.
+- **Zapisuj konwersację:** Po każdej sesji dłuższej niż 10 wiadomości - automatyczny zapis do `docs/chat-history/`.
 - Raz w tygodniu wygeneruj `docs/structure.md` (mapa projektu).
 - Jeśli sesja trwała ponad 2h – przypomnij mi o podsumowaniu.
 
