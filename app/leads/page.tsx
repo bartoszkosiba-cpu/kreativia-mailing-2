@@ -646,34 +646,35 @@ export default function LeadsPage() {
       )}
 
       {/* Tabela leadów */}
-      <div className="card" style={{ overflowX: "auto" }}>
-        <table>
-          <thead>
-            <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  checked={selectedLeadIds.length === leads.length && leads.length > 0}
-                  onChange={handleSelectAll}
-                  style={{ marginRight: 8 }}
-                />
-                #
-              </th>
-              <th>Imię</th>
-              <th>Nazwisko</th>
-              <th>Odmiana imienia</th>
-              <th>Stanowisko</th>
-              <th>Firma</th>
-              <th>Email</th>
-              <th>Branża</th>
-              <th>Miasto</th>
-              <th>Kraj</th>
-              <th>Język</th>
-              <th>Tagi</th>
-              <th>Status</th>
-              <th>Akcje</th>
-            </tr>
-          </thead>
+      <div className="card">
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={selectedLeadIds.length === leads.length && leads.length > 0}
+                    onChange={handleSelectAll}
+                    style={{ marginRight: 8 }}
+                  />
+                  #
+                </th>
+                <th>Imię</th>
+                <th>Nazwisko</th>
+                <th>Odmiana imienia</th>
+                <th>Stanowisko</th>
+                <th>Firma</th>
+                <th>Email</th>
+                <th>Branża</th>
+                <th>Miasto</th>
+                <th>Kraj</th>
+                <th className="sticky-column sticky-column-right-4">Język</th>
+                <th className="sticky-column sticky-column-right-3">Tagi</th>
+                <th className="sticky-column sticky-column-right-2">Status</th>
+                <th className="sticky-column sticky-column-right-1">Akcje</th>
+              </tr>
+            </thead>
           <tbody>
             {leads.map((lead) => {
               const www = lead.websiteUrl ? (lead.websiteUrl.startsWith("http") ? lead.websiteUrl : `https://${lead.websiteUrl}`) : null;
@@ -708,12 +709,12 @@ export default function LeadsPage() {
                   <td>{getIndustryName(lead.industry)}</td>
                   <td>{extractCityFromAddress(lead.companyCity)}</td>
                   <td>{extractCountryFromAddress(lead.companyCountry)}</td>
-                  <td>
+                  <td className="sticky-column sticky-column-right-4">
                     <span className="badge badge-gray">
                       {(lead.language || "pl").toUpperCase()}
                     </span>
                   </td>
-                  <td>
+                  <td className="sticky-column sticky-column-right-3">
                     {lead.LeadTag.length > 0 ? (
                       <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", maxWidth: "120px" }}>
                         {lead.LeadTag.map((lt) => (
@@ -741,7 +742,7 @@ export default function LeadsPage() {
                       "-"
                     )}
                   </td>
-                  <td>
+                  <td className="sticky-column sticky-column-right-2">
                     <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
                       <StatusBadge 
                         status={lead.status as any} 
@@ -754,7 +755,7 @@ export default function LeadsPage() {
                       />
                     </div>
                   </td>
-                  <td>
+                  <td className="sticky-column sticky-column-right-1">
                     <div className="flex gap-xs" style={{ maxWidth: "120px", flexWrap: "wrap" }}>
                       <Link href={`/leads/${lead.id}`}>
                         <button className="btn btn-primary" style={{ fontSize: "10px", padding: "4px 8px", minWidth: "60px" }}>
@@ -775,13 +776,14 @@ export default function LeadsPage() {
               );
             })}
           </tbody>
-        </table>
+          </table>
 
-        {leads.length === 0 && (
-          <div style={{ padding: "var(--spacing-xl)", textAlign: "center", color: "var(--gray-500)" }}>
-            Brak leadów w bazie. Dodaj pierwszego lub zaimportuj z CSV.
-          </div>
-        )}
+          {leads.length === 0 && (
+            <div style={{ padding: "var(--spacing-xl)", textAlign: "center", color: "var(--gray-500)" }}>
+              Brak leadów w bazie. Dodaj pierwszego lub zaimportuj z CSV.
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

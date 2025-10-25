@@ -221,6 +221,66 @@ table {
   font-size: 12px;
 }
 
+/* Sticky table container for horizontal scroll */
+.table-container {
+  position: relative;
+  overflow-x: auto;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+/* Sticky columns styles */
+.sticky-column {
+  position: sticky;
+  background: white;
+  z-index: 10;
+  min-width: 80px;
+}
+
+.sticky-column-right {
+  right: 0;
+  background: white;
+  border-left: 2px solid var(--color-primary);
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
+}
+
+.sticky-column-right-1 {
+  right: 0;
+  min-width: 120px; /* Actions column */
+}
+
+.sticky-column-right-2 {
+  right: 120px; /* Width of Actions column */
+  min-width: 100px; /* Status column */
+}
+
+.sticky-column-right-3 {
+  right: 220px; /* Width of Status + Actions columns */
+  min-width: 120px; /* Tags column */
+}
+
+.sticky-column-right-4 {
+  right: 340px; /* Width of Tags + Status + Actions columns */
+  min-width: 80px; /* Language column */
+}
+
+/* Sticky header columns */
+thead .sticky-column {
+  background: var(--color-bg-neutral);
+  z-index: 20;
+}
+
+thead .sticky-column-right {
+  background: var(--color-bg-neutral);
+  border-left: 2px solid var(--color-primary);
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure table has minimum width for proper sticky behavior */
+.table-container table {
+  min-width: 1000px;
+}
+
 thead {
   background: var(--color-bg-neutral);
 }
