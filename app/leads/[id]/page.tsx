@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { StatusManager } from "@/components/StatusManager";
+import { LeadStatus, LeadSubStatus } from "@/types/leadStatus";
 
 interface Lead {
   id: number;
@@ -18,6 +20,8 @@ interface Lead {
   companyCountry: string | null;
   language: string | null;
   status: string;
+  subStatus: string | null;
+  blockedCampaigns: string | null;
   isBlocked: boolean;
   blockedReason: string | null;
   blockedAt: Date | null;
@@ -87,6 +91,31 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
       }
     };
 
+    const handleStatusChange = async (newStatus: LeadStatus, newSubStatus: LeadSubStatus | null) => {
+      try {
+        const response = await fetch(`/api/leads/${leadId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            status: newStatus,
+            subStatus: newSubStatus,
+            blockedReason: newStatus === 'BLOKADA' ? 'MANUAL' : undefined
+          })
+        });
+
+        if (response.ok) {
+          // Odśwież dane leada
+          await fetchLead();
+        } else {
+          const error = await response.json();
+          throw new Error(error.error || 'Błąd zmiany statusu');
+        }
+      } catch (error: any) {
+        console.error("Błąd zmiany statusu:", error);
+        throw error;
+      }
+    };
+
     fetchLead();
   }, [leadId, router]);
 
@@ -126,7 +155,13 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
       {/* Zarządzanie statusem */}
       <div style={{ backgroundColor: "#e7f3ff", padding: 20, borderRadius: 8, marginBottom: 20, border: "1px solid #b3d9ff" }}>
         <h3 style={{ marginTop: 0, color: "#0066cc" }}>🔧 Zarządzanie statusem</h3>
-        <StatusManager leadId={lead.id} currentStatus={lead.status} />
+        <StatusManager 
+          leadId={lead.id} 
+          currentStatus={lead.status as LeadStatus} 
+          currentSubStatus={lead.subStatus as LeadSubStatus | null}
+          blockedCampaigns={lead.blockedCampaigns ? JSON.parse(lead.blockedCampaigns) : []}
+          onStatusChange={handleStatusChange}
+        />
       </div>
 
       {/* Podstawowe dane */}
@@ -348,103 +383,4 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
   );
 }
 
-// Komponent do zarządzania statusem leada
-function StatusManager({ leadId, currentStatus }: { leadId: number; currentStatus: string }) {
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'Aktywny';
-      case 'BLOCKED': return 'Zablokowany';
-      case 'INACTIVE': return 'Nieaktywny';
-      case 'TEST': return 'Test';
-      case 'NO_GREETING': return 'Brak powitania';
-      default: return status;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return '#28a745';
-      case 'BLOCKED': return '#dc3545';
-      case 'INACTIVE': return '#ffc107';
-      case 'TEST': return '#17a2b8';
-      case 'NO_GREETING': return '#fd7e14';
-      default: return '#6c757d';
-    }
-  };
-
-  const handleStatusChange = async (newStatus: string) => {
-    if (!confirm(`Czy na pewno chcesz zmienić status na "${getStatusLabel(newStatus)}"?`)) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/leads/${leadId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          status: newStatus,
-          blockedReason: newStatus === 'BLOCKED' ? 'MANUAL' : undefined
-        })
-      });
-
-      if (response.ok) {
-        alert(`✅ Status zmieniony na ${getStatusLabel(newStatus)}`);
-        window.location.reload(); // Odśwież stronę
-      } else {
-        const error = await response.json();
-        alert(`❌ Błąd: ${error.error}`);
-      }
-    } catch (error) {
-      console.error("Błąd zmiany statusu:", error);
-      alert("❌ Wystąpił błąd podczas zmiany statusu");
-    }
-  };
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <span style={{ fontWeight: "500" }}>Aktualny status:</span>
-        <span 
-          style={{
-            padding: "6px 12px",
-            backgroundColor: getStatusColor(currentStatus) + "20",
-            color: getStatusColor(currentStatus),
-            border: `2px solid ${getStatusColor(currentStatus)}`,
-            borderRadius: "20px",
-            fontSize: "14px",
-            fontWeight: "600"
-          }}
-        >
-          {currentStatus === 'ACTIVE' && '✓ '}
-          {currentStatus === 'BLOCKED' && '🚫 '}
-          {currentStatus === 'INACTIVE' && '⏸️ '}
-          {currentStatus === 'TEST' && '🧪 '}
-          {getStatusLabel(currentStatus)}
-        </span>
-      </div>
-      
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <span style={{ fontWeight: "500" }}>Zmień na:</span>
-        <select
-          value={currentStatus}
-          onChange={(e) => handleStatusChange(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            border: "2px solid #007bff",
-            borderRadius: "6px",
-            backgroundColor: "white",
-            fontSize: "14px",
-            fontWeight: "500",
-            cursor: "pointer"
-          }}
-        >
-          <option value="ACTIVE">✓ Aktywny</option>
-          <option value="BLOCKED">🚫 Zablokowany</option>
-          <option value="INACTIVE">⏸️ Nieaktywny</option>
-          <option value="TEST">🧪 Test</option>
-          <option value="NO_GREETING">📝 Brak powitania</option>
-        </select>
-      </div>
-    </div>
-  );
-}
+// Stary komponent StatusManager został usunięty - używamy nowego z @/components/StatusManager

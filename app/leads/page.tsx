@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
+import { getStatusLabel, getSubStatusLabel } from "@/lib/statusHelpers";
 
 interface Lead {
   id: number;
@@ -18,6 +20,7 @@ interface Lead {
   language: string | null;
   greetingForm: string | null;
   status: string;
+  subStatus: string | null;
   blockedReason: string | null;
   isBlocked: boolean;
   LeadTag: Array<{ tag: { id: number; name: string; color: string } }>;
@@ -352,29 +355,7 @@ export default function LeadsPage() {
   };
 
 
-  // Funkcja do wyświetlania etykiet statusów
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'Aktywny';
-      case 'BLOCKED': return 'Zablokowany';
-      case 'INACTIVE': return 'Nieaktywny';
-      case 'TEST': return 'Test';
-      case 'NO_GREETING': return 'Brak powitania';
-      default: return status;
-    }
-  };
-
-  // Funkcja do wyświetlania kolorów statusów
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'var(--success)';
-      case 'BLOCKED': return 'var(--error)';
-      case 'INACTIVE': return 'var(--warning)';
-      case 'TEST': return 'var(--info)';
-      case 'NO_GREETING': return 'var(--warning)';
-      default: return 'var(--gray-600)';
-    }
-  };
+  // Usunięto stare funkcje - używamy nowych z statusHelpers
 
   if (isLoading) {
     return <main className="container" style={{ paddingTop: "var(--spacing-xl)" }}><h1>Ładowanie...</h1></main>;
@@ -761,25 +742,17 @@ export default function LeadsPage() {
                     )}
                   </td>
                   <td>
-                    <span 
-                      className="badge" 
-                      style={{ 
-                        backgroundColor: getStatusColor(lead.status) + "20",
-                        color: getStatusColor(lead.status),
-                        border: `1px solid ${getStatusColor(lead.status)}`,
-                        fontSize: "11px",
-                        padding: "4px 8px",
-                        whiteSpace: "nowrap",
-                        display: "inline-block"
-                      }}
-                      title={`Status: ${getStatusLabel(lead.status)}`}
-                    >
-                      {lead.status === 'ACTIVE' && '✓ '}
-                      {lead.status === 'BLOCKED' && '🚫 '}
-                      {lead.status === 'INACTIVE' && '⏸️ '}
-                      {lead.status === 'TEST' && '🧪 '}
-                      {getStatusLabel(lead.status)}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+                      <StatusBadge 
+                        status={lead.status as any} 
+                        subStatus={lead.subStatus as any}
+                        size="sm"
+                      />
+                      <PriorityBadge 
+                        status={lead.status as any} 
+                        subStatus={lead.subStatus as any}
+                      />
+                    </div>
                   </td>
                   <td>
                     <div className="flex gap-xs" style={{ maxWidth: "120px", flexWrap: "wrap" }}>

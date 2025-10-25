@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { HotLeadsWidget } from "@/components/HotLeadsList";
 
 interface ActiveCampaign {
   id: number;
@@ -79,6 +80,11 @@ export default function HomePage() {
           <StatCard icon="💬" label="Odpowiedzi dzisiaj" value={stats.repliesToday} color="var(--warning)" />
         </div>
       )}
+
+      {/* Hot Leads Widget */}
+      <div style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <HotLeadsWidget />
+      </div>
 
       {/* Quick Actions */}
       <div className="grid grid-3" style={{ marginBottom: "var(--spacing-2xl)" }}>
