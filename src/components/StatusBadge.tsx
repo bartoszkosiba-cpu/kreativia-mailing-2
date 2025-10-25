@@ -47,7 +47,7 @@ export function StatusBadge({
         style={{ backgroundColor: statusColor }}
       >
         {showIcon && statusIcon && (
-          <span style={{ fontSize: '14px', lineHeight: '1' }}>
+          <span style={{ fontSize: '12px', lineHeight: '1' }}>
             {statusIcon}
           </span>
         )}
@@ -61,7 +61,7 @@ export function StatusBadge({
           style={{ backgroundColor: subStatusColor }}
         >
           {showIcon && subStatusIcon && (
-            <span style={{ fontSize: '12px', lineHeight: '1' }}>
+            <span style={{ fontSize: '10px', lineHeight: '1' }}>
               {subStatusIcon}
             </span>
           )}
@@ -89,7 +89,7 @@ export function StatusBadgeCompact({
       style={{ backgroundColor: statusColor }}
       title={subStatus ? `${getStatusLabel(status)} (${getSubStatusLabel(subStatus)})` : getStatusLabel(status)}
     >
-      <span>{statusIcon}</span>
+      <span style={{ fontSize: '10px', lineHeight: '1' }}>{statusIcon}</span>
       <span>{getStatusLabel(status)}</span>
     </div>
   );
