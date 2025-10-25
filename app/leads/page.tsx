@@ -400,7 +400,7 @@ export default function LeadsPage() {
             className="btn btn-danger"
             disabled={leads.length === 0}
           >
-            🗑️ Usuń leady
+            Usuń leady
           </button>
         </div>
       </div>
@@ -436,7 +436,7 @@ export default function LeadsPage() {
               onClick={handleBulkDelete}
               className="btn btn-danger"
             >
-              🗑️ Usuń zaznaczone
+              Usuń zaznaczone
             </button>
             <button 
               onClick={() => {
@@ -473,7 +473,7 @@ export default function LeadsPage() {
       {/* Panel usuwania */}
       {showDeleteOptions && (
         <div className="card" style={{ marginBottom: "var(--spacing-lg)", border: "2px solid var(--danger)" }}>
-          <h3 style={{ color: "var(--danger)", marginBottom: "var(--spacing-md)" }}>🗑️ Opcje usuwania leadów</h3>
+          <h3 style={{ color: "var(--danger)", marginBottom: "var(--spacing-md)" }}>Opcje usuwania leadów</h3>
           <div className="flex gap-md">
             <button 
               onClick={() => handleDelete("all")}
@@ -764,10 +764,10 @@ export default function LeadsPage() {
                       <button 
                         onClick={() => handleDeleteSingle(lead.id, `${lead.firstName} ${lead.lastName} (${lead.email})`)}
                         className="btn btn-danger" 
-                        style={{ fontSize: "10px", padding: "4px 6px", minWidth: "30px" }}
+                        style={{ fontSize: "10px", padding: "4px 8px", minWidth: "50px" }}
                         title="Usuń leada"
                       >
-                        🗑️
+                        Usuń
                       </button>
                     </div>
                   </td>

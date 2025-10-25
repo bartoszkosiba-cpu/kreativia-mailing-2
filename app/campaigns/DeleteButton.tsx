@@ -60,7 +60,7 @@ export default function DeleteButton({ campaignId, campaignName, onDeleted }: Pr
       }}
       title="Usuń kampanię"
     >
-      {isDeleting ? "..." : "🗑️"}
+      {isDeleting ? "..." : "Usuń"}
     </button>
   );
 }

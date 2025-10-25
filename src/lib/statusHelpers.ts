@@ -60,40 +60,40 @@ export function getFullStatusLabel(status: LeadStatus, subStatus: LeadSubStatus 
 
 export function getStatusColor(status: LeadStatus): string {
   const colors: Record<LeadStatus, string> = {
-    'AKTYWNY': '#10B981',      // green-500
-    'ZAINTERESOWANY': '#3B82F6', // blue-500  
-    'BLOKADA': '#EF4444',      // red-500
-    'CZEKAJ': '#F59E0B',       // amber-500
-    'TEST': '#6B7280'          // gray-500
+    'AKTYWNY': '#9CA3AF',      // gray-400 - jasnoszary
+    'ZAINTERESOWANY': '#9CA3AF', // gray-400 - jasnoszary
+    'BLOKADA': '#9CA3AF',      // gray-400 - jasnoszary
+    'CZEKAJ': '#9CA3AF',       // gray-400 - jasnoszary
+    'TEST': '#9CA3AF'          // gray-400 - jasnoszary
   };
   
-  return colors[status] || '#6B7280';
+  return colors[status] || '#9CA3AF';
 }
 
 export function getSubStatusColor(subStatus: LeadSubStatus | null): string {
-  if (!subStatus) return '#6B7280';
+  if (!subStatus) return '#9CA3AF';
   
   const colors: Record<LeadSubStatus, string> = {
-    // ZAINTERESOWANY - blue variants
-    'ZAINTERESOWANY_CAMPAIGN': '#3B82F6',     // blue-500
-    'ZAINTERESOWANY_NEW': '#1D4ED8',          // blue-700
-    'ZAINTERESOWANY_REACTIVATED': '#2563EB',  // blue-600
+    // ZAINTERESOWANY - jasnoszare warianty
+    'ZAINTERESOWANY_CAMPAIGN': '#9CA3AF',     // gray-400
+    'ZAINTERESOWANY_NEW': '#9CA3AF',          // gray-400
+    'ZAINTERESOWANY_REACTIVATED': '#9CA3AF',  // gray-400
     
-    // BLOKADA - red variants
-    'BLOKADA_REFUSAL': '#EF4444',             // red-500
-    'BLOKADA_BOUNCE': '#DC2626',              // red-600
-    'BLOKADA_UNSUBSCRIBE': '#B91C1C',         // red-700
-    'BLOKADA_REDIRECT_COMPLETED': '#F97316',  // orange-500
+    // BLOKADA - jasnoszare warianty
+    'BLOKADA_REFUSAL': '#9CA3AF',             // gray-400
+    'BLOKADA_BOUNCE': '#9CA3AF',              // gray-400
+    'BLOKADA_UNSUBSCRIBE': '#9CA3AF',         // gray-400
+    'BLOKADA_REDIRECT_COMPLETED': '#9CA3AF',  // gray-400
     
-    // CZEKAJ - amber/yellow variants
-    'CZEKAJ_MAYBE': '#F59E0B',                // amber-500
-    'CZEKAJ_REDIRECT_AWAITING_CONTACT': '#D97706', // amber-600
-    'CZEKAJ_OOO': '#EAB308',                  // yellow-500
-    'CZEKAJ_OOO_WITH_CONTACTS': '#CA8A04',    // yellow-600
-    'CZEKAJ_REDIRECT_COMPLETED': '#F97316'    // orange-500
+    // CZEKAJ - jasnoszare warianty
+    'CZEKAJ_MAYBE': '#9CA3AF',                // gray-400
+    'CZEKAJ_REDIRECT_AWAITING_CONTACT': '#9CA3AF', // gray-400
+    'CZEKAJ_OOO': '#9CA3AF',                  // gray-400
+    'CZEKAJ_OOO_WITH_CONTACTS': '#9CA3AF',    // gray-400
+    'CZEKAJ_REDIRECT_COMPLETED': '#9CA3AF'    // gray-400
   };
   
-  return colors[subStatus] || '#6B7280';
+  return colors[subStatus] || '#9CA3AF';
 }
 
 // ===== STATUS ICONS =====

@@ -385,7 +385,7 @@ function ResetDatabase() {
           `✅ Baza danych zresetowana pomyślnie!\n\n` +
           `📧 Serwer IMAP:\n` +
           `- Oznaczono ${data.stats.markedEmailsOnServer} maili jako przeczytane\n\n` +
-          `🗑️ Usunięto z bazy:\n` +
+          `Usunięto z bazy:\n` +
           `- ${data.stats.deletedCampaigns} kampanii\n` +
           `- ${data.stats.deletedLeads} leadów\n` +
           `- ${data.stats.deletedReplies} odpowiedzi z inbox\n` +
@@ -439,7 +439,7 @@ function ResetDatabase() {
             fontWeight: "bold"
           }}
         >
-          🗑️ Resetuj bazę danych
+          Resetuj bazę danych
         </button>
       ) : (
         <div style={{ 

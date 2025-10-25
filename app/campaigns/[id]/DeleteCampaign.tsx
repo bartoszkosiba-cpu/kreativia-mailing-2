@@ -60,7 +60,7 @@ export default function DeleteCampaign({ campaignId, campaignName }: Props) {
       backgroundColor: "#fff5f5"
     }}>
       <h3 style={{ color: "var(--danger)", marginBottom: "var(--spacing-md)" }}>
-        🗑️ Strefa niebezpieczna
+        Strefa niebezpieczna
       </h3>
       <p style={{ marginBottom: "var(--spacing-md)", color: "var(--gray-600)" }}>
         Usunięcie kampanii jest nieodwracalne. Wszystkie dane związane z tą kampanią zostaną trwale usunięte.
@@ -75,7 +75,7 @@ export default function DeleteCampaign({ campaignId, campaignName }: Props) {
         onClick={handleDelete}
         disabled={isDeleting}
       >
-        {isDeleting ? "Usuwanie..." : "🗑️ Usuń kampanię"}
+        {isDeleting ? "Usuwanie..." : "Usuń kampanię"}
       </button>
     </div>
   );
