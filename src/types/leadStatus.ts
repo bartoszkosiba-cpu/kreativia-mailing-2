@@ -6,8 +6,7 @@ export type LeadStatus =
   | "ZAINTERESOWANY" 
   | "BLOKADA" 
   | "CZEKAJ" 
-  | "TEST"
-  | "NO_GREETING";
+  | "TEST";
 
 export type LeadSubStatus = 
   // ZAINTERESOWANY sub-statuses
@@ -236,19 +235,6 @@ export const LEAD_STATUS_CONFIGS: Record<LeadStatus, LeadStatusConfig[]> = {
     canSendNewCampaigns: false,
     canSendFollowUps: false,
     requiresAction: false,
-    actionType: "NONE"
-  }],
-  
-  NO_GREETING: [{
-    status: "NO_GREETING",
-    label: "Brak powitania",
-    color: "#9CA3AF",
-    icon: "●",
-    description: "Lead zaimportowany bez powitania - wymaga przygotowania",
-    canSendCampaigns: false,
-    canSendNewCampaigns: false,
-    canSendFollowUps: false,
-    requiresAction: true,
     actionType: "NONE"
   }]
 };

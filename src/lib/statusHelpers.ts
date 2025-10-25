@@ -7,17 +7,21 @@ import { LeadStatus, LeadSubStatus } from '@/types/leadStatus';
 
 // ===== STATUS LABELS =====
 
-export function getStatusLabel(status: LeadStatus): string {
+export function getStatusLabel(status: LeadStatus | string): string {
   const labels: Record<LeadStatus, string> = {
     'AKTYWNY': 'Aktywny',
     'ZAINTERESOWANY': 'Zainteresowany', 
     'BLOKADA': 'Blokada',
     'CZEKAJ': 'Czekaj',
-    'TEST': 'Test',
-    'NO_GREETING': 'Brak powitania'
+    'TEST': 'Test'
   };
   
-  return labels[status] || status;
+  // Fallback dla statusów technicznych
+  if (status === 'NO_GREETING') {
+    return 'Brak powitania';
+  }
+  
+  return labels[status as LeadStatus] || status;
 }
 
 export function getSubStatusLabel(subStatus: LeadSubStatus | null): string {
@@ -59,17 +63,21 @@ export function getFullStatusLabel(status: LeadStatus, subStatus: LeadSubStatus 
 
 // ===== STATUS COLORS =====
 
-export function getStatusColor(status: LeadStatus): string {
+export function getStatusColor(status: LeadStatus | string): string {
   const colors: Record<LeadStatus, string> = {
     'AKTYWNY': '#9CA3AF',      // gray-400 - jasnoszary
     'ZAINTERESOWANY': '#9CA3AF', // gray-400 - jasnoszary
     'BLOKADA': '#9CA3AF',      // gray-400 - jasnoszary
     'CZEKAJ': '#9CA3AF',       // gray-400 - jasnoszary
-    'TEST': '#9CA3AF',         // gray-400 - jasnoszary
-    'NO_GREETING': '#9CA3AF'   // gray-400 - jasnoszary
+    'TEST': '#9CA3AF'          // gray-400 - jasnoszary
   };
   
-  return colors[status] || '#9CA3AF';
+  // Fallback dla statusów technicznych
+  if (status === 'NO_GREETING') {
+    return '#9CA3AF';
+  }
+  
+  return colors[status as LeadStatus] || '#9CA3AF';
 }
 
 export function getSubStatusColor(subStatus: LeadSubStatus | null): string {
@@ -100,17 +108,21 @@ export function getSubStatusColor(subStatus: LeadSubStatus | null): string {
 
 // ===== STATUS ICONS =====
 
-export function getStatusIcon(status: LeadStatus): string {
+export function getStatusIcon(status: LeadStatus | string): string {
   const icons: Record<LeadStatus, string> = {
     'AKTYWNY': '●',
     'ZAINTERESOWANY': '●',
     'BLOKADA': '●',
     'CZEKAJ': '●',
-    'TEST': '●',
-    'NO_GREETING': '●'
+    'TEST': '●'
   };
   
-  return icons[status] || '●';
+  // Fallback dla statusów technicznych
+  if (status === 'NO_GREETING') {
+    return '●';
+  }
+  
+  return icons[status as LeadStatus] || '●';
 }
 
 export function getSubStatusIcon(subStatus: LeadSubStatus | null): string {
