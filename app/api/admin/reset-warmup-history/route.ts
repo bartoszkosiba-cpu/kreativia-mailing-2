@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
       data: {
         warmupTodaySent: 0,
         warmupInternalEmails: 0,
-        warmupSeedEmails: 0,
         warmupTestEmails: 0
       }
     });

@@ -51,10 +51,10 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
       const savedReply = await db.inboxReply.create({
         data: {
           messageId: email.messageId,
-          threadId: email.threadId || "",
+          threadId: email.inReplyTo || null,
           subject: email.subject,
-          content: email.text,
-          originalMessage: email.html || email.text,
+          content: email.text || email.html || "",
+          originalMessage: email.html || email.text || "",
           fromEmail: fromEmail,
           toEmail: toEmail || null, // NOWE: Na którą skrzynkę przyszedł
           receivedAt: email.date,

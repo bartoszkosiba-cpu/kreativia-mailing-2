@@ -119,13 +119,8 @@ export const WARMUP_TEMPLATES = {
   ]
 };
 
-/**
- * SEED EMAILS - Zewnętrzne adresy do warmup
- * (Dodaj prawdziwe adresy jeśli masz)
- */
-export const SEED_EMAILS: string[] = [
-  // Możesz dodać adresy pracowników lub zewnętrzne seed adresy
-];
+// USTALENIE: Warmup TYLKO między naszymi skrzynkami (internal)
+// Nie wysyłamy warmup do zewnętrznych skrzynek
 
 /**
  * TIMING CONFIG - Konfiguracja timing

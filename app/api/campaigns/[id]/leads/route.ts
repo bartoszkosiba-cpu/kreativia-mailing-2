@@ -1,6 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+// GET - Pobierz leady kampanii
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const campaignId = parseInt(params.id);
+
+    // Pobierz leady kampanii
+    const campaignLeads = await db.campaignLead.findMany({
+      where: { campaignId },
+      include: {
+        lead: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            company: true,
+            status: true
+          }
+        }
+      }
+    });
+
+    // Sprawdź które leady już otrzymały mail
+    const sentLogs = await db.sendLog.findMany({
+      where: {
+        campaignId,
+        status: "sent"
+      },
+      select: {
+        leadId: true
+      }
+    });
+    
+    const sentLeadIds = new Set(sentLogs.map(log => log.leadId));
+    
+    // Filtruj tylko aktywne leady (nie zablokowane)
+    const leadsWithStatus = campaignLeads
+      .filter(cl => cl.lead.status !== 'BLOCKED')
+      .map(cl => ({
+        id: cl.lead.id,
+        firstName: cl.lead.firstName,
+        lastName: cl.lead.lastName,
+        email: cl.lead.email,
+        company: cl.lead.company,
+        hasSentEmail: sentLeadIds.has(cl.lead.id)
+      }));
+
+    return NextResponse.json({ leads: leadsWithStatus });
+
+  } catch (error: any) {
+    console.error("Błąd pobierania leadów kampanii:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 // DELETE - Usuń leada z kampanii
 export async function DELETE(
   req: NextRequest,

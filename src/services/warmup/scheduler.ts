@@ -8,7 +8,7 @@
  */
 
 import { db } from '@/lib/db';
-import { getWarmupConfig, WARMUP_TEMPLATES, SEED_EMAILS, TIMING_CONFIG } from './config';
+import { getWarmupConfig, WARMUP_TEMPLATES, TIMING_CONFIG } from './config';
 import { addMinutes, addDays, setHours, setMinutes, format, startOfDay } from 'date-fns';
 
 /**
@@ -145,12 +145,7 @@ export async function scheduleDailyEmailsForMailbox(
     console.log(`[WARMUP SCHEDULER]   → Wygenerowano ${scheduledTimes.length} slotów czasowych`);
     console.log(`[WARMUP SCHEDULER]   → Pierwsze: ${format(scheduledTimes[0], 'HH:mm')}, Ostatnie: ${format(scheduledTimes[scheduledTimes.length - 1], 'HH:mm')}`);
     
-    // Oblicz ile maili internal vs seed
-    const internalCount = Math.floor(scheduledTimes.length * config.internalPercent / 100);
-    const seedCount = scheduledTimes.length - internalCount;
-    
-    console.log(`[WARMUP SCHEDULER]   → Internal: ${internalCount}, Seed: ${seedCount}`);
-    
+    // USTALENIE: Warmup TYLKO między naszymi skrzynkami (internal)
     // Pobierz inne skrzynki (dla internal emails)
     const otherMailboxes = await db.mailbox.findMany({
       where: {
@@ -162,14 +157,13 @@ export async function scheduleDailyEmailsForMailbox(
     
     const internalEmails = otherMailboxes.map(m => m.email);
     
-    // Sprawdź czy mamy wystarczająco adresów
-    if (internalEmails.length === 0 && internalCount > 0) {
-      console.warn(`[WARMUP SCHEDULER] ⚠️  Brak innych skrzynek - wysyłanie tylko seed emails`);
+    // Sprawdź czy mamy inne skrzynki
+    if (internalEmails.length === 0) {
+      console.warn(`[WARMUP SCHEDULER] ⚠️  Brak innych skrzynek - pomijam warmup`);
+      return 0;
     }
     
-    if (SEED_EMAILS.length === 0 && seedCount > 0) {
-      console.warn(`[WARMUP SCHEDULER] ⚠️  Brak seed emails - wysyłanie tylko internal`);
-    }
+    console.log(`[WARMUP SCHEDULER]   → Internal: ${scheduledTimes.length} maili do ${internalEmails.length} skrzynek`);
     
     // Tworzenie wpisów w queue
     const queueItems: any[] = [];
@@ -178,26 +172,11 @@ export async function scheduleDailyEmailsForMailbox(
     for (let i = 0; i < scheduledTimes.length; i++) {
       const scheduledAt = scheduledTimes[i];
       
-      // Określ typ (internal vs seed)
-      const isInternal = i < internalCount;
-      const emailType = isInternal ? 'internal' : 'seed';
+      // USTALENIE: Warmup TYLKO między naszymi skrzynkami (internal)
+      const emailType = 'internal';
       
-      // Wybierz odbiorcę
-      let toEmail: string;
-      if (isInternal && internalEmails.length > 0) {
-        toEmail = internalEmails[Math.floor(Math.random() * internalEmails.length)];
-      } else if (!isInternal && SEED_EMAILS.length > 0) {
-        toEmail = SEED_EMAILS[Math.floor(Math.random() * SEED_EMAILS.length)];
-      } else if (internalEmails.length > 0) {
-        // Fallback: użyj internal jeśli seed nie ma
-        toEmail = internalEmails[Math.floor(Math.random() * internalEmails.length)];
-      } else if (SEED_EMAILS.length > 0) {
-        // Fallback: użyj seed jeśli internal nie ma
-        toEmail = SEED_EMAILS[Math.floor(Math.random() * SEED_EMAILS.length)];
-      } else {
-        console.error(`[WARMUP SCHEDULER] ❌ Brak dostępnych adresów email`);
-        continue;
-      }
+      // Wybierz losową skrzynkę (internal)
+      const toEmail = internalEmails[Math.floor(Math.random() * internalEmails.length)];
       
       // Wygeneruj treść
       const template = getRandomTemplate(emailType);

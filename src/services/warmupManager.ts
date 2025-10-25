@@ -77,7 +77,6 @@ export class WarmupManager {
           bounced: 0,
           byType: {
             internal: 0,
-            seed: 0,
             test: 0,
             campaign: 0
           }
@@ -116,7 +115,6 @@ export class WarmupManager {
       bounced: todayEmails.filter(e => e.status === 'bounced').length,
       byType: {
         internal: todayEmails.filter(e => e.type === 'internal').length,
-        seed: todayEmails.filter(e => e.type === 'seed').length,
         test: todayEmails.filter(e => e.type === 'test').length,
         campaign: todayEmails.filter(e => e.type === 'campaign').length
       }

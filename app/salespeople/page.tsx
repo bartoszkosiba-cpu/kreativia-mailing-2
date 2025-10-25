@@ -451,6 +451,7 @@ export default function SalespeoplePage() {
                   <th style={{ padding: 12, textAlign: "left", border: "1px solid #ddd" }}>ID</th>
                   <th style={{ padding: 12, textAlign: "left", border: "1px solid #ddd" }}>Imię i nazwisko</th>
                   <th style={{ padding: 12, textAlign: "left", border: "1px solid #ddd" }}>Email</th>
+                  <th style={{ padding: 12, textAlign: "left", border: "1px solid #ddd" }}>Prawdziwy handlowiec</th>
                   <th style={{ padding: 12, textAlign: "left", border: "1px solid #ddd" }}>Telefon</th>
                   <th style={{ padding: 12, textAlign: "left", border: "1px solid #ddd" }}>Język</th>
                   <th style={{ padding: 12, textAlign: "left", border: "1px solid #ddd" }}>Rynki</th>
@@ -465,9 +466,27 @@ export default function SalespeoplePage() {
                 <td style={{ padding: 12, border: "1px solid #ddd" }}>{sp.id}</td>
                 <td style={{ padding: 12, border: "1px solid #ddd", fontWeight: "bold" }}>{sp.name}</td>
                 <td style={{ padding: 12, border: "1px solid #ddd" }}>
-                  <a href={`mailto:${sp.email}`} style={{ color: "#0066cc" }}>
-                    {sp.email}
-                  </a>
+                  {sp.mainMailboxId && sp.mainMailbox ? (
+                    <a href={`mailto:${sp.mainMailbox.email}`} style={{ color: "#0066cc" }}>
+                      {sp.mainMailbox.email}
+                    </a>
+                  ) : (
+                    <span style={{ color: "#666", fontStyle: "italic" }}>Brak skrzynki</span>
+                  )}
+                </td>
+                <td style={{ padding: 12, border: "1px solid #ddd" }}>
+                  {sp.realSalespersonEmail ? (
+                    <div>
+                      <div style={{ fontWeight: "bold", marginBottom: 2 }}>
+                        {sp.realSalespersonName || "Brak nazwy"}
+                      </div>
+                      <a href={`mailto:${sp.realSalespersonEmail}`} style={{ color: "#0066cc", fontSize: "12px" }}>
+                        {sp.realSalespersonEmail}
+                      </a>
+                    </div>
+                  ) : (
+                    <span style={{ color: "#666", fontStyle: "italic" }}>Brak</span>
+                  )}
                 </td>
                 <td style={{ padding: 12, border: "1px solid #ddd" }}>
                   {sp.phone ? (

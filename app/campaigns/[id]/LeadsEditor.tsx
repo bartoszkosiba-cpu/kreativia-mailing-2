@@ -36,6 +36,11 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
 
   const isEditable = campaignStatus !== "IN_PROGRESS" && campaignStatus !== "COMPLETED";
 
+  // Synchronizuj stan leads z currentLeads
+  useEffect(() => {
+    setLeads(currentLeads);
+  }, [currentLeads]);
+
   // Odśwież dane z serwera co 5 sekund
   useEffect(() => {
     const interval = setInterval(() => {
@@ -72,10 +77,18 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
       
       const res = await fetch(url);
       if (res.ok) {
-        const allLeads = await res.json();
+        const data = await res.json();
+        const allLeads = data.leads || data; // Obsługa różnych formatów odpowiedzi
+        
+        // Pobierz leady kampanii z API
+        const campaignRes = await fetch(`/api/campaigns/${campaignId}/leads`);
+        let currentLeadIds: number[] = [];
+        if (campaignRes.ok) {
+          const campaignData = await campaignRes.json();
+          currentLeadIds = campaignData.leads.map((l: any) => l.id);
+        }
         
         // Filtruj leady, które już są w kampanii lub są zablokowane
-        const currentLeadIds = leads.map(l => l.id);
         const available = allLeads
           .filter((l: any) => !currentLeadIds.includes(l.id) && l.status !== 'BLOCKED')
           .map((l: any) => ({

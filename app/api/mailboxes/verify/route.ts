@@ -75,6 +75,26 @@ export async function POST(req: NextRequest) {
       smtpSuccess = true;
       console.log(`[VERIFY] ✅ SMTP OK - Message ID: ${messageId}`);
 
+      // NOWE: Zapisz test mail do SendLog (dla archiwum)
+      // Maile testowe nie mają kampanii ani leada - campaignId i leadId są NULL
+      try {
+        await db.sendLog.create({
+          data: {
+            campaignId: null, // Mail testowy - brak kampanii
+            leadId: null,     // Mail testowy - brak leada
+            mailboxId: mailbox.id,
+            subject: testSubject,
+            content: testBody,
+            status: "sent",
+            messageId: messageId
+          }
+        });
+        console.log(`[VERIFY] 📝 Test mail zapisany do archiwum (Mailbox ID: ${mailbox.id})`);
+      } catch (dbError: any) {
+        console.error(`[VERIFY] ❌ Błąd zapisu do SendLog:`, dbError);
+        // Nie przerywamy procesu weryfikacji
+      }
+
     } catch (smtpError: any) {
       console.error(`[VERIFY] ❌ SMTP FAILED:`, smtpError);
       errors.push(`SMTP: ${smtpError.message || String(smtpError)}`);

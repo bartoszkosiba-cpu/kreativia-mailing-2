@@ -269,51 +269,26 @@ export default function MailboxesPage() {
     const maxPriority = usedPriorities.length > 0 ? Math.max(...usedPriorities) : 0;
     const nextPriority = maxPriority + 1;
     
-    // Jeśli istnieje pierwsza skrzynka, skopiuj jej ustawienia jako template
-    const templateMailbox = mailboxes[0];
-    
-    if (templateMailbox) {
-      setFormData({
-        email: "",
-        displayName: "",
-        description: "",
-        smtpHost: templateMailbox.smtpHost,
-        smtpPort: templateMailbox.smtpPort,
-        smtpUser: "",
-        smtpPass: "",
-        smtpSecure: false, // Domyślnie STARTTLS dla SMTP
-        imapHost: templateMailbox.smtpHost, // Zwykle ten sam host
-        imapPort: 993,
-        imapUser: "",
-        imapPass: "",
-        imapSecure: true, // Domyślnie SSL dla IMAP
-        dailyEmailLimit: templateMailbox.dailyEmailLimit,
-        priority: nextPriority, // Następny wolny priorytet
-        isActive: true,
-        mailboxType: "new"
-      });
-    } else {
-      // Brak skrzynek - użyj domyślnych wartości
-      setFormData({
-        email: "",
-        displayName: "",
-        description: "",
-        smtpHost: "bartgrafic.home.pl", // Domyślny host
-        smtpPort: 587,
-        smtpUser: "",
-        smtpPass: "",
-        smtpSecure: false,
-        imapHost: "bartgrafic.home.pl", // Domyślny host
-        imapPort: 993,
-        imapUser: "",
-        imapPass: "",
-        imapSecure: true,
-        dailyEmailLimit: 150,
-        priority: 1,
-        isActive: true,
-        mailboxType: "new"
-      });
-    }
+    // Zawsze używaj domyślnych wartości - NIE kopiuj z istniejących skrzynek
+    setFormData({
+      email: "",
+      displayName: "",
+      description: "",
+      smtpHost: "bartgrafic.home.pl", // Domyślny host SMTP
+      smtpPort: 587,
+      smtpUser: "",
+      smtpPass: "",
+      smtpSecure: false,
+      imapHost: "bartgrafic.home.pl", // Domyślny host IMAP
+      imapPort: 993,
+      imapUser: "",
+      imapPass: "",
+      imapSecure: true,
+      dailyEmailLimit: 50, // Domyślny limit
+      priority: nextPriority, // Następny wolny priorytet
+      isActive: true,
+      mailboxType: "new"
+    });
   };
 
   if (isLoading) {
@@ -515,6 +490,7 @@ export default function MailboxesPage() {
                       onChange={(e) => setFormData({ ...formData, smtpUser: e.target.value })}
                       required
                       placeholder="login@firma.pl"
+                      autoComplete="off"
                       style={{ width: "100%", padding: 8 }}
                     />
                   </div>
@@ -527,6 +503,7 @@ export default function MailboxesPage() {
                       onChange={(e) => setFormData({ ...formData, smtpPass: e.target.value })}
                       placeholder={editingId ? "****** (zachowane - zostaw puste aby nie zmieniać)" : "Hasło SMTP"}
                       required={!editingId}
+                      autoComplete="new-password"
                       style={{ width: "100%", padding: 8 }}
                     />
                   </div>
@@ -592,6 +569,7 @@ export default function MailboxesPage() {
                       onChange={(e) => setFormData({ ...formData, imapUser: e.target.value })}
                       required
                       placeholder="login@firma.pl"
+                      autoComplete="off"
                       style={{ width: "100%", padding: 8 }}
                     />
                   </div>
@@ -604,6 +582,7 @@ export default function MailboxesPage() {
                       onChange={(e) => setFormData({ ...formData, imapPass: e.target.value })}
                       placeholder={editingId ? "****** (zachowane - zostaw puste aby nie zmieniać)" : "Hasło IMAP"}
                       required={!editingId}
+                      autoComplete="new-password"
                       style={{ width: "100%", padding: 8 }}
                     />
                   </div>

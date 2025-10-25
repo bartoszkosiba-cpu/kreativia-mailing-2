@@ -157,8 +157,8 @@ model Lead {
 
 model SendLog {
   id         Int      @id @default(autoincrement())
-  campaignId Int
-  leadId     Int
+  campaignId Int?     // Opcjonalne - maile testowe/warmup nie mają kampanii
+  leadId     Int?     // Opcjonalne - maile testowe/warmup nie mają leada
   mailboxId  Int?     // NOWE: Z której skrzynki wysłano
   messageId  String?
   threadId   String?
@@ -168,9 +168,9 @@ model SendLog {
   error      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  lead       Lead     @relation(fields: [leadId], references: [id])
-  mailbox    Mailbox? @relation(fields: [mailboxId], references: [id])
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  lead       Lead?     @relation(fields: [leadId], references: [id])
+  mailbox    Mailbox?  @relation(fields: [mailboxId], references: [id])
 }
 
 model InboxReply {
@@ -382,8 +382,7 @@ model Mailbox {
   
   // Warmup configuration
   warmupPhase          String   @default("silent")   // silent | building | acceleration | ready
-  warmupInternalEmails Int      @default(0)          // Liczba wysłanych maili wewnętrznych
-  warmupSeedEmails     Int      @default(0)          // Liczba wysłanych maili do seed list
+  warmupInternalEmails Int      @default(0)          // Liczba wysłanych maili wewnętrznych (między naszymi skrzynkami)
   warmupTestEmails     Int      @default(0)          // Liczba wysłanych maili testowych
   
   // Warmup alerts and issues

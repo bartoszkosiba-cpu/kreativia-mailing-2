@@ -48,28 +48,38 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'desc' }
       });
 
-      allEmails.push(...sentEmails.map(email => ({
-        id: `sent-${email.id}`,
-        type: "sent",
-        date: email.createdAt,
-        fromEmail: email.mailbox?.email || "Nieznana skrzynka",
-        toEmail: email.lead.email,
-        subject: email.subject || "Brak tematu",
-        content: email.content,
-        status: email.status,
-        error: email.error,
-        leadId: email.leadId,
-        leadName: `${email.lead.firstName || ''} ${email.lead.lastName || ''}`.trim() || email.lead.email,
-        leadCompany: email.lead.company,
-        campaignId: email.campaignId,
-        campaignName: email.campaign.name,
-        mailboxId: email.mailboxId,
-        mailboxName: email.mailbox?.displayName || email.mailbox?.email,
-        salespersonName: email.mailbox?.virtualSalesperson?.name,
-        classification: null,
-        sentiment: null,
-        aiSummary: null
-      })));
+      allEmails.push(...sentEmails.map(email => {
+        // Określ kategorię maila
+        const emailType = email.campaignId && email.leadId ? "CAMPAIGN" : "TEST";
+        const direction = "outgoing";
+        const source = email.campaignId ? "campaign" : "verification";
+        
+        return {
+          id: `sent-${email.id}`,
+          type: "sent",
+          date: email.createdAt,
+          fromEmail: email.mailbox?.email || "Nieznana skrzynka",
+          toEmail: email.lead?.email || email.mailbox?.email || "Nieznany odbiorca",
+          subject: email.subject || "Brak tematu",
+          content: email.content,
+          status: email.status,
+          error: email.error,
+          leadId: email.leadId,
+          leadName: email.lead ? `${email.lead.firstName || ''} ${email.lead.lastName || ''}`.trim() || email.lead.email : "Test/Weryfikacja",
+          leadCompany: email.lead?.company || null,
+          campaignId: email.campaignId,
+          campaignName: email.campaign?.name || "Brak kampanii",
+          mailboxId: email.mailboxId,
+          mailboxName: email.mailbox?.displayName || email.mailbox?.email,
+          salespersonName: email.mailbox?.virtualSalesperson?.name,
+          classification: null,
+          sentiment: null,
+          aiSummary: null,
+          emailType,
+          direction,
+          source
+        };
+      }));
     }
 
     // Pobierz odebrane maile (InboxReply)
@@ -95,28 +105,60 @@ export async function GET(request: NextRequest) {
         orderBy: { receivedAt: 'desc' }
       });
 
-      allEmails.push(...receivedEmails.map(email => ({
-        id: `received-${email.id}`,
-        type: "received",
-        date: email.receivedAt,
-        fromEmail: email.fromEmail,
-        toEmail: email.toEmail || "Nieznana skrzynka",
-        subject: email.subject,
-        content: email.content,
-        status: email.isHandled ? "handled" : "unhandled",
-        error: null,
-        leadId: email.leadId,
-        leadName: email.lead ? `${email.lead.firstName || ''} ${email.lead.lastName || ''}`.trim() || email.lead.email : email.fromEmail,
-        leadCompany: email.lead?.company,
-        campaignId: email.campaignId,
-        campaignName: email.campaign?.name,
-        mailboxId: null,
-        mailboxName: email.toEmail,
-        salespersonName: null,
-        classification: email.classification,
-        sentiment: email.sentiment,
-        aiSummary: email.aiSummary
-      })));
+      allEmails.push(...receivedEmails.map(email => {
+        // Określ kategorię maila przychodzącego
+        let emailType: string;
+        let direction = "incoming";
+        let source: string;
+        
+        if (email.classification === "INTERNAL_WARMUP") {
+          // Mail wewnętrzny - sprawdź czy to test czy warmup
+          emailType = email.subject?.includes("[TEST]") ? "TEST" : "WARMUP";
+          source = emailType === "TEST" ? "verification" : "warmup";
+        } else if (email.classification === "BOUNCE") {
+          // BOUNCE - zawsze jako UNKNOWN (odbicie)
+          emailType = "UNKNOWN";
+          source = "bounce";
+        } else if (!email.leadId) {
+          // Brak leada - obcy mail
+          emailType = "UNKNOWN";
+          source = "unknown";
+        } else if (email.campaignId) {
+          // Jest lead i kampania - odpowiedź od leada z kampanii
+          emailType = "CAMPAIGN";
+          source = "campaign";
+        } else {
+          // Jest lead ale brak kampanii - obcy mail (ale z leadem)
+          emailType = "UNKNOWN";
+          source = "unknown";
+        }
+        
+        return {
+          id: `received-${email.id}`,
+          type: "received",
+          date: email.receivedAt,
+          fromEmail: email.fromEmail,
+          toEmail: email.toEmail || "Nieznana skrzynka",
+          subject: email.subject,
+          content: email.content,
+          status: email.isHandled ? "handled" : "unhandled",
+          error: null,
+          leadId: email.leadId,
+          leadName: email.lead ? `${email.lead.firstName || ''} ${email.lead.lastName || ''}`.trim() || email.lead.email : email.fromEmail,
+          leadCompany: email.lead?.company,
+          campaignId: email.campaignId,
+          campaignName: email.campaign?.name,
+          mailboxId: null,
+          mailboxName: email.toEmail,
+          salespersonName: null,
+          classification: email.classification,
+          sentiment: email.sentiment,
+          aiSummary: email.aiSummary,
+          emailType,
+          direction,
+          source
+        };
+      }));
     }
 
     // Pobierz maile warmup (WarmupEmail)
@@ -165,7 +207,10 @@ export async function GET(request: NextRequest) {
         sentiment: null,
         aiSummary: null,
         warmupDay: email.warmupDay,
-        warmupPhase: email.warmupPhase
+        warmupPhase: email.warmupPhase,
+        emailType: "WARMUP",
+        direction: "outgoing",
+        source: "warmup"
       })));
     }
 

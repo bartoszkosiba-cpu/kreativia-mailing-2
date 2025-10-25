@@ -579,43 +579,6 @@ export default function LeadsPage() {
             )}
           </p>
         </div>
-        <div className="flex gap-sm">
-          <Link href="/import">
-            <button className="btn btn-primary">
-              Import CSV
-            </button>
-          </Link>
-          <button 
-            onClick={() => setShowForm(!showForm)}
-            className="btn btn-success"
-          >
-            {showForm ? "❌ Anuluj" : "➕ Dodaj leada"}
-          </button>
-          {/* Removed generate all greetings button - starting fresh */}
-          {selectedLeadIds.length > 0 && (
-            <button
-              onClick={() => setShowBulkActions(!showBulkActions)}
-              className="btn btn-warning"
-            >
-              🔧 Zarządzaj zaznaczonymi ({selectedLeadIds.length})
-            </button>
-          )}
-          <button
-            onClick={handleSendNotifications}
-            className="btn btn-primary"
-            style={{ marginLeft: "var(--spacing-sm)" }}
-            disabled={stats.greetings.without === 0}
-          >
-            Wygeneruj powitania ({stats.greetings.without})
-          </button>
-          <button 
-            onClick={() => setShowDeleteOptions(!showDeleteOptions)}
-            className="btn btn-danger"
-            disabled={leads.length === 0}
-          >
-            Usuń leady
-          </button>
-        </div>
       </div>
 
       {/* Panel akcji zbiorczych */}
@@ -1011,6 +974,45 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* Przyciski akcji - przeniesione nad tabelę */}
+      <div style={{ marginBottom: "var(--spacing-lg)" }}>
+        <div className="flex gap-sm" style={{ justifyContent: "flex-start", flexWrap: "wrap" }}>
+          <Link href="/import">
+            <button className="btn btn-primary">
+              Import CSV
+            </button>
+          </Link>
+          <button 
+            onClick={() => setShowForm(!showForm)}
+            className="btn btn-success"
+          >
+            {showForm ? "❌ Anuluj" : "➕ Dodaj leada"}
+          </button>
+          {selectedLeadIds.length > 0 && (
+            <button
+              onClick={() => setShowBulkActions(!showBulkActions)}
+              className="btn btn-warning"
+            >
+              🔧 Zarządzaj zaznaczonymi ({selectedLeadIds.length})
+            </button>
+          )}
+          <button
+            onClick={handleSendNotifications}
+            className="btn btn-primary"
+            disabled={stats.greetings.without === 0}
+          >
+            Wygeneruj powitania ({stats.greetings.without})
+          </button>
+          <button 
+            onClick={() => setShowDeleteOptions(!showDeleteOptions)}
+            className="btn btn-danger"
+            disabled={leads.length === 0}
+          >
+            Usuń leady
+          </button>
+        </div>
+      </div>
+
       {/* Tabela leadów */}
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-lg)" }}>
@@ -1101,9 +1103,23 @@ export default function LeadsPage() {
                   </td>
                   <td>{lead.title || "-"}</td>
                   <td>
-                    {lead.company || "-"}
-                    {www && (
-                      <> <a href={www} target="_blank" rel="noreferrer" style={{ fontSize: "11px" }}>🔗</a></>
+                    {www ? (
+                      <a 
+                        href={www} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        style={{ 
+                          color: "#2563eb", 
+                          textDecoration: "none",
+                          fontWeight: "500"
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.textDecoration = "underline"}
+                        onMouseOut={(e) => e.currentTarget.style.textDecoration = "none"}
+                      >
+                        {lead.company || "-"}
+                      </a>
+                    ) : (
+                      lead.company || "-"
                     )}
                   </td>
                   <td>
@@ -1170,7 +1186,7 @@ export default function LeadsPage() {
                     </div>
                   </td>
                   <td className="sticky-column sticky-column-right-1">
-                    <div className="flex" style={{ maxWidth: "120px", flexWrap: "wrap", gap: "16px" }}>
+                    <div className="flex" style={{ maxWidth: "120px", flexWrap: "wrap", gap: "10px" }}>
                       <Link href={`/leads/${lead.id}`}>
                         <button className="btn btn-primary" style={{ fontSize: "10px", padding: "4px 8px", minWidth: "60px" }}>
                           Szczegóły
@@ -1182,15 +1198,15 @@ export default function LeadsPage() {
                           fontSize: "10px", 
                           padding: "4px 8px", 
                           minWidth: "50px",
-                          backgroundColor: "#6c757d",
+                          backgroundColor: "#9ca3af",
                           color: "white",
                           border: "none",
                           borderRadius: "4px",
                           cursor: "pointer",
                           transition: "background-color 0.2s"
                         }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#5a6268"}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#6c757d"}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#6b7280"}
+                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#9ca3af"}
                         title="Usuń leada"
                       >
                         Usuń

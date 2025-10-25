@@ -138,6 +138,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           settings: companySettings || undefined
         });
 
+        // NOWE: Zapisz test mail do SendLog (dla archiwum)
+        await db.sendLog.create({
+          data: {
+            campaignId: campaignId,
+            leadId: testLead.id,
+            mailboxId: mailbox?.id || null,
+            subject: campaign.subject,
+            content: personalizedContent,
+            status: "sent",
+            messageId: result.messageId
+          }
+        });
+
         return NextResponse.json({
           message: "Test mail wysłany pomyślnie",
           result
