@@ -9,6 +9,7 @@ interface Lead {
   lastName: string | null;
   email: string;
   company: string | null;
+  language: string | null;
   hasSentEmail: boolean;
 }
 
@@ -30,6 +31,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
   const [availableLeads, setAvailableLeads] = useState<Lead[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTag, setSelectedTag] = useState<number | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -68,12 +70,19 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
     }
   };
 
-  const fetchLeadsByTag = async (tagId: number | null) => {
+  const fetchLeadsByTag = async (tagId: number | null, language: string | null) => {
     try {
       setIsLoading(true);
-      const url = tagId 
-        ? `/api/leads?tagId=${tagId}` 
-        : "/api/leads";
+      let url = "/api/leads";
+      
+      // Dodaj parametry do URL
+      const params = new URLSearchParams();
+      if (tagId) params.append("tagId", tagId.toString());
+      if (language) params.append("language", language);
+      
+      if (params.toString()) {
+        url += "?" + params.toString();
+      }
       
       const res = await fetch(url);
       if (res.ok) {
@@ -97,6 +106,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
             lastName: l.lastName,
             email: l.email,
             company: l.company,
+            language: l.language,
             hasSentEmail: false
           }));
         
@@ -189,15 +199,15 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
   return (
     <div className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-lg)" }}>
-        <h2>👥 Leady w kampanii ({leads.length})</h2>
+        <h2>Leady w kampanii ({leads.length})</h2>
         <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
           <button
             className="btn btn-secondary"
-            onClick={() => router.refresh()}
-            disabled={isLoading}
-            title="Odśwież listę leadów"
+              onClick={() => router.refresh()}
+              disabled={isLoading}
+              title="Odśwież listę leadów"
           >
-            🔄 Odśwież
+            Odśwież
           </button>
           {isEditable && (
             <button
@@ -205,7 +215,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
               onClick={() => setShowAddPanel(!showAddPanel)}
               disabled={isLoading}
             >
-              {showAddPanel ? "❌ Anuluj" : "➕ Dodaj leady"}
+              {showAddPanel ? "Anuluj" : "Dodaj leady"}
             </button>
           )}
         </div>
@@ -213,7 +223,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
 
       {!isEditable && (
         <div className="alert alert-info" style={{ marginBottom: "var(--spacing-md)" }}>
-          ⚠️ Edycja leadów jest zablokowana podczas wysyłki kampanii
+          Edycja leadów jest zablokowana podczas wysyłki kampanii
         </div>
       )}
 
@@ -226,7 +236,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
         borderRadius: "4px",
         border: "1px solid var(--gray-200)"
       }}>
-        ℹ️ Lista odświeża się automatycznie co 5 sekund. Możesz też odświeżyć ręcznie przyciskiem 🔄
+        Lista odświeża się automatycznie co 5 sekund
       </div>
 
       {message && (
@@ -237,7 +247,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
 
       {sentCount > 0 && (
         <div className="alert alert-info" style={{ marginBottom: "var(--spacing-md)" }}>
-          📧 {sentCount} leadów już otrzymało mail - nie można ich usunąć
+          {sentCount} leadów już otrzymało mail - nie można ich usunąć
         </div>
       )}
 
@@ -252,34 +262,64 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
           <h3 style={{ marginBottom: "var(--spacing-md)" }}>Dodaj leady do kampanii</h3>
           
           <div style={{ marginBottom: "var(--spacing-md)" }}>
-            <label style={{ display: "block", marginBottom: "var(--spacing-sm)" }}>
-              Wybierz tag (opcjonalnie):
-            </label>
-            <select
-              value={selectedTag || ""}
-              onChange={(e) => {
-                const tagId = e.target.value ? Number(e.target.value) : null;
-                setSelectedTag(tagId);
-                fetchLeadsByTag(tagId);
-              }}
-              style={{ 
-                padding: "var(--spacing-sm)", 
-                borderRadius: "4px", 
-                border: "1px solid var(--gray-300)",
-                marginRight: "var(--spacing-sm)"
-              }}
-            >
-              <option value="">Wszystkie leady</option>
-              {tags.map(tag => (
-                <option key={tag.id} value={tag.id}>{tag.name}</option>
-              ))}
-            </select>
+            <div style={{ display: "flex", gap: "var(--spacing-md)", marginBottom: "var(--spacing-md)" }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", marginBottom: "var(--spacing-sm)" }}>
+                  Język:
+                </label>
+                <select
+                  value={selectedLanguage || ""}
+                  onChange={(e) => {
+                    const lang = e.target.value || null;
+                    setSelectedLanguage(lang);
+                    fetchLeadsByTag(selectedTag, lang);
+                  }}
+                  style={{ 
+                    padding: "var(--spacing-sm)", 
+                    borderRadius: "4px", 
+                    border: "1px solid var(--gray-300)",
+                    width: "100%"
+                  }}
+                >
+                  <option value="">Wszystkie</option>
+                  <option value="pl">Polski (pl)</option>
+                  <option value="en">Angielski (en)</option>
+                  <option value="de">Niemiecki (de)</option>
+                  <option value="fr">Francuski (fr)</option>
+                </select>
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", marginBottom: "var(--spacing-sm)" }}>
+                  Tag:
+                </label>
+                <select
+                  value={selectedTag || ""}
+                  onChange={(e) => {
+                    const tagId = e.target.value ? Number(e.target.value) : null;
+                    setSelectedTag(tagId);
+                    fetchLeadsByTag(tagId, selectedLanguage);
+                  }}
+                  style={{ 
+                    padding: "var(--spacing-sm)", 
+                    borderRadius: "4px", 
+                    border: "1px solid var(--gray-300)",
+                    width: "100%"
+                  }}
+                >
+                  <option value="">Wszystkie</option>
+                  {tags.map(tag => (
+                    <option key={tag.id} value={tag.id}>{tag.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <button
               className="btn btn-secondary"
-              onClick={() => fetchLeadsByTag(selectedTag)}
+              onClick={() => fetchLeadsByTag(selectedTag, selectedLanguage)}
               disabled={isLoading}
             >
-              🔍 Szukaj
+              Szukaj
             </button>
           </div>
 
@@ -325,7 +365,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
                   onClick={handleAddLeads}
                   disabled={selectedLeads.length === 0 || isLoading}
                 >
-                  ✓ Dodaj wybranych ({selectedLeads.length})
+                  Dodaj wybranych ({selectedLeads.length})
                 </button>
                 <button
                   className="btn btn-secondary"
@@ -334,7 +374,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
                   }}
                   disabled={isLoading}
                 >
-                  ☑️ Zaznacz wszystkich
+                  Zaznacz wszystkich
                 </button>
               </div>
             </>
@@ -374,9 +414,9 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
                 </td>
                 <td style={{ padding: "var(--spacing-sm)", textAlign: "center" }}>
                   {lead.hasSentEmail ? (
-                    <span style={{ color: "var(--success)", fontSize: "0.9rem" }}>✓ Wysłano</span>
+                    <span style={{ color: "var(--success)", fontSize: "0.9rem" }}>Wysłano</span>
                   ) : (
-                    <span style={{ color: "var(--gray-500)", fontSize: "0.9rem" }}>○ Oczekuje</span>
+                    <span style={{ color: "var(--gray-500)", fontSize: "0.9rem" }}>Oczekuje</span>
                   )}
                 </td>
                 {isEditable && (
@@ -393,10 +433,10 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
                         onClick={() => handleRemoveLead(lead.id)}
                         disabled={isLoading}
                       >
-                        ❌ Usuń
+                        Usuń
                       </button>
                     ) : (
-                      <span style={{ color: "var(--gray-400)", fontSize: "0.85rem" }}>🔒 Zablokowany</span>
+                      <span style={{ color: "var(--gray-400)", fontSize: "0.85rem" }}>Zablokowany</span>
                     )}
                   </td>
                 )}

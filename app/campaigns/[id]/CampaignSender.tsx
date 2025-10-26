@@ -119,7 +119,7 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
 
   return (
     <div style={{ marginBottom: 20, padding: 20, backgroundColor: "#f8f9fa", borderRadius: 8 }}>
-      <h3>📧 Wysyłka testowa (max {MAX_INSTANT_SEND} leadów)</h3>
+      <h3>Wysyłka testowa (max {MAX_INSTANT_SEND} leadów)</h3>
       
       {exceedsLimit && (
         <div style={{ 
@@ -130,13 +130,13 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
           marginBottom: 16 
         }}>
           <p style={{ margin: 0, color: "#856404", fontWeight: "bold" }}>
-            ⚠️ Za dużo leadów dla testowej wysyłki!
+            Za dużo leadów dla testowej wysyłki!
           </p>
           <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "#856404" }}>
             Masz {leadsCount} leadów w kampanii. Przycisk "Uruchom kampanię" jest zablokowany (limit: {MAX_INSTANT_SEND}).
           </p>
           <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "#856404" }}>
-            ✅ Użyj <strong>HARMONOGRAMU</strong> poniżej, aby wysłać więcej maili bezpiecznie.
+            Użyj <strong>HARMONOGRAMU</strong> poniżej, aby wysłać więcej maili bezpiecznie.
           </p>
         </div>
       )}
@@ -165,7 +165,7 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
 
       {salesperson && (
         <div style={{ marginBottom: 16, padding: 12, backgroundColor: "#e8f4fd", borderRadius: 4 }}>
-          <p style={{ margin: 0, fontWeight: "bold" }}>📤 Nadawca:</p>
+          <p style={{ margin: 0, fontWeight: "bold" }}>Nadawca:</p>
           <p style={{ margin: "4px 0", fontSize: "14px" }}>
 {salesperson.name}
           </p>
@@ -191,7 +191,7 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
             cursor: (!hasSubject || !testEmail.trim() || isTestSending) ? "not-allowed" : "pointer"
           }}
         >
-          {isTestSending ? "Wysyłanie testu..." : "🧪 Wyślij test"}
+          {isTestSending ? "Wysyłanie testu..." : "Wyślij test"}
         </button>
 
         {!hasSentEmails ? (
@@ -210,7 +210,7 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
             }}
             title={exceedsLimit ? `Limit przekroczony (${leadsCount}/${MAX_INSTANT_SEND}). Użyj harmonogramu.` : ""}
           >
-            {isCheckingHistory ? "Sprawdzanie..." : isSending ? "Wysyłanie..." : exceedsLimit ? `🚫 Zablokowane (${leadsCount} leadów)` : "🚀 Wyślij kampanię"}
+            {isCheckingHistory ? "Sprawdzanie..." : isSending ? "Wysyłanie..." : exceedsLimit ? `Zablokowane (${leadsCount} leadów)` : "Wyślij kampanię"}
           </button>
         ) : (
           // Pokazuj "Wyślij ponownie" jeśli BYŁA wysyłka
@@ -228,7 +228,7 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
             }}
             title="Wyślij ponownie do wszystkich leadów (ignoruje sprawdzanie duplikatów)"
           >
-            {isSending ? "Wysyłanie..." : "🔄 Wyślij ponownie"}
+            {isSending ? "Wysyłanie..." : "Wyślij ponownie"}
           </button>
         )}
       </div>
@@ -236,7 +236,7 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
       {!hasSubject && (
         <div style={{ padding: 12, backgroundColor: "#fff3cd", borderRadius: 4, marginBottom: 16 }}>
           <p style={{ margin: 0, color: "#856404" }}>
-            ⚠️ Kampania nie ma tematu maila. Dodaj temat przed wysyłką.
+            Kampania nie ma tematu maila. Dodaj temat przed wysyłką.
           </p>
         </div>
       )}
@@ -244,7 +244,7 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
       {!hasText && (
         <div style={{ padding: 12, backgroundColor: "#fff3cd", borderRadius: 4, marginBottom: 16 }}>
           <p style={{ margin: 0, color: "#856404" }}>
-            ⚠️ Kampania nie ma treści. Dodaj treść przed wysyłką.
+            Kampania nie ma treści. Dodaj treść przed wysyłką.
           </p>
         </div>
       )}
@@ -252,7 +252,7 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
       {!hasLeads && (
         <div style={{ padding: 12, backgroundColor: "#fff3cd", borderRadius: 4, marginBottom: 16 }}>
           <p style={{ margin: 0, color: "#856404" }}>
-            ⚠️ Kampania nie ma leadów. Dodaj leady przed wysyłką.
+            Kampania nie ma leadów. Dodaj leady przed wysyłką.
           </p>
         </div>
       )}

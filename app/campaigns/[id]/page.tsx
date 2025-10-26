@@ -85,7 +85,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
       
       {campaign.isFollowUp && campaign.parentCampaignId && (
         <div className="alert alert-info" style={{ marginBottom: 20 }}>
-          ℹ️ To jest <strong>Follow-up #{campaign.followUpSequence}</strong> dla kampanii:{" "}
+          To jest <strong>Follow-up #{campaign.followUpSequence}</strong> dla kampanii:{" "}
           <Link href={`/campaigns/${campaign.parentCampaignId}`} style={{ fontWeight: 600 }}>
             Kampania główna →
           </Link>
@@ -105,7 +105,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
             border: "1px solid #bae6fd",
             fontSize: 13
           }}>
-            🎨 <strong>Treść z Content Planner:</strong>{" "}
+            <strong>Treść z Content Planner:</strong>{" "}
             {campaign.savedContent.productGroup.iconEmoji}{" "}
             {campaign.savedContent.productGroup.name} &gt;{" "}
             {campaign.savedContent.name}{" "}
@@ -131,7 +131,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
             border: "1px solid #fed7aa",
             fontSize: 13
           }}>
-            ⚠️ <strong>Stara wersja Content Planner</strong> (przed refaktorem)
+            <strong>Stara wersja Content Planner</strong> (przed refaktorem)
           </div>
         )}
         
@@ -148,7 +148,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
               fontSize: "14px"
             }}
           >
-            📥 Inbox kampanii
+            Inbox kampanii
           </Link>
           <Link 
             href={referer}
@@ -162,7 +162,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
               fontSize: "14px"
             }}
           >
-            ← Wróć
+            Wróć
           </Link>
         </div>
       </div>
@@ -209,86 +209,6 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
 
       <CampaignOutbox campaignId={campaignId} />
 
-      <div style={{ marginBottom: 20, padding: 20, backgroundColor: "#f8f9fa", borderRadius: 8 }}>
-        <h2>Informacje o kampanii</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div>
-            <p><strong>Liczba aktywnych leadów:</strong> {leadsWithStatus.length}</p>
-            <p><strong>Utworzono:</strong> {new Date(campaign.createdAt).toLocaleString()}</p>
-            <p><strong>Ostatnia aktualizacja:</strong> {new Date(campaign.updatedAt).toLocaleString()}</p>
-          </div>
-          <div>
-            <p><strong>Wirtualny handlowiec:</strong></p>
-            {campaign.virtualSalesperson ? (
-              <div style={{ padding: 12, backgroundColor: "white", borderRadius: 4, border: "1px solid #ddd" }}>
-                <p style={{ margin: 0, fontWeight: "bold" }}>{campaign.virtualSalesperson.name}</p>
-                <p style={{ margin: "4px 0", color: "#666" }}>{campaign.jobDescription || "Wirtualny handlowiec"}</p>
-                <p style={{ margin: "4px 0", fontSize: "14px" }}>
-                  <a href={`mailto:${campaign.virtualSalesperson.email}`} style={{ color: "#0066cc" }}>
-                    {campaign.virtualSalesperson.email}
-                  </a>
-                  <span style={{ fontSize: '11px', color: '#999', marginLeft: '8px' }}>
-                    (główna skrzynka)
-                  </span>
-                </p>
-                <p style={{ margin: "4px 0", fontSize: "12px", color: "#666" }}>
-                  Język: {campaign.virtualSalesperson.language.toUpperCase()}
-                  {campaign.virtualSalesperson.markets && ` • Rynki: ${campaign.virtualSalesperson.markets}`}
-                </p>
-              </div>
-            ) : (
-              <div style={{ padding: 12, backgroundColor: "#fff3cd", borderRadius: 4, border: "1px solid #ffeaa7" }}>
-                <p style={{ margin: 0, color: "#856404" }}>Brak przypisanego handlowca</p>
-                <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#856404" }}>
-                  Maile będą wysyłane bez określonego nadawcy
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <h2>Leady w kampanii ({leadsWithStatus.length})</h2>
-      {leadsWithStatus.length === 0 ? (
-        <p>Brak aktywnych leadów w kampanii.</p>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 16 }}>
-            <thead>
-              <tr style={{ backgroundColor: "#f5f5f5" }}>
-                <th style={{ padding: 8, textAlign: "left", border: "1px solid #ddd" }}>ID</th>
-                <th style={{ padding: 8, textAlign: "left", border: "1px solid #ddd" }}>Imię</th>
-                <th style={{ padding: 8, textAlign: "left", border: "1px solid #ddd" }}>Nazwisko</th>
-                <th style={{ padding: 8, textAlign: "left", border: "1px solid #ddd" }}>Firma</th>
-                <th style={{ padding: 8, textAlign: "left", border: "1px solid #ddd" }}>Email</th>
-                <th style={{ padding: 8, textAlign: "left", border: "1px solid #ddd" }}>Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leadsWithStatus.map((lead) => {
-                return (
-                  <tr key={lead.id}>
-                    <td style={{ padding: 8, border: "1px solid #ddd" }}>{lead.id}</td>
-                    <td style={{ padding: 8, border: "1px solid #ddd" }}>{lead.firstName || "-"}</td>
-                    <td style={{ padding: 8, border: "1px solid #ddd" }}>{lead.lastName || "-"}</td>
-                    <td style={{ padding: 8, border: "1px solid #ddd" }}>{lead.company || "-"}</td>
-                    <td style={{ padding: 8, border: "1px solid #ddd" }}>
-                      <a href={`mailto:${lead.email}`} style={{ color: "#0066cc" }}>
-                        {lead.email}
-                      </a>
-                    </td>
-                    <td style={{ padding: 8, border: "1px solid #ddd" }}>
-                      <Link href={`/leads/${lead.id}`} style={{ color: "#0066cc", fontSize: "14px" }}>
-                        Szczegóły
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       <CampaignSender 
         campaignId={campaignId}

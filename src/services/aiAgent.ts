@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { classifyReply } from "@/integrations/ai/client";
 
 export interface AIAction {
-  type: "FORWARD" | "BLOCK" | "UNSUBSCRIBE" | "ADD_LEAD" | "SCHEDULE_FOLLOWUP" | "NO_ACTION";
+  type: "FORWARD" | "BLOCK" | "UNSUBSCRIBE" | "ADD_LEAD" | "SCHEDULE_FOLLOWUP" | "UPDATE_STATUS" | "NO_ACTION";
   priority: "HIGH" | "MEDIUM" | "LOW";
   description: string;
   data?: any;
@@ -145,6 +145,20 @@ async function executeActions(reply: any, analysis: Omit<AIAnalysis, 'actions'>)
   
   switch (analysis.classification) {
     case "INTERESTED":
+      // Zmień status leada na ZAINTERESOWANY
+      if (reply.lead) {
+        actions.push({
+          type: "UPDATE_STATUS",
+          priority: "HIGH",
+          description: `Zmiana statusu leada na ZAINTERESOWANY`,
+          data: {
+            leadId: reply.lead.id,
+            newStatus: "ZAINTERESOWANY",
+            reason: "INTERESTED - zainteresowany"
+          }
+        });
+      }
+      
       // Wyślij do prawdziwego handlowca (jeśli jest ustawiony)
       if (reply.campaign?.virtualSalesperson?.realSalespersonEmail) {
         actions.push({
@@ -312,6 +326,10 @@ async function executeAction(action: AIAction, reply: any): Promise<void> {
       
     case "BLOCK":
       await removeFromCampaigns(action.data.leadId);
+      break;
+      
+    case "UPDATE_STATUS":
+      await updateLeadStatus(action.data.leadId, action.data.newStatus, action.data.reason);
       break;
       
     case "NO_ACTION":
@@ -866,5 +884,46 @@ async function isWarmupReply(reply: any): Promise<boolean> {
   } catch (error) {
     console.error('[AI AGENT] Błąd podczas sprawdzania warmup maila:', error);
     return false; // W przypadku błędu, przetwórz normalnie
+  }
+}
+
+async function updateLeadStatus(leadId: number, newStatus: string, reason?: string): Promise<void> {
+  try {
+    console.log(`[AI AGENT] Zmiana statusu leada ${leadId} na ${newStatus}`);
+    
+    // Pobierz aktualny lead
+    const lead = await db.lead.findUnique({ where: { id: leadId } });
+    if (!lead) {
+      console.error(`[AI AGENT] Nie znaleziono leada o ID: ${leadId}`);
+      return;
+    }
+    
+    // Zapisz historię statusu (jeśli istnieje)
+    try {
+      await db.leadStatusHistory.create({
+        data: {
+          leadId: leadId,
+          oldStatus: lead.status,
+          newStatus: newStatus,
+          reason: reason || `AI Agent - automatyczna zmiana statusu`
+        }
+      });
+    } catch (historyError) {
+      // Ignoruj błędy historii (może nie być tabeli)
+      console.log(`[AI AGENT] Nie udało się zapisać historii statusu (może nie być tabeli)`);
+    }
+    
+    // Zmień status leada
+    await db.lead.update({
+      where: { id: leadId },
+      data: {
+        status: newStatus,
+        updatedAt: new Date()
+      }
+    });
+    
+    console.log(`[AI AGENT] ✅ Status leada ${leadId} zmieniony na ${newStatus}`);
+  } catch (error) {
+    console.error(`[AI AGENT] ❌ Błąd zmiany statusu leada ${leadId}:`, error);
   }
 }

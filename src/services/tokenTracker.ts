@@ -204,17 +204,18 @@ export async function getMonthlyTokenStats() {
 }
 
 /**
- * Pobierz statystyki dzienne (ostatnie 24h)
+ * Pobierz statystyki dzienne (od początku dnia - 00:00)
  */
 export async function getDailyTokenStats() {
   const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  // Reset dzienny o 00:00 - pobierz dane od początku dzisiejszego dnia
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const USD_TO_PLN = 4.20;
 
   const usage = await db.aITokenUsage.findMany({
     where: {
       createdAt: {
-        gte: yesterday
+        gte: startOfDay
       }
     },
     orderBy: {

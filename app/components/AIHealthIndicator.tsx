@@ -26,6 +26,7 @@ interface AIHealth {
 export default function AIHealthIndicator() {
   const [health, setHealth] = useState<AIHealth | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const checkHealth = async () => {
     setIsChecking(true);
@@ -77,49 +78,34 @@ export default function AIHealthIndicator() {
   };
 
   const getStatusIcon = () => {
-    if (health.status === "success") return "✓";
-    if (health.status === "warning") return "⚠";
-    return "✕";
+    return "";
   };
 
   const formatNumber = (num: number) => num.toLocaleString("pl-PL");
   const formatCostPLN = (cost: number) => `${cost.toFixed(2)} PLN`;
   const formatCostUSD = (cost: number) => `$${cost.toFixed(4)}`;
 
-  const tooltipText = [
-    health.message,
-    health.responseTime ? `Czas odpowiedzi: ${health.responseTime}ms` : "",
-    "",
-    health.tokenStats?.daily ? "📊 DZISIAJ (24h):" : "",
-    health.tokenStats?.daily ? `Wywołań: ${formatNumber(health.tokenStats.daily.totalCalls)}` : "",
-    health.tokenStats?.daily ? `Koszt: ${formatCostPLN(health.tokenStats.daily.totalCostPLN)}` : "",
-    "",
-    health.tokenStats?.monthly ? `📅 MIESIĄC (${health.tokenStats.monthly.month}/${health.tokenStats.monthly.year}):` : "",
-    health.tokenStats?.monthly ? `Wywołań: ${formatNumber(health.tokenStats.monthly.totalCalls)}` : "",
-    health.tokenStats?.monthly ? `Koszt: ${formatCostPLN(health.tokenStats.monthly.totalCostPLN)}` : "",
-    "",
-    "Kliknij, aby odświeżyć"
-  ].filter(Boolean).join("\n");
-
   return (
-    <div
-      onClick={checkHealth}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "6px",
-        padding: "6px 12px",
-        borderRadius: "4px",
-        background: health.isWorking ? "rgba(80, 121, 45, 0.1)" : "rgba(231, 161, 173, 0.2)",
-        border: `1px solid ${getStatusColor()}`,
-        cursor: "pointer",
-        transition: "all 0.2s ease",
-        fontSize: "12px",
-        fontFamily: "'Montserrat', sans-serif",
-        fontWeight: "500"
-      }}
-      title={tooltipText}
-    >
+    <div style={{ position: "relative" }}>
+      <div
+        onClick={checkHealth}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "6px 12px",
+          borderRadius: "4px",
+          background: health.isWorking ? "rgba(80, 121, 45, 0.1)" : "rgba(231, 161, 173, 0.2)",
+          border: `1px solid ${getStatusColor()}`,
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          fontSize: "12px",
+          fontFamily: "'Montserrat', sans-serif",
+          fontWeight: "500"
+        }}
+      >
       <div style={{
         width: "8px",
         height: "8px",
@@ -150,6 +136,70 @@ export default function AIHealthIndicator() {
           50% { opacity: 0.5; }
         }
       `}</style>
+      </div>
+
+      {/* Custom Tooltip */}
+      {showTooltip && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            marginTop: "8px",
+            padding: "12px 16px",
+            backgroundColor: "#2d2d2d",
+            color: "white",
+            borderRadius: "8px",
+            fontSize: "12px",
+            lineHeight: "1.6",
+            whiteSpace: "pre-line",
+            pointerEvents: "none",
+            zIndex: 1000,
+            minWidth: "200px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
+          }}
+        >
+          <div style={{ marginBottom: "8px", fontWeight: "600" }}>
+            {health.message}
+          </div>
+          {health.responseTime && (
+            <div style={{ color: "#ccc", fontSize: "11px" }}>
+              Czas: {health.responseTime}ms
+            </div>
+          )}
+          
+          {health.tokenStats?.daily && health.tokenStats.daily.totalCalls > 0 && (
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>DZISIAJ:</div>
+              <div style={{ paddingLeft: "12px", color: "#ccc" }}>
+                Wywołań: {formatNumber(health.tokenStats.daily.totalCalls)}
+              </div>
+              <div style={{ paddingLeft: "12px", color: "#ccc" }}>
+                Koszt: {formatCostPLN(health.tokenStats.daily.totalCostPLN)}
+              </div>
+            </div>
+          )}
+          
+          {health.tokenStats?.monthly && health.tokenStats.monthly.totalCalls > 0 && (
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                MIESIĄC ({health.tokenStats.monthly.month}/{health.tokenStats.monthly.year}):
+              </div>
+              <div style={{ paddingLeft: "12px", color: "#ccc" }}>
+                Wywołań: {formatNumber(health.tokenStats.monthly.totalCalls)}
+              </div>
+              <div style={{ paddingLeft: "12px", color: "#ccc" }}>
+                Koszt: {formatCostPLN(health.tokenStats.monthly.totalCostPLN)}
+              </div>
+            </div>
+          )}
+          
+          <div style={{ marginTop: "12px", fontSize: "10px", color: "#888", fontStyle: "italic" }}>
+            Kliknij, aby odświeżyć
+          </div>
+        </div>
+      )}
     </div>
   );
 }
