@@ -51,6 +51,14 @@ export async function PATCH(
       }
     });
 
+    // ✅ NOWE: Jeśli lead został zablokowany, usuń ze wszystkich kampanii
+    if (status === 'BLOKADA') {
+      const deletedCampaignLeads = await db.campaignLead.deleteMany({
+        where: { leadId: leadId }
+      });
+      console.log(`[STATUS UPDATE] Lead ID:${leadId} usunięty z ${deletedCampaignLeads.count} kampanii (status: BLOKADA)`);
+    }
+
     // Zapisz historię zmiany statusu (tylko jeśli status się zmienił)
     if (currentLead.status !== status || currentLead.subStatus !== subStatus) {
       await db.leadStatusHistory.create({

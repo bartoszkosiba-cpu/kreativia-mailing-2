@@ -8,166 +8,168 @@ generator client {
 }
 
 model VirtualSalesperson {
-  id          Int       @id @default(autoincrement())
-  name        String    // np. "Marta Żółkowska"
-  email       String    @unique // Email główny (dla referencji)
-  phone       String?   // nr telefonu
-  language    String    @default("pl") // pl, en, de, fr
-  markets     String?   // np. "Polska, Niemcy" - rynki na które może wysyłać
-  
+  id       Int     @id @default(autoincrement())
+  name     String // np. "Marta Żółkowska"
+  email    String  @unique // Email główny (dla referencji)
+  phone    String? // nr telefonu
+  language String  @default("pl") // pl, en, de, fr
+  markets  String? // np. "Polska, Niemcy" - rynki na które może wysyłać
+
   // Główna skrzynka mailowa (używana jako pierwsza w round-robin)
-  mainMailboxId Int?    // ID skrzynki głównej
+  mainMailboxId Int? // ID skrzynki głównej
   mainMailbox   Mailbox? @relation("MainMailbox", fields: [mainMailboxId], references: [id])
-  
+
   // SMTP settings - DEPRECATED (używaj Mailbox)
-  smtpHost    String?   // np. "bartgrafic.home.pl"
-  smtpPort    Int?      // np. 587
-  smtpUser    String?   // login SMTP
-  smtpPass    String?   // hasło SMTP
-  smtpSecure  Boolean   @default(false) // true = SSL (465), false = TLS (587)
-  
+  smtpHost   String? // np. "bartgrafic.home.pl"
+  smtpPort   Int? // np. 587
+  smtpUser   String? // login SMTP
+  smtpPass   String? // hasło SMTP
+  smtpSecure Boolean @default(false) // true = SSL (465), false = TLS (587)
+
   // IMAP settings - DEPRECATED (używaj Mailbox)
-  imapHost    String?   // np. "bartgrafic.home.pl"
-  imapPort    Int?      // np. 993 lub 143
-  imapUser    String?   // login IMAP (często ten sam co SMTP)
-  imapPass    String?   // hasło IMAP (często to samo co SMTP)
-  imapSecure  Boolean   @default(true) // true = SSL (993), false = TLS (143)
-  
+  imapHost   String? // np. "bartgrafic.home.pl"
+  imapPort   Int? // np. 993 lub 143
+  imapUser   String? // login IMAP (często ten sam co SMTP)
+  imapPass   String? // hasło IMAP (często to samo co SMTP)
+  imapSecure Boolean @default(true) // true = SSL (993), false = TLS (143)
+
   // Limity wysyłki - DEPRECATED (używaj Mailbox)
-  dailyEmailLimit     Int       @default(150) // Max maili dziennie dla tego handlowca
-  currentDailySent    Int       @default(0)   // Ile wysłano dzisiaj
-  lastResetDate       DateTime? // Kiedy ostatnio zresetowano licznik
-  
+  dailyEmailLimit  Int       @default(150) // Max maili dziennie dla tego handlowca
+  currentDailySent Int       @default(0) // Ile wysłano dzisiaj
+  lastResetDate    DateTime? // Kiedy ostatnio zresetowano licznik
+
   // Prawdziwy handlowiec (dla forwardowania zainteresowanych leadów)
-  realSalespersonEmail String?  // Email prawdziwego handlowca
-  realSalespersonName  String?  // Imię i nazwisko prawdziwego handlowca
-  
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  campaigns   Campaign[]
-  mailboxes   Mailbox[]  // NOWE: Wiele skrzynek mailowych dla tego handlowca
+  realSalespersonEmail String? // Email prawdziwego handlowca
+  realSalespersonName  String? // Imię i nazwisko prawdziwego handlowca
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns Campaign[]
+  mailboxes Mailbox[] // NOWE: Wiele skrzynek mailowych dla tego handlowca
 }
 
 model Campaign {
-  id          Int       @id @default(autoincrement())
-  name        String
-  description String?
-  subject     String?   // Temat maila
-  text        String?   // Tekst kampanii z ChatGPT
-  jobDescription String? // Opis stanowiska pod imieniem handlowca
-  postscript  String?   // PS. na końcu
-  linkText    String?   // Tekst wyświetlany linku (np. "Visit our site: www.kreativia.eu")
-  linkUrl     String?   // URL docelowy (opcjonalny, jeśli pusty używa linkText jako URL)
-  gmailLabel  String?
-  dailyLimit  Int       @default(200)
+  id                   Int                 @id @default(autoincrement())
+  name                 String
+  description          String?
+  subject              String? // Temat maila
+  text                 String? // Tekst kampanii z ChatGPT
+  jobDescription       String? // Opis stanowiska pod imieniem handlowca
+  postscript           String? // PS. na końcu
+  linkText             String? // Tekst wyświetlany linku (np. "Visit our site: www.kreativia.eu")
+  linkUrl              String? // URL docelowy (opcjonalny, jeśli pusty używa linkText jako URL)
+  gmailLabel           String?
+  dailyLimit           Int                 @default(200)
   virtualSalespersonId Int?
   virtualSalesperson   VirtualSalesperson? @relation(fields: [virtualSalespersonId], references: [id])
-  
+
   // AI Content Planner
-  contentVersionId     Int?      // DEPRECATED - stara wersja
-  contentVersion       CampaignVersion? @relation(fields: [contentVersionId], references: [id])
-  savedContentId       Int?      // NOWE: Z którego SavedContent pochodzi treść
-  savedContent         SavedContent? @relation(fields: [savedContentId], references: [id])
-  
+  contentVersionId Int? // DEPRECATED - stara wersja
+  contentVersion   CampaignVersion? @relation(fields: [contentVersionId], references: [id])
+  savedContentId   Int? // NOWE: Z którego SavedContent pochodzi treść
+  savedContent     SavedContent?    @relation(fields: [savedContentId], references: [id])
+
   // Harmonogram wysyłki
-  status              String    @default("DRAFT") // DRAFT, SCHEDULED, IN_PROGRESS, COMPLETED, PAUSED, CANCELLED
-  scheduledAt         DateTime? // Kiedy wysłać kampanię
-  sendingStartedAt    DateTime? // Kiedy faktycznie rozpoczęto wysyłkę
-  sendingCompletedAt  DateTime? // Kiedy zakończono wysyłkę
-  delayBetweenEmails  Int       @default(90) // Opóźnienie między mailami w sekundach (90s = 1.5min)
-  maxEmailsPerHour    Int       @default(40) // Max maili na godzinę
-  
+  status             String    @default("DRAFT") // DRAFT, SCHEDULED, IN_PROGRESS, COMPLETED, PAUSED, CANCELLED
+  scheduledAt        DateTime? // Kiedy wysłać kampanię
+  sendingStartedAt   DateTime? // Kiedy faktycznie rozpoczęto wysyłkę
+  sendingCompletedAt DateTime? // Kiedy zakończono wysyłkę
+  delayBetweenEmails Int       @default(90) // Opóźnienie między mailami w sekundach (90s = 1.5min)
+  maxEmailsPerHour   Int       @default(40) // Max maili na godzinę
+
   // Ustawienia okien czasowych
-  allowedDays         String    @default("MON,TUE,WED,THU,FRI") // Dni tygodnia
-  startHour           Int       @default(9)   // Początek okna (9:00)
-  endHour             Int       @default(15)  // Koniec okna (15:00)
-  respectHolidays     Boolean   @default(true) // Uwzględniaj święta
-  targetCountries     String?   // Kraje do sprawdzania świąt (np. "PL,DE,FR")
-  
+  allowedDays     String  @default("MON,TUE,WED,THU,FRI") // Dni tygodnia
+  startHour       Int     @default(9) // Początek okna (9:00)
+  startMinute     Int     @default(0) // Minuty początku okna (0-59)
+  endHour         Int     @default(15) // Koniec okna (15:00)
+  endMinute       Int     @default(0) // Minuty końca okna (0-59)
+  respectHolidays Boolean @default(true) // Uwzględniaj święta
+  targetCountries String? // Kraje do sprawdzania świąt (np. "PL,DE,FR")
+
   // Follow-upy
-  isFollowUp          Boolean   @default(false) // Czy to kampania follow-up
-  parentCampaignId    Int?      // ID kampanii nadrzędnej
-  followUpSequence    Int?      // Numer follow-upu (1 = pierwszy follow-up, 2 = drugi, etc.)
-  followUpDays        Int       @default(7)    // Po ilu dniach wysłać follow-up (licząc od zakończenia poprzedniej kampanii)
-  parentCampaign      Campaign? @relation("FollowUps", fields: [parentCampaignId], references: [id])
-  followUpCampaigns   Campaign[] @relation("FollowUps")
-  
+  isFollowUp        Boolean    @default(false) // Czy to kampania follow-up
+  parentCampaignId  Int? // ID kampanii nadrzędnej
+  followUpSequence  Int? // Numer follow-upu (1 = pierwszy follow-up, 2 = drugi, etc.)
+  followUpDays      Int        @default(7) // Po ilu dniach wysłać follow-up (licząc od zakończenia poprzedniej kampanii)
+  parentCampaign    Campaign?  @relation("FollowUps", fields: [parentCampaignId], references: [id])
+  followUpCampaigns Campaign[] @relation("FollowUps")
+
   // Kolejkowanie
-  queuePriority       Int       @default(999) // Im niższa liczba, tym wyższy priorytet (1 = najwyższy)
-  estimatedStartDate  DateTime? // Szacowana data rozpoczęcia (kalkulowana)
-  estimatedEndDate    DateTime? // Szacowana data zakończenia (kalkulowana)
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  leads       Lead[]
-  sendLogs    SendLog[]
+  queuePriority      Int       @default(999) // Im niższa liczba, tym wyższy priorytet (1 = najwyższy)
+  estimatedStartDate DateTime? // Szacowana data rozpoczęcia (kalkulowana)
+  estimatedEndDate   DateTime? // Szacowana data zakończenia (kalkulowana)
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  leads        Lead[]
+  sendLogs     SendLog[]
   CampaignLead CampaignLead[]
-  replies     InboxReply[]
+  replies      InboxReply[]
 }
 
 model Lead {
-  id             Int       @id @default(autoincrement())
-  firstName      String?
-  lastName       String?
-  title          String?
-  company        String?
-  email          String    @unique
-  industry       String?
-  keywords       String?
-  linkedinUrl    String?
-  websiteUrl     String?
-  companyCity    String?
-  companyCountry String?
-  language       String?   @default("pl") // pl, en, de, fr
-  personalization String?  // AI-generated or manually edited personalization
-  greetingForm   String?   // "Dzień dobry Panie Krystianie" - odmiana imienia
-  
+  id              Int     @id @default(autoincrement())
+  firstName       String?
+  lastName        String?
+  title           String?
+  company         String?
+  email           String  @unique
+  industry        String?
+  keywords        String?
+  linkedinUrl     String?
+  websiteUrl      String?
+  companyCity     String?
+  companyCountry  String?
+  language        String? @default("pl") // pl, en, de, fr
+  personalization String? // AI-generated or manually edited personalization
+  greetingForm    String? // "Dzień dobry Panie Krystianie" - odmiana imienia
+
   // NEW STATUS SYSTEM
-  status         String    @default("AKTYWNY") // AKTYWNY, ZAINTERESOWANY, BLOKADA, CZEKAJ, TEST
-  subStatus      String?   // ZAINTERESOWANY_CAMPAIGN, BLOKADA_REFUSAL, CZEKAJ_MAYBE, etc.
+  status           String    @default("AKTYWNY") // AKTYWNY, ZAINTERESOWANY, BLOKADA, CZEKAJ, TEST
+  subStatus        String? // ZAINTERESOWANY_CAMPAIGN, BLOKADA_REFUSAL, CZEKAJ_MAYBE, etc.
   blockedCampaigns String? // JSON array of campaign IDs [1,2,3]
-  reactivatedAt  DateTime? // When was reactivated
+  reactivatedAt    DateTime? // When was reactivated
   lastReactivation String? // From which status was reactivated
-  
+
   // LEAD RELATIONSHIPS AND SOURCES
-  originalLeadId Int?      // ID of lead that "created" this lead (OOO, REDIRECT)
-  originalLead   Lead?     @relation("LeadDerivatives", fields: [originalLeadId], references: [id])
-  derivativeLeads Lead[]   @relation("LeadDerivatives")
-  source         String?   // CSV_IMPORT, OOO_RESPONSE, REDIRECT_RESPONSE, UNATTACHED
-  sourceDetails  String?   // JSON with additional information
-  
+  originalLeadId  Int? // ID of lead that "created" this lead (OOO, REDIRECT)
+  originalLead    Lead?   @relation("LeadDerivatives", fields: [originalLeadId], references: [id])
+  derivativeLeads Lead[]  @relation("LeadDerivatives")
+  source          String? // CSV_IMPORT, OOO_RESPONSE, REDIRECT_RESPONSE, UNATTACHED
+  sourceDetails   String? // JSON with additional information
+
   // DEPRECATED FIELDS (keep for backward compatibility)
-  blockedReason  String?   // SPAM, UNSUBSCRIBE, BOUNCE, INVALID_EMAIL, MANUAL
-  blockedAt      DateTime?
-  isBlocked      Boolean   @default(false) // Deprecated - użyj status
-  campaignId     Int?
-  campaign       Campaign? @relation(fields: [campaignId], references: [id])
-  
+  blockedReason String? // SPAM, UNSUBSCRIBE, BOUNCE, INVALID_EMAIL, MANUAL
+  blockedAt     DateTime?
+  isBlocked     Boolean   @default(false) // Deprecated - użyj status
+  campaignId    Int?
+  campaign      Campaign? @relation(fields: [campaignId], references: [id])
+
   // RELATIONS
-  SendLog        SendLog[]
-  CampaignLead   CampaignLead[]
-  LeadTag        LeadTag[]
-  replies        InboxReply[]
-  statusHistory  LeadStatusHistory[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now()) @updatedAt
+  SendLog       SendLog[]
+  CampaignLead  CampaignLead[]
+  LeadTag       LeadTag[]
+  replies       InboxReply[]
+  statusHistory LeadStatusHistory[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @default(now()) @updatedAt
 }
 
 model SendLog {
-  id         Int      @id @default(autoincrement())
-  campaignId Int?     // Opcjonalne - maile testowe/warmup nie mają kampanii
-  leadId     Int?     // Opcjonalne - maile testowe/warmup nie mają leada
-  mailboxId  Int?     // NOWE: Z której skrzynki wysłano
+  id         Int       @id @default(autoincrement())
+  campaignId Int? // Opcjonalne - maile testowe/warmup nie mają kampanii
+  leadId     Int? // Opcjonalne - maile testowe/warmup nie mają leada
+  mailboxId  Int? // NOWE: Z której skrzynki wysłano
   messageId  String?
   threadId   String?
-  subject    String?  // NOWE: Temat wysłanego maila
-  content    String?  // NOWE: Treść wysłanego maila
-  status     String   @default("queued")
+  subject    String? // NOWE: Temat wysłanego maila
+  content    String? // NOWE: Treść wysłanego maila
+  status     String    @default("queued")
   error      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   campaign   Campaign? @relation(fields: [campaignId], references: [id])
   lead       Lead?     @relation(fields: [leadId], references: [id])
   mailbox    Mailbox?  @relation(fields: [mailboxId], references: [id])
@@ -180,34 +182,34 @@ model InboxReply {
   messageId       String   @unique
   threadId        String?
   subject         String
-  content         String   // Pełna treść odpowiedzi
-  originalMessage String?  // Oryginalny mail (wysłany przez nas)
+  content         String // Pełna treść odpowiedzi
+  originalMessage String? // Oryginalny mail (wysłany przez nas)
   fromEmail       String
-  toEmail         String?  // NOWE: Na którą skrzynkę przyszedł mail
+  toEmail         String? // NOWE: Na którą skrzynkę przyszedł mail
   receivedAt      DateTime
-  
+
   // AI klasyfikacja
-  classification  String?  // INTERESTED | UNSUBSCRIBE | OOO | REDIRECT | BOUNCE | OTHER
-  sentiment       String?  // positive | negative | neutral
-  aiSummary       String?  // Krótkie podsumowanie AI
-  suggestedAction String?  // Co zrobić dalej
-  extractedEmails String?  // JSON array nowych emaili (zastępcy)
-  extractedData   String?  // JSON z dodatkowymi danymi (imiona, OOO dates, etc)
-  
+  classification  String? // INTERESTED | UNSUBSCRIBE | OOO | REDIRECT | BOUNCE | OTHER
+  sentiment       String? // positive | negative | neutral
+  aiSummary       String? // Krótkie podsumowanie AI
+  suggestedAction String? // Co zrobić dalej
+  extractedEmails String? // JSON array nowych emaili (zastępcy)
+  extractedData   String? // JSON z dodatkowymi danymi (imiona, OOO dates, etc)
+
   // Akcje wykonane przez system
-  wasForwarded    Boolean  @default(false)
-  forwardedAt     DateTime?
-  wasBlocked      Boolean  @default(false)
-  newContactsAdded Int     @default(0)
-  
+  wasForwarded     Boolean   @default(false)
+  forwardedAt      DateTime?
+  wasBlocked       Boolean   @default(false)
+  newContactsAdded Int       @default(0)
+
   // Status obsługi przez użytkownika
-  isRead          Boolean  @default(false)
-  isHandled       Boolean  @default(false)
-  handledAt       DateTime?
-  handledNote     String?  // Notatka użytkownika
-  
-  createdAt       DateTime @default(now())
-  
+  isRead      Boolean   @default(false)
+  isHandled   Boolean   @default(false)
+  handledAt   DateTime?
+  handledNote String? // Notatka użytkownika
+
+  createdAt DateTime @default(now())
+
   lead     Lead?     @relation(fields: [leadId], references: [id])
   campaign Campaign? @relation(fields: [campaignId], references: [id])
 }
@@ -216,32 +218,32 @@ model CampaignLead {
   id         Int       @id @default(autoincrement())
   campaignId Int
   leadId     Int
-  status     String   @default("planned") // planned | queued | sent | failed | replied
-  priority   Int      @default(999) // Im niższa liczba, tym wyższy priorytet (1 = najwyższy, 999 = normalny)
+  status     String    @default("planned") // planned | queued | sent | failed | replied
+  priority   Int       @default(999) // Im niższa liczba, tym wyższy priorytet (1 = najwyższy, 999 = normalny)
   sentAt     DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  lead       Lead     @relation(fields: [leadId], references: [id])
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  lead     Lead     @relation(fields: [leadId], references: [id])
 
   @@unique([campaignId, leadId])
 }
 
 model Tag {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  color     String   @default("#3B82F6") // hex color
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  color       String    @default("#3B82F6") // hex color
   description String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  LeadTag   LeadTag[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  LeadTag     LeadTag[]
 }
 
 model LeadTag {
-  id     Int @id @default(autoincrement())
-  leadId Int
-  tagId  Int
+  id        Int      @id @default(autoincrement())
+  leadId    Int
+  tagId     Int
   createdAt DateTime @default(now())
 
   lead Lead @relation(fields: [leadId], references: [id])
@@ -251,45 +253,45 @@ model LeadTag {
 }
 
 model CompanySettings {
-  id            Int       @id @default(autoincrement())
-  companyName   String    @default("Kreativia")
-  address       String?   // Adres firmy (np. "**Showroom & Office & Production:**\nul. Bukowska 16\n62-081 Wysogotowo, PL")
-  logoBase64    String?   // Logo jako base64
-  disclaimerPl  String?   // "W razie braku zainteresowania..." - Polski
-  disclaimerEn  String?   // "In case of no interest..." - English
-  disclaimerDe  String?   // "Bei fehlendem Interesse..." - Deutsch
-  disclaimerFr  String?   // "En cas d'absence d'intérêt..." - Français
-  legalFooter   String?   // Stopka prawna
-  forwardEmail  String?   // Email do powiadomień (forwarding zainteresowanych)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           Int      @id @default(autoincrement())
+  companyName  String   @default("Kreativia")
+  address      String? // Adres firmy (np. "**Showroom & Office & Production:**\nul. Bukowska 16\n62-081 Wysogotowo, PL")
+  logoBase64   String? // Logo jako base64
+  disclaimerPl String? // "W razie braku zainteresowania..." - Polski
+  disclaimerEn String? // "In case of no interest..." - English
+  disclaimerDe String? // "Bei fehlendem Interesse..." - Deutsch
+  disclaimerFr String? // "En cas d'absence d'intérêt..." - Français
+  legalFooter  String? // Stopka prawna
+  forwardEmail String? // Email do powiadomień (forwarding zainteresowanych)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Holiday {
   id          Int      @id @default(autoincrement())
   date        DateTime // Data święta
-  name        String   // Nazwa święta
-  countryCode String   // Kod kraju (PL, DE, FR, etc.)
-  year        Int      // Rok
+  name        String // Nazwa święta
+  countryCode String // Kod kraju (PL, DE, FR, etc.)
+  year        Int // Rok
   createdAt   DateTime @default(now())
-  
+
   @@unique([date, countryCode])
   @@index([countryCode, year])
 }
 
 model AIRules {
-  id            String   @id @default(cuid())
-  classification String   // INTERESTED, NOT_INTERESTED, etc.
-  pattern        String?  // Regex pattern
-  keywords       String   // JSON array of keywords
-  confidence     Float    // 0.0 - 1.0
+  id             String   @id @default(cuid())
+  classification String // INTERESTED, NOT_INTERESTED, etc.
+  pattern        String? // Regex pattern
+  keywords       String // JSON array of keywords
+  confidence     Float // 0.0 - 1.0
   priority       Int      @default(0) // Wyższy = ważniejszy
   createdBy      String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   isActive       Boolean  @default(true)
   description    String?
-  
+
   @@index([classification])
   @@index([isActive])
   @@index([priority])
@@ -299,110 +301,110 @@ model AIChatHistory {
   id           String   @id @default(cuid())
   userMessage  String
   aiResponse   String
-  rulesCreated String?  // JSON array of rule IDs
+  rulesCreated String? // JSON array of rule IDs
   createdAt    DateTime @default(now())
   userId       String?
-  
+
   @@index([createdAt])
 }
 
 model Mailbox {
-  id                   Int      @id @default(autoincrement())
+  id                   Int @id @default(autoincrement())
   virtualSalespersonId Int
-  
+
   // Dane skrzynki
-  email                String   @unique
-  displayName          String?  // Opcjonalna nazwa wyświetlana (jeśli różna od handlowca)
-  description          String?  // Opis skrzynki (np. "Skrzynka główna", "Backup")
-  
+  email       String  @unique
+  displayName String? // Opcjonalna nazwa wyświetlana (jeśli różna od handlowca)
+  description String? // Opis skrzynki (np. "Skrzynka główna", "Backup")
+
   // SMTP settings
-  smtpHost             String
-  smtpPort             Int
-  smtpUser             String
-  smtpPass             String   // Zahaszowane hasło
-  smtpSecure           Boolean  @default(false) // true = SSL (465), false = TLS (587)
-  
+  smtpHost   String
+  smtpPort   Int
+  smtpUser   String
+  smtpPass   String // Zahaszowane hasło
+  smtpSecure Boolean @default(false) // true = SSL (465), false = TLS (587)
+
   // IMAP settings
-  imapHost             String
-  imapPort             Int
-  imapUser             String
-  imapPass             String   // Zahaszowane hasło
-  imapSecure           Boolean  @default(true)  // true = SSL (993), false = TLS (143)
-  
+  imapHost   String
+  imapPort   Int
+  imapUser   String
+  imapPass   String // Zahaszowane hasło
+  imapSecure Boolean @default(true) // true = SSL (993), false = TLS (143)
+
   // Limity i status
-  dailyEmailLimit      Int      @default(50)    // Max maili dziennie z tej skrzynki
-  currentDailySent     Int      @default(0)     // Ile wysłano dzisiaj
-  lastResetDate        DateTime?                // Kiedy ostatnio zresetowano licznik
-  isActive             Boolean  @default(true)  // Czy skrzynka jest aktywna
-  
+  dailyEmailLimit  Int       @default(50) // Max maili dziennie z tej skrzynki
+  currentDailySent Int       @default(0) // Ile wysłano dzisiaj
+  lastResetDate    DateTime? // Kiedy ostatnio zresetowano licznik
+  isActive         Boolean   @default(true) // Czy skrzynka jest aktywna
+
   // Typ skrzynki
-  mailboxType          String   @default("new") // new | warmed_up - czy skrzynka wymaga warmup
-  
+  mailboxType String @default("new") // new | warmed_up - czy skrzynka wymaga warmup
+
   // Weryfikacja skrzynki
-  verificationStatus   String   @default("pending") // pending | verifying | verified | failed
-  verificationError    String?                      // Błąd weryfikacji (jeśli failed)
-  verificationDate     DateTime?                    // Kiedy zweryfikowano
-  lastVerificationTest DateTime?                    // Ostatni test połączenia
-  
+  verificationStatus   String    @default("pending") // pending | verifying | verified | failed
+  verificationError    String? // Błąd weryfikacji (jeśli failed)
+  verificationDate     DateTime? // Kiedy zweryfikowano
+  lastVerificationTest DateTime? // Ostatni test połączenia
+
   // Priorytet (dla round-robin)
-  priority             Int      @default(999)   // Im niższa liczba, tym wyższy priorytet
-  
+  priority Int @default(999) // Im niższa liczba, tym wyższy priorytet
+
   // Statystyki
-  totalEmailsSent      Int      @default(0)     // Łączna liczba wysłanych maili
-  lastUsedAt           DateTime?                // Kiedy ostatnio użyto tej skrzynki
-  
+  totalEmailsSent Int       @default(0) // Łączna liczba wysłanych maili
+  lastUsedAt      DateTime? // Kiedy ostatnio użyto tej skrzynki
+
   // ============================================================================
   // WARMUP SYSTEM - Rozgrzewanie nowych skrzynek mailowych
   // ============================================================================
-  
+
   // Status warmup
-  warmupStatus         String   @default("inactive") // inactive | dns_pending | ready_to_warmup | warming | ready | failed
-  warmupStartDate      DateTime?                     // Kiedy rozpoczęto warmup
-  warmupDay            Int      @default(0)          // Aktualny dzień warmup (1-21)
-  warmupCompletedAt    DateTime?                     // Kiedy zakończono warmup
-  
+  warmupStatus      String    @default("inactive") // inactive | dns_pending | ready_to_warmup | warming | ready | failed
+  warmupStartDate   DateTime? // Kiedy rozpoczęto warmup
+  warmupDay         Int       @default(0) // Aktualny dzień warmup (1-21)
+  warmupCompletedAt DateTime? // Kiedy zakończono warmup
+
   // Limity warmup (stopniowo rosnące)
-  warmupDailyLimit     Int      @default(5)          // Aktualny limit warmup (5-100)
-  warmupTodaySent      Int      @default(0)          // Ile wysłano dzisiaj w warmup
-  
+  warmupDailyLimit Int @default(5) // Aktualny limit warmup (5-100)
+  warmupTodaySent  Int @default(0) // Ile wysłano dzisiaj w warmup
+
   // DNS Setup Status
-  dnsSetupCompleted    Boolean  @default(false)     // Czy skonfigurowano DNS
-  mxRecordStatus       String?  // pending | configured | failed
-  spfRecordStatus      String?  // pending | configured | failed
-  dkimRecordStatus     String?  // pending | configured | failed  
-  dmarcRecordStatus    String?  // pending | configured | failed
-  dnsLastCheckedAt     DateTime?                     // Kiedy ostatnio sprawdzono DNS
-  
+  dnsSetupCompleted Boolean   @default(false) // Czy skonfigurowano DNS
+  mxRecordStatus    String? // pending | configured | failed
+  spfRecordStatus   String? // pending | configured | failed
+  dkimRecordStatus  String? // pending | configured | failed  
+  dmarcRecordStatus String? // pending | configured | failed
+  dnsLastCheckedAt  DateTime? // Kiedy ostatnio sprawdzono DNS
+
   // Deliverability metrics
-  deliverabilityScore  Int      @default(0)          // 0-100 punktów reputacji
-  bounceRate           Float    @default(0.0)        // Procent bounce (0-100)
-  openRate             Float    @default(0.0)        // Procent otwarć (0-100)
-  replyRate            Float    @default(0.0)        // Procent odpowiedzi (0-100)
-  spamScore            Float    @default(0.0)        // Spam score (0-10)
-  
+  deliverabilityScore Int   @default(0) // 0-100 punktów reputacji
+  bounceRate          Float @default(0.0) // Procent bounce (0-100)
+  openRate            Float @default(0.0) // Procent otwarć (0-100)
+  replyRate           Float @default(0.0) // Procent odpowiedzi (0-100)
+  spamScore           Float @default(0.0) // Spam score (0-10)
+
   // Warmup configuration
-  warmupPhase          String   @default("silent")   // silent | building | acceleration | ready
-  warmupInternalEmails Int      @default(0)          // Liczba wysłanych maili wewnętrznych (między naszymi skrzynkami)
-  warmupTestEmails     Int      @default(0)          // Liczba wysłanych maili testowych
-  
+  warmupPhase          String @default("silent") // silent | building | acceleration | ready
+  warmupInternalEmails Int    @default(0) // Liczba wysłanych maili wewnętrznych (między naszymi skrzynkami)
+  warmupTestEmails     Int    @default(0) // Liczba wysłanych maili testowych
+
   // Warmup alerts and issues
-  warmupIssues         String?  // JSON array z problemami ["high_bounce_rate", "dns_missing"]
-  lastWarmupAlert      DateTime?                     // Ostatnie ostrzeżenie
-  
+  warmupIssues    String? // JSON array z problemami ["high_bounce_rate", "dns_missing"]
+  lastWarmupAlert DateTime? // Ostatnie ostrzeżenie
+
   // NOWE: Timing warmup (dla nowego systemu kolejki)
-  lastWarmupEmailAt    DateTime?                     // Ostatni wysłany mail warmup
-  nextWarmupEmailAt    DateTime?                     // Następny zaplanowany mail
-  
+  lastWarmupEmailAt DateTime? // Ostatni wysłany mail warmup
+  nextWarmupEmailAt DateTime? // Następny zaplanowany mail
+
   // Relacje
-  virtualSalesperson   VirtualSalesperson @relation(fields: [virtualSalespersonId], references: [id], onDelete: Cascade)
-  mainMailboxFor       VirtualSalesperson[] @relation("MainMailbox") // Skrzynki które są główne dla handlowców
-  sendLogs             SendLog[]
-  warmupEmails         WarmupEmail[]
-  warmupQueue          WarmupQueue[]
-  
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  
+  virtualSalesperson VirtualSalesperson   @relation(fields: [virtualSalespersonId], references: [id], onDelete: Cascade)
+  mainMailboxFor     VirtualSalesperson[] @relation("MainMailbox") // Skrzynki które są główne dla handlowców
+  sendLogs           SendLog[]
+  warmupEmails       WarmupEmail[]
+  warmupQueue        WarmupQueue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([virtualSalespersonId])
   @@index([isActive, currentDailySent])
   @@index([warmupStatus])
@@ -414,95 +416,95 @@ model Mailbox {
 // ============================================================================
 
 model ProductGroup {
-  id              Int             @id @default(autoincrement())
-  name            String          // "Podwieszenia Targowe"
-  description     String?
-  targetAudience  String?         // "Wykonawcy stoisk, agencje eventowe"
-  markets         String?         // "PL,DE,FR" - docelowe rynki
-  iconEmoji       String?         @default("📦") // Ikona grupy
-  isActive        Boolean         @default(true)
-  
+  id             Int     @id @default(autoincrement())
+  name           String // "Podwieszenia Targowe"
+  description    String?
+  targetAudience String? // "Wykonawcy stoisk, agencje eventowe"
+  markets        String? // "PL,DE,FR" - docelowe rynki
+  iconEmoji      String? @default("📦") // Ikona grupy
+  isActive       Boolean @default(true)
+
   // NOWE: Chat AI na poziomie grupy (pamięta wszystko o produkcie!)
-  conversationHistory String?     // JSON array - cała rozmowa o tym produkcie
-  lastAIResponse      String?     // Cache ostatniej odpowiedzi
-  
-  campaignThemes  CampaignTheme[] // DEPRECATED - do usunięcia
-  savedContents   SavedContent[]  // NOWE: Zapisane treści z rozmowy
-  
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  conversationHistory String? // JSON array - cała rozmowa o tym produkcie
+  lastAIResponse      String? // Cache ostatniej odpowiedzi
+
+  campaignThemes CampaignTheme[] // DEPRECATED - do usunięcia
+  savedContents  SavedContent[] // NOWE: Zapisane treści z rozmowy
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CampaignTheme {
-  id                  Int               @id @default(autoincrement())
-  productGroupId      Int
-  name                String            // "Szybki montaż - 15 minut"
-  description         String?
-  
+  id             Int     @id @default(autoincrement())
+  productGroupId Int
+  name           String // "Szybki montaż - 15 minut"
+  description    String?
+
   // AI Conversation & Briefing
-  conversationHistory String?           // JSON array of messages
-  briefingData        String?           // JSON object with collected briefing
-  lastAIResponse      String?           // Ostatnia odpowiedź AI (cache)
-  
+  conversationHistory String? // JSON array of messages
+  briefingData        String? // JSON object with collected briefing
+  lastAIResponse      String? // Ostatnia odpowiedź AI (cache)
+
   // Briefing fields (extracted for easy access)
-  targetAudience      String?
-  problemStatement    String?
-  mainArguments       String?
-  callToAction        String?
-  language            String?           @default("pl")
-  toneOfVoice         String?
-  emailLength         String?           // "short" | "medium" | "long"
-  
+  targetAudience   String?
+  problemStatement String?
+  mainArguments    String?
+  callToAction     String?
+  language         String? @default("pl")
+  toneOfVoice      String?
+  emailLength      String? // "short" | "medium" | "long"
+
   // Status
-  status              String            @default("draft") // draft | in_briefing | ready | approved | archived
-  briefingProgress    Int               @default(0) // 0-100%
-  
+  status           String @default("draft") // draft | in_briefing | ready | approved | archived
+  briefingProgress Int    @default(0) // 0-100%
+
   // Relations
-  productGroup        ProductGroup      @relation(fields: [productGroupId], references: [id], onDelete: Cascade)
-  versions            CampaignVersion[]
-  
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  
+  productGroup ProductGroup      @relation(fields: [productGroupId], references: [id], onDelete: Cascade)
+  versions     CampaignVersion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([productGroupId])
   @@index([status])
 }
 
 model CampaignVersion {
-  id                Int            @id @default(autoincrement())
-  campaignThemeId   Int
-  versionNumber     Int            // 1, 2, 3, 4...
-  type              String         // "initial" | "followup_1" | "followup_2" | "followup_3" | "followup_4"
-  variantLetter     String?        // "A" | "B" | "C" - dla 3 wariantów tego samego typu
-  
+  id              Int     @id @default(autoincrement())
+  campaignThemeId Int
+  versionNumber   Int // 1, 2, 3, 4...
+  type            String // "initial" | "followup_1" | "followup_2" | "followup_3" | "followup_4"
+  variantLetter   String? // "A" | "B" | "C" - dla 3 wariantów tego samego typu
+
   // Content
-  subject           String
-  content           String
-  
+  subject String
+  content String
+
   // AI Metadata
-  aiRationale       String?        // Dlaczego AI to zaproponował
-  aiModel           String?        // "gpt-4o" - jaki model użyto
-  generatedAt       DateTime       @default(now())
-  
+  aiRationale String? // Dlaczego AI to zaproponował
+  aiModel     String? // "gpt-4o" - jaki model użyto
+  generatedAt DateTime @default(now())
+
   // User Feedback
-  userFeedback      String?        // Twoje uwagi/komentarze
-  userRating        Int?           // 1-5 gwiazdek
-  
+  userFeedback String? // Twoje uwagi/komentarze
+  userRating   Int? // 1-5 gwiazdek
+
   // Status
-  status            String         @default("draft") // draft | approved | rejected | in_use
-  approvedAt        DateTime?
-  approvedBy        String?        // User email/name
-  
+  status     String    @default("draft") // draft | approved | rejected | in_use
+  approvedAt DateTime?
+  approvedBy String? // User email/name
+
   // Metadata (JSON)
-  metadata          String?        // {cta, tone, length, arguments: [...]}
-  
+  metadata String? // {cta, tone, length, arguments: [...]}
+
   // Relations
-  campaignTheme     CampaignTheme  @relation(fields: [campaignThemeId], references: [id], onDelete: Cascade)
-  campaigns         Campaign[]     // Kampanie utworzone z tej wersji
-  
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  
+  campaignTheme CampaignTheme @relation(fields: [campaignThemeId], references: [id], onDelete: Cascade)
+  campaigns     Campaign[] // Kampanie utworzone z tej wersji
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([campaignThemeId, versionNumber, type, variantLetter])
   @@index([campaignThemeId, status])
   @@index([status])
@@ -513,38 +515,38 @@ model CampaignVersion {
 // ============================================================================
 
 model SavedContent {
-  id              Int      @id @default(autoincrement())
-  productGroupId  Int
-  
+  id             Int @id @default(autoincrement())
+  productGroupId Int
+
   // Podstawowe dane
-  name            String   // "Szybki montaż v1", "Certyfikaty PL", "Follow-up montaż"
-  subject         String   // Temat maila
-  content         String   // Treść maila
-  
+  name    String // "Szybki montaż v1", "Certyfikaty PL", "Follow-up montaż"
+  subject String // Temat maila
+  content String // Treść maila
+
   // Typ i kategoria
-  type            String   // "initial" | "followup_1" | "followup_2" | "followup_3" | "followup_4"
-  language        String   @default("pl") // "pl" | "en" | "de"
-  
+  type     String // "initial" | "followup_1" | "followup_2" | "followup_3" | "followup_4"
+  language String @default("pl") // "pl" | "en" | "de"
+
   // Metadata
-  notes           String?  // Twoje notatki/uwagi
-  tags            String?  // "szybki-montaż,certyfikaty" - do filtrowania
-  sourceType      String   @default("manual") // "ai" | "manual" | "imported"
-  
+  notes      String? // Twoje notatki/uwagi
+  tags       String? // "szybki-montaż,certyfikaty" - do filtrowania
+  sourceType String  @default("manual") // "ai" | "manual" | "imported"
+
   // Statystyki użycia
-  usageCount      Int      @default(0) // Ile razy użyto w kampaniach
-  lastUsedAt      DateTime?
-  
+  usageCount Int       @default(0) // Ile razy użyto w kampaniach
+  lastUsedAt DateTime?
+
   // Status
-  isActive        Boolean  @default(true)
-  isFavorite      Boolean  @default(false) // Oznacz jako ulubiony
-  
+  isActive   Boolean @default(true)
+  isFavorite Boolean @default(false) // Oznacz jako ulubiony
+
   // Relacje
-  productGroup    ProductGroup @relation(fields: [productGroupId], references: [id], onDelete: Cascade)
-  campaigns       Campaign[]   // Kampanie które używają tej treści
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  productGroup ProductGroup @relation(fields: [productGroupId], references: [id], onDelete: Cascade)
+  campaigns    Campaign[] // Kampanie które używają tej treści
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([productGroupId])
   @@index([type, language])
   @@index([isActive, isFavorite])
@@ -555,49 +557,49 @@ model SavedContent {
 // ============================================================================
 
 model AIPersonaConfig {
-  id                Int      @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   // Historia rozmowy z meta-agentem
-  configHistory     String?  // JSON array [{role, content, timestamp}]
-  lastUserMessage   String?  // Ostatnia wiadomość usera (cache)
-  lastAIResponse    String?  // Ostatnia odpowiedź AI (cache)
-  
+  configHistory   String? // JSON array [{role, content, timestamp}]
+  lastUserMessage String? // Ostatnia wiadomość usera (cache)
+  lastAIResponse  String? // Ostatnia odpowiedź AI (cache)
+
   // Ekstraktowane zasady (parsowane przez meta-AI)
-  globalRules       String?  // JSON object {maxLength, tone, structure, ...}
+  globalRules        String? // JSON object {maxLength, tone, structure, ...}
   groupSpecificRules String? // JSON object {groupId: {rules}}
-  
+
   // Wygenerowany SYSTEM_PERSONA (auto-generated przez meta-AI)
-  generatedPrompt   String?  // Pełny system prompt używany przez Content AI
-  promptVersion     Int      @default(1) // Wersja promptu (inkrementowana przy zmianach)
-  
+  generatedPrompt String? // Pełny system prompt używany przez Content AI
+  promptVersion   Int     @default(1) // Wersja promptu (inkrementowana przy zmianach)
+
   // Metadata
-  isActive          Boolean  @default(true)
-  createdBy         String?  @default("system")
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  isActive  Boolean @default(true)
+  createdBy String? @default("system")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Token usage tracking
 model AITokenUsage {
-  id          Int      @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   // Kontekst wywołania
-  operation   String   // np. "email_classification", "content_generation", "name_inflection"
-  model       String   // np. "gpt-4o", "gpt-4o-mini"
-  
+  operation String // np. "email_classification", "content_generation", "name_inflection"
+  model     String // np. "gpt-4o", "gpt-4o-mini"
+
   // Tokeny
-  promptTokens      Int   // Tokeny wejściowe
-  completionTokens  Int   // Tokeny wyjściowe
-  totalTokens       Int   // Suma
-  
+  promptTokens     Int // Tokeny wejściowe
+  completionTokens Int // Tokeny wyjściowe
+  totalTokens      Int // Suma
+
   // Estymowany koszt (w USD)
-  estimatedCost     Float @default(0.0)
-  
+  estimatedCost Float @default(0.0)
+
   // Dodatkowe info
-  metadata    String?  // JSON z dodatkowymi danymi (np. leadId, campaignId)
-  
-  createdAt   DateTime @default(now())
+  metadata String? // JSON z dodatkowymi danymi (np. leadId, campaignId)
+
+  createdAt DateTime @default(now())
 }
 
 // ============================================================================
@@ -605,43 +607,43 @@ model AITokenUsage {
 // ============================================================================
 
 model WarmupEmail {
-  id              Int      @id @default(autoincrement())
-  mailboxId       Int
-  
+  id        Int @id @default(autoincrement())
+  mailboxId Int
+
   // Typ warmup maila
-  type            String   // internal | seed | test | campaign
-  subtype         String?  // test_connection | internal_notification | seed_friendly | campaign_sample
-  
+  type    String // internal | seed | test | campaign
+  subtype String? // test_connection | internal_notification | seed_friendly | campaign_sample
+
   // Dane maila
-  toEmail         String   // Adres odbiorcy
-  subject         String   // Temat maila
-  content         String   // Treść maila
-  messageId       String?  // ID wiadomości (z SMTP)
-  
+  toEmail   String // Adres odbiorcy
+  subject   String // Temat maila
+  content   String // Treść maila
+  messageId String? // ID wiadomości (z SMTP)
+
   // Status wysyłki
-  status          String   @default("queued") // queued | sent | failed | bounced
-  sentAt          DateTime?                   // Kiedy wysłano
-  errorMessage    String?                     // Błąd jeśli failed
-  
+  status       String    @default("queued") // queued | sent | failed | bounced
+  sentAt       DateTime? // Kiedy wysłano
+  errorMessage String? // Błąd jeśli failed
+
   // Tracking (tylko dla seed/campaign)
-  wasOpened       Boolean  @default(false)    // Czy otwarto mail
-  wasReplied      Boolean  @default(false)    // Czy odpowiedziano
-  openedAt        DateTime?                   // Kiedy otwarto
-  repliedAt       DateTime?                   // Kiedy odpowiedziano
-  
+  wasOpened  Boolean   @default(false) // Czy otwarto mail
+  wasReplied Boolean   @default(false) // Czy odpowiedziano
+  openedAt   DateTime? // Kiedy otwarto
+  repliedAt  DateTime? // Kiedy odpowiedziano
+
   // Warmup day info
-  warmupDay       Int                         // Dzień warmup (1-21)
-  warmupPhase     String                      // silent | building | acceleration
-  
+  warmupDay   Int // Dzień warmup (1-21)
+  warmupPhase String // silent | building | acceleration
+
   // Metadata
-  metadata        String?                     // JSON z dodatkowymi danymi
-  
+  metadata String? // JSON z dodatkowymi danymi
+
   // Relacje
-  mailbox         Mailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  mailbox Mailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([mailboxId])
   @@index([type])
   @@index([status])
@@ -653,61 +655,60 @@ model WarmupEmail {
 // ============================================================================
 
 model WarmupQueue {
-  id              Int      @id @default(autoincrement())
-  mailboxId       Int
-  
+  id        Int @id @default(autoincrement())
+  mailboxId Int
+
   // Planowanie
-  scheduledAt     DateTime // Dokładny czas wysyłki (np. 2025-10-19 07:23:00)
-  
+  scheduledAt DateTime // Dokładny czas wysyłki (np. 2025-10-19 07:23:00)
+
   // Typ maila
-  emailType       String   // internal | seed
-  
+  emailType String // internal | seed
+
   // Dane maila
-  toEmail         String   // Adres odbiorcy
-  subject         String   // Temat maila
-  body            String   // Treść maila
-  
+  toEmail String // Adres odbiorcy
+  subject String // Temat maila
+  body    String // Treść maila
+
   // Status wysyłki
-  status          String   @default("pending") // pending | sending | sent | failed | cancelled
-  sentAt          DateTime?                    // Kiedy wysłano
-  error           String?                      // Błąd jeśli failed
-  
+  status String    @default("pending") // pending | sending | sent | failed | cancelled
+  sentAt DateTime? // Kiedy wysłano
+  error  String? // Błąd jeśli failed
+
   // Metadata
-  warmupDay       Int                          // Dzień warmup (1-30)
-  metadata        String?                      // JSON z dodatkowymi danymi
-  
+  warmupDay Int // Dzień warmup (1-30)
+  metadata  String? // JSON z dodatkowymi danymi
+
   // Relacje
-  mailbox         Mailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  mailbox Mailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([mailboxId])
   @@index([scheduledAt, status])
   @@index([status])
 }
 
 model LeadStatusHistory {
-  id          Int      @id @default(autoincrement())
-  leadId      Int
-  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  
+  id     Int  @id @default(autoincrement())
+  leadId Int
+  lead   Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
   // Status change details
-  oldStatus   String?  // Previous status
+  oldStatus    String? // Previous status
   oldSubStatus String? // Previous sub-status
-  newStatus   String   // New status
+  newStatus    String // New status
   newSubStatus String? // New sub-status
-  
+
   // Change reason and metadata
-  reason      String?  // Reason for change (e.g., "MANUAL", "AI_CLASSIFICATION", "REACTIVATION")
-  changedBy   String?  // Who made the change (e.g., "USER", "AI", "SYSTEM")
-  notes       String?  // Additional notes
-  
+  reason    String? // Reason for change (e.g., "MANUAL", "AI_CLASSIFICATION", "REACTIVATION")
+  changedBy String? // Who made the change (e.g., "USER", "AI", "SYSTEM")
+  notes     String? // Additional notes
+
   // Timestamps
-  createdAt   DateTime @default(now())
-  
+  createdAt DateTime @default(now())
+
   @@index([leadId])
   @@index([createdAt])
   @@index([newStatus])
 }
-

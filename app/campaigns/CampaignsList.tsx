@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import DeleteButton from "./DeleteButton";
 
@@ -28,16 +28,16 @@ interface Props {
 }
 
 function getStatusBadge(status: string) {
-  const statusMap: Record<string, { emoji: string; label: string; color: string }> = {
-    DRAFT: { emoji: "📝", label: "Szkic", color: "#999" },
-    SCHEDULED: { emoji: "🔵", label: "Zaplanowana", color: "#3b82f6" },
-    IN_PROGRESS: { emoji: "🟡", label: "Wysyła się", color: "#f59e0b" },
-    COMPLETED: { emoji: "🟢", label: "Zakończona", color: "#10b981" },
-    PAUSED: { emoji: "⏸️", label: "Wstrzymana", color: "#6b7280" },
-    CANCELLED: { emoji: "🔴", label: "Anulowana", color: "#ef4444" }
+  const statusMap: Record<string, { label: string; color: string }> = {
+    DRAFT: { label: "Szkic", color: "#999" },
+    SCHEDULED: { label: "Zaplanowana", color: "#3b82f6" },
+    IN_PROGRESS: { label: "Wysyła się", color: "#f59e0b" },
+    COMPLETED: { label: "Zakończona", color: "#10b981" },
+    PAUSED: { label: "Wstrzymana", color: "#6b7280" },
+    CANCELLED: { label: "Anulowana", color: "#ef4444" }
   };
   
-  const info = statusMap[status] || { emoji: "❓", label: status, color: "#999" };
+  const info = statusMap[status] || { label: status, color: "#999" };
   
   return (
     <span style={{ 
@@ -51,7 +51,7 @@ function getStatusBadge(status: string) {
       fontSize: "12px",
       fontWeight: "600"
     }}>
-      {info.emoji} {info.label}
+      {info.label}
     </span>
   );
 }
@@ -143,9 +143,9 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
           const isExpanded = expandedCampaigns.has(c.id);
           
           return (
-            <>
+            <React.Fragment key={c.id}>
               {/* Kampania główna */}
-              <tr key={c.id} style={{ borderBottom: hasFollowUps && !isExpanded ? "none" : "1px solid #e5e7eb" }}>
+              <tr style={{ borderBottom: hasFollowUps && !isExpanded ? "none" : "1px solid #e5e7eb" }}>
                 <td style={{ padding: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     {hasFollowUps && (
@@ -161,12 +161,12 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
                         }}
                         title={isExpanded ? "Zwiń follow-upy" : "Rozwiń follow-upy"}
                       >
-                        {isExpanded ? "▼" : "▶"}
+                        {isExpanded ? "-" : "+"}
                       </button>
                     )}
                     {!hasFollowUps && <span style={{ width: "22px" }}></span>}
                     <Link href={`/campaigns/${c.id}`} style={{ fontWeight: 600 }}>
-                      📧 {c.name}
+                      {c.name}
                     </Link>
                     {hasFollowUps && (
                       <span style={{ 
@@ -210,12 +210,12 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
                 <td style={{ padding: 8, fontSize: "12px", color: "#6b7280" }}>
                   {c.scheduledAt ? (
                     <>
-                      📅 {new Date(c.scheduledAt).toLocaleDateString('pl-PL')}
+                      {new Date(c.scheduledAt).toLocaleDateString('pl-PL')}
                       {c.sendingStartedAt && (
-                        <><br/>▶️ {new Date(c.sendingStartedAt).toLocaleDateString('pl-PL')}</>
+                        <><br />Start: {new Date(c.sendingStartedAt).toLocaleDateString('pl-PL')}</>
                       )}
                       {c.sendingCompletedAt && (
-                        <><br/>✅ {new Date(c.sendingCompletedAt).toLocaleDateString('pl-PL')}</>
+                        <><br />Koniec: {new Date(c.sendingCompletedAt).toLocaleDateString('pl-PL')}</>
                       )}
                     </>
                   ) : (
@@ -290,7 +290,7 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
                   </tr>
                 );
               })}
-            </>
+            </React.Fragment>
           );
         })}
       </tbody>

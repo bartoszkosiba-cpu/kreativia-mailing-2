@@ -504,7 +504,13 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
               greetingForm = "Dzień dobry"; // Fallback
             }
           } else {
-            console.log(`[PROCESSOR] Brak imienia - używam domyślnego powitania`);
+            console.log(`[PROCESSOR] Brak imienia - używam domyślnego powitania bez tytułu`);
+            // Generuj domyślne powitanie BEZ "Pan/Pani" w zależności od języka
+            const lang = currentLead.language || "pl";
+            if (lang === "en") greetingForm = "Hello,";
+            else if (lang === "de") greetingForm = "Guten Tag,";
+            else if (lang === "fr") greetingForm = "Bonjour,";
+            else greetingForm = "Dzień dobry,";
           }
           
           console.log(`[PROCESSOR] 📝 Zapisuję leada z greetingForm: "${greetingForm}"`);
@@ -516,7 +522,7 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
               email: newEmail,
               firstName: contact.firstName || null,
               lastName: contact.lastName || null,
-              greetingForm: greetingForm || "Dzień dobry",
+              greetingForm: greetingForm || "Dzień dobry,",
               company: currentLead.company,
               websiteUrl: currentLead.websiteUrl,
               industry: currentLead.industry,
@@ -696,6 +702,13 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
                         content = newLead.greetingForm + "\n\n" + targetCampaign.text;
                       }
                       
+                      // Pobierz dostępną skrzynkę (round-robin)
+                      let mailbox = null;
+                      if (targetCampaign.virtualSalespersonId) {
+                        const { getNextAvailableMailbox, incrementMailboxCounter } = await import("@/services/mailboxManager");
+                        mailbox = await getNextAvailableMailbox(targetCampaign.virtualSalespersonId);
+                      }
+                      
                       // Wyślij mail
                       const result = await sendCampaignEmail({
                         subject: targetCampaign.subject || "Brak tematu",
@@ -704,7 +717,8 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
                         leadLanguage: newLead.language || "pl",
                         leadName: newLead.firstName ? `${newLead.firstName} ${newLead.lastName || ''}`.trim() : undefined,
                         leadCompany: newLead.company || undefined,
-                        salesperson: campaign?.virtualSalespersonId ? { id: campaign.virtualSalespersonId } as any : undefined,
+                        salesperson: targetCampaign.virtualSalespersonId ? { id: targetCampaign.virtualSalespersonId } as any : undefined,
+                        mailbox: mailbox || undefined, // NOWE: Dodane mailbox
                         campaign: {
                           jobDescription: targetCampaign.jobDescription,
                           postscript: targetCampaign.postscript,
@@ -719,10 +733,19 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
                         data: {
                           campaignId: targetCampaign.id,
                           leadId: newLead.id,
+                          mailboxId: mailbox?.id || null, // NOWE: Dodaj mailboxId
+                          subject: targetCampaign.subject || "Brak tematu", // NOWE: Zapisz subject
+                          content: content, // NOWE: Zapisz content
                           status: "sent",
                           messageId: result.messageId
                         }
                       });
+                      
+                      // Inkrementuj licznik użycia skrzynki
+                      if (mailbox) {
+                        const { incrementMailboxCounter } = await import("@/services/mailboxManager");
+                        await incrementMailboxCounter(mailbox.id);
+                      }
                       
                       console.log(`[PROCESSOR] ✅ OOO lead wysłany natychmiast do ${newLead.email}`);
                       actionsTaken.push(`Wysłano mail OOO natychmiast (test manualny)`);

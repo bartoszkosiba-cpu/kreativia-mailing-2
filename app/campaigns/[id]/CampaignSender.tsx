@@ -66,12 +66,12 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
       const data = await response.json();
 
       if (response.ok) {
-        setResult(`✅ Test mail wysłany pomyślnie do ${testEmail}`);
+        setResult(`Test mail wysłany pomyślnie do ${testEmail}`);
       } else {
-        setResult(`❌ Błąd: ${data.error}`);
+        setResult(`Błąd: ${data.error}`);
       }
     } catch (error) {
-      setResult(`❌ Błąd: ${error instanceof Error ? error.message : "Nieznany błąd"}`);
+      setResult(`Błąd: ${error instanceof Error ? error.message : "Nieznany błąd"}`);
     } finally {
       setIsTestSending(false);
     }
@@ -82,11 +82,11 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
     const MAX_INSTANT_SEND = 20;
     
     if (leadsCount > MAX_INSTANT_SEND) {
-      alert(`⚠️ ZABEZPIECZENIE:\n\nPrzycisk "Uruchom kampanię" jest przeznaczony tylko do testów!\n\nMasz ${leadsCount} leadów w kampanii, co przekracza limit ${MAX_INSTANT_SEND} maili.\n\n✅ Użyj zamiast tego HARMONOGRAMU:\n1. Ustaw harmonogram wysyłki poniżej\n2. Kliknij "Zaplanuj kampanię"\n3. System będzie wysyłał automatycznie zgodnie z harmonogramem\n\nTo zabezpiecza przed przypadkowym wysłaniem setek maili jednocześnie!`);
+      alert(`ZABEZPIECZENIE:\n\nPrzycisk "Uruchom kampanię" jest przeznaczony tylko do testów!\n\nMasz ${leadsCount} leadów w kampanii, co przekracza limit ${MAX_INSTANT_SEND} maili.\n\nUżyj zamiast tego HARMONOGRAMU:\n1. Ustaw harmonogram wysyłki poniżej\n2. Kliknij "Zaplanuj kampanię"\n3. System będzie wysyłał automatycznie zgodnie z harmonogramem\n\nTo zabezpiecza przed przypadkowym wysłaniem setek maili jednocześnie!`);
       return;
     }
 
-    if (!forceResend && !confirm(`⚠️ UWAGA - To jest NATYCHMIASTOWA wysyłka testowa!\n\nWysłanych zostanie ${leadsCount} maili TERAZ (bez harmonogramu).\n\n✅ Jeśli chcesz wysłać więcej maili lub rozłożyć wysyłkę w czasie:\n- Użyj HARMONOGRAMU poniżej\n- Kliknij "Zaplanuj kampanię"\n\nCzy na pewno chcesz wysłać ${leadsCount} maili NATYCHMIAST?`)) {
+    if (!forceResend && !confirm(`UWAGA - To jest NATYCHMIASTOWA wysyłka testowa!\n\nWysłanych zostanie ${leadsCount} maili TERAZ (bez harmonogramu).\n\nJeśli chcesz wysłać więcej maili lub rozłożyć wysyłkę w czasie:\n- Użyj HARMONOGRAMU poniżej\n- Kliknij "Zaplanuj kampanię"\n\nCzy na pewno chcesz wysłać ${leadsCount} maili NATYCHMIAST?`)) {
       return;
     }
 
@@ -103,12 +103,12 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
       const data = await response.json();
 
       if (response.ok) {
-        setResult(`✅ Kampania wysłana pomyślnie!\n\n${data.message}\n\nSzczegóły:\n- Wysłano: ${data.summary.success}\n- Błędy: ${data.summary.errors}\n- Razem: ${data.summary.total}`);
+        setResult(`Kampania wysłana pomyślnie!\n\n${data.message}\n\nSzczegóły:\n- Wysłano: ${data.summary.success}\n- Błędy: ${data.summary.errors}\n- Razem: ${data.summary.total}`);
       } else {
-        setResult(`❌ Błąd: ${data.error}`);
+        setResult(`Błąd: ${data.error}`);
       }
     } catch (error) {
-      setResult(`❌ Błąd: ${error instanceof Error ? error.message : "Nieznany błąd"}`);
+      setResult(`Błąd: ${error instanceof Error ? error.message : "Nieznany błąd"}`);
     } finally {
       setIsSending(false);
     }
@@ -260,9 +260,9 @@ export default function CampaignSender({ campaignId, hasSubject, hasText, hasLea
       {result && (
         <div style={{
           padding: 12,
-          backgroundColor: result.includes("✅") ? "#d4edda" : "#f8d7da",
+          backgroundColor: result.includes("pomyślnie") ? "#d4edda" : "#f8d7da",
           borderRadius: 4,
-          border: `1px solid ${result.includes("✅") ? "#c3e6cb" : "#f5c6cb"}`
+          border: `1px solid ${result.includes("pomyślnie") ? "#c3e6cb" : "#f5c6cb"}`
         }}>
           <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "14px" }}>
             {result}

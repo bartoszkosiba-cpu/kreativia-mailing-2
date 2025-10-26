@@ -60,7 +60,7 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
 
   return (
     <div style={{ marginBottom: 20, padding: 20, backgroundColor: "#f8f9fa", borderRadius: 8 }}>
-      <h2>📊 Raport kampanii</h2>
+      <h2>Raport kampanii</h2>
 
       {/* Podstawowe statystyki */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
@@ -69,14 +69,14 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
           value={stats.totalSent}
           total={stats.totalLeads}
           color="#4caf50"
-          icon="📧"
+          icon=""
         />
         <StatCard
           title="Odpowiedzi"
           value={stats.totalReplies}
           total={stats.totalSent}
           color="#2196f3"
-          icon="💬"
+          icon=""
           subtitle={`${stats.replyRate}% wskaźnik odpowiedzi`}
         />
         <StatCard
@@ -84,14 +84,14 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
           value={stats.interested}
           total={stats.totalReplies}
           color="#ff9800"
-          icon="😊"
+          icon=""
         />
         <StatCard
           title="Błędy"
           value={stats.totalErrors}
           total={stats.totalLeads}
           color="#f44336"
-          icon="❌"
+          icon=""
         />
       </div>
 
@@ -131,21 +131,21 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
 
       {/* Akcje automatyczne */}
       <div style={{ marginBottom: 24, padding: 16, backgroundColor: "white", borderRadius: 8 }}>
-        <h3 style={{ marginTop: 0 }}>🤖 Akcje automatyczne</h3>
+        <h3 style={{ marginTop: 0 }}>Akcje automatyczne</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
           <div>
             <div style={{ fontSize: 24, fontWeight: "bold", color: "#4caf50" }}>{stats.newLeadsCreated}</div>
-            <div style={{ fontSize: 14, color: "#666" }}>🆕 Nowe leady</div>
+            <div style={{ fontSize: 14, color: "#666" }}>Nowe leady</div>
             <div style={{ fontSize: 12, color: "#999" }}>Z zainteresowanych odpowiedzi</div>
           </div>
           <div>
             <div style={{ fontSize: 24, fontWeight: "bold", color: "#2196f3" }}>{stats.repliesForwarded}</div>
-            <div style={{ fontSize: 14, color: "#666" }}>📨 Przekazane</div>
+            <div style={{ fontSize: 14, color: "#666" }}>Przekazane</div>
             <div style={{ fontSize: 12, color: "#999" }}>Wysłane na Twój email</div>
           </div>
           <div>
             <div style={{ fontSize: 24, fontWeight: "bold", color: "#f44336" }}>{stats.contactsBlocked}</div>
-            <div style={{ fontSize: 14, color: "#666" }}>🚫 Zablokowani</div>
+            <div style={{ fontSize: 14, color: "#666" }}>Zablokowani</div>
             <div style={{ fontSize: 12, color: "#999" }}>Unsubscribe + bounce</div>
           </div>
         </div>
@@ -154,7 +154,7 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
       {/* Timeline */}
       {stats.startDate && (
         <div style={{ padding: 16, backgroundColor: "white", borderRadius: 8 }}>
-          <h3 style={{ marginTop: 0 }}>📅 Timeline</h3>
+          <h3 style={{ marginTop: 0 }}>Timeline</h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
             <div>
               <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Rozpoczęcie</div>
@@ -196,7 +196,7 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
           fontSize: 14
         }}
       >
-        🔄 Odśwież statystyki
+        Odśwież statystyki
       </button>
     </div>
   );
@@ -226,7 +226,7 @@ function StatCard({
       borderRadius: 8,
       border: `2px solid ${color}`
     }}>
-      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{icon} {title}</div>
+      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{icon}{" "}{title}</div>
       <div style={{ fontSize: 32, fontWeight: "bold", color }}>
         {value}
         {total && total > 0 && (

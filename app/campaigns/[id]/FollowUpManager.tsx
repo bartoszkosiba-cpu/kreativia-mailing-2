@@ -106,16 +106,16 @@ export default function FollowUpManager({ campaignId, isFollowUp }: { campaignId
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ ${data.message}`);
+        alert(`${data.message}`);
         setShowForm(false);
         setFollowUpText("");
         await loadFollowUpInfo();
       } else {
-        alert(`❌ Błąd: ${data.error}`);
+        alert(`Błąd: ${data.error}`);
       }
     } catch (error) {
       console.error("Błąd tworzenia follow-upu:", error);
-      alert("❌ Błąd tworzenia follow-upu");
+      alert("Błąd tworzenia follow-upu");
     } finally {
       setIsCreating(false);
     }
@@ -131,10 +131,10 @@ export default function FollowUpManager({ campaignId, isFollowUp }: { campaignId
   
   return (
     <div className="card">
-      <h2>📬 Follow-upy</h2>
+      <h2>Follow-upy</h2>
       
       <div style={{ marginBottom: 20 }}>
-        <h3>📊 Statystyki kampanii</h3>
+        <h3>Statystyki kampanii</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
           <div className="stat-box">
             <div className="stat-label">Wszystkich leadów</div>
@@ -253,7 +253,7 @@ export default function FollowUpManager({ campaignId, isFollowUp }: { campaignId
                   disabled={isCreating || !followUpText.trim()}
                   className="btn btn-primary"
                 >
-                  {isCreating ? "Tworzę..." : `✅ Utwórz follow-up #${followUpSequence} (${info.stats.eligibleForFollowUp} leadów)`}
+                  {isCreating ? "Tworzę..." : `Utwórz follow-up #${followUpSequence} (${info.stats.eligibleForFollowUp} leadów)`}
                 </button>
                 <button
                   onClick={() => {
@@ -268,13 +268,13 @@ export default function FollowUpManager({ campaignId, isFollowUp }: { campaignId
               </div>
               
               <div style={{ marginTop: 15, padding: 10, background: "var(--info-light)", borderRadius: 4, fontSize: 13 }}>
-                ℹ️ <strong>Do kogo zostanie wysłany:</strong>
+                <strong>Do kogo zostanie wysłany:</strong>
                 <ul style={{ marginTop: 5, marginBottom: 0 }}>
                   <li>Leady bez odpowiedzi: {info.stats.noReply}</li>
                   <li>Leady z OOO: {info.stats.ooo}</li>
                 </ul>
                 <div style={{ marginTop: 8 }}>
-                  ❌ <strong>Pominięci:</strong> INTERESTED, NOT_INTERESTED, UNSUBSCRIBE, BOUNCE ({info.stats.total - info.stats.eligibleForFollowUp})
+                  <strong>Pominięci:</strong> INTERESTED, NOT_INTERESTED, UNSUBSCRIBE, BOUNCE ({info.stats.total - info.stats.eligibleForFollowUp})
                 </div>
               </div>
             </div>
@@ -284,13 +284,13 @@ export default function FollowUpManager({ campaignId, isFollowUp }: { campaignId
       
       {info.stats.eligibleForFollowUp === 0 && (
         <div className="alert alert-info">
-          ℹ️ Brak leadów kwalifikujących się do follow-upu (wszyscy odpowiedzieli lub są zablokowani)
+          Brak leadów kwalifikujących się do follow-upu (wszyscy odpowiedzieli lub są zablokowani)
         </div>
       )}
       
       {info.existingFollowUps.length >= info.maxFollowUps && (
         <div className="alert alert-warning">
-          ⚠️ Osiągnięto maksymalną liczbę follow-upów ({info.maxFollowUps})
+          Osiągnięto maksymalną liczbę follow-upów ({info.maxFollowUps})
         </div>
       )}
     </div>

@@ -17,9 +17,34 @@ export async function GET(request: NextRequest) {
     const tagId = searchParams.get('tagId') || '';
     const industry = searchParams.get('industry') || '';
     const withoutGreetings = searchParams.get('withoutGreetings') === 'true';
+    const campaignId = searchParams.get('campaignId');
 
     // Buduj warunki WHERE
     const whereConditions: any = {};
+    
+    // ✅ NOWE: Jeśli campaignId, to wyklucz leadów którzy już są w TEJ kampanii
+    if (campaignId) {
+      const leadsInCampaign = await db.campaignLead.findMany({
+        where: { campaignId: parseInt(campaignId) },
+        select: { leadId: true }
+      });
+      
+      const excludeLeadIds = leadsInCampaign.map(cl => cl.leadId);
+      if (excludeLeadIds.length > 0) {
+        whereConditions.id = { notIn: excludeLeadIds };
+      }
+    }
+
+    // ✅ ZAWSZE filtruj zablokowanych leadów (chyba że user jawnie chce je zobaczyć)
+    if (status && (status === 'BLOKADA' || status === 'BLOCKED')) {
+      // User chce zobaczyć tylko zablokowanych - nie filtruj
+    } else {
+      // Filtruj zablokowanych - NIE POKAZUJ w standardowej liście
+      whereConditions.NOT = [
+        { status: 'BLOKADA' },
+        { status: 'BLOCKED' }
+      ];
+    }
 
     if (search) {
       whereConditions.OR = [
@@ -216,11 +241,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Pobierz odmianę imienia - tylko jeśli nie jest NO_GREETING
-    const greetingForm = data.status === 'NO_GREETING' 
-      ? null 
-      : data.firstName 
-        ? await morfeuszService.getGreetingForm(data.firstName, data.language || "pl")
-        : "Dzień dobry";
+    let greetingForm: string | null = null;
+    
+    if (data.status === 'NO_GREETING') {
+      greetingForm = null;
+    } else if (data.firstName) {
+      // Ma imię - wygeneruj pełne powitanie
+      greetingForm = await morfeuszService.getGreetingForm(data.firstName, data.language || "pl");
+    } else {
+      // Nie ma imienia - dodaj domyślne powitanie bez tytułu (Pan/Pani)
+      const lang = data.language || "pl";
+      if (lang === "en") greetingForm = "Hello,";
+      else if (lang === "de") greetingForm = "Guten Tag,";
+      else if (lang === "fr") greetingForm = "Bonjour,";
+      else greetingForm = "Dzień dobry,";
+    }
 
     const lead = await db.lead.create({
       data: {

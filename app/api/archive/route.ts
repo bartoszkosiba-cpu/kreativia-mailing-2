@@ -285,3 +285,63 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+/**
+ * DELETE /api/archive - Usuń maile z archiwum
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const type = searchParams.get("type"); // "sent", "received", "warmup", "all"
+    const olderThan = searchParams.get("olderThan"); // Data w formacie ISO string
+    
+    let deletedCount = 0;
+
+    if (type === "sent" || type === "all" || !type) {
+      const whereClause: any = {};
+      if (olderThan) {
+        whereClause.createdAt = { lt: new Date(olderThan) };
+      }
+      
+      const result = await db.sendLog.deleteMany({ where: whereClause });
+      deletedCount += result.count;
+    }
+
+    if (type === "received" || type === "all" || !type) {
+      const whereClause: any = {};
+      if (olderThan) {
+        whereClause.receivedAt = { lt: new Date(olderThan) };
+      }
+      
+      const result = await db.inboxReply.deleteMany({ where: whereClause });
+      deletedCount += result.count;
+    }
+
+    if (type === "warmup" || type === "all" || !type) {
+      const whereClause: any = {};
+      if (olderThan) {
+        whereClause.createdAt = { lt: new Date(olderThan) };
+      }
+      
+      const result = await db.warmupEmail.deleteMany({ where: whereClause });
+      deletedCount += result.count;
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Usunięto ${deletedCount} rekordów z archiwum`,
+      deletedCount
+    });
+
+  } catch (error) {
+    console.error('[ARCHIVE DELETE] Błąd usuwania:', error);
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Błąd podczas usuwania maili',
+        details: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    );
+  }
+}

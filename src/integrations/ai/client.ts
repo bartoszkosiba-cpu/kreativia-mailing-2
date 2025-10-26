@@ -344,7 +344,24 @@ export async function classifyReply(
   ) {
     // Próba wyciągnięcia emaili zastępców
     const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
-    const foundEmails = replyContent.match(emailRegex) || [];
+    let foundEmails = replyContent.match(emailRegex) || [];
+    
+    // ❌ FILTRUJ: Usuń emaile z cytowanej wiadomości (po ">")
+    foundEmails = foundEmails.filter(email => {
+      // Znajdź pozycję emaila w tekście
+      const emailIndex = replyContent.indexOf(email);
+      if (emailIndex === -1) return false;
+      
+      // Znajdź ostatni znak ">" przed tym emailem (max 500 znaków wstecz)
+      const textBefore = replyContent.substring(Math.max(0, emailIndex - 500), emailIndex);
+      const lastQuoteIndex = textBefore.lastIndexOf('>');
+      
+      // Jeśli ostatni ">" jest dalej niż 100 znaków - to prawdopodobnie w cytacie
+      return lastQuoteIndex === -1 || (emailIndex - lastQuoteIndex) > 100;
+    });
+    
+    // Usuń duplikaty
+    foundEmails = [...new Set(foundEmails)];
     
     return {
       classification: "OOO",

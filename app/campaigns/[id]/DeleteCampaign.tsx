@@ -14,7 +14,7 @@ export default function DeleteCampaign({ campaignId, campaignName }: Props) {
 
   const handleDelete = async () => {
     const confirmed = confirm(
-      `⚠️ CZY NA PEWNO chcesz usunąć kampanię "${campaignName}"?\n\n` +
+      `CZY NA PEWNO chcesz usunąć kampanię "${campaignName}"?\n\n` +
       `To usunie:\n` +
       `- Wszystkie logi wysyłki\n` +
       `- Wszystkie odpowiedzi\n` +
@@ -41,13 +41,13 @@ export default function DeleteCampaign({ campaignId, campaignName }: Props) {
       const data = await response.json();
 
       if (response.ok) {
-        alert("✅ Kampania została usunięta");
+        alert("Kampania została usunięta");
         router.push("/campaigns");
       } else {
-        alert(`❌ Błąd: ${data.error}`);
+        alert(`Błąd: ${data.error}`);
       }
     } catch (error: any) {
-      alert(`❌ Błąd: ${error.message}`);
+      alert(`Błąd: ${error.message}`);
     } finally {
       setIsDeleting(false);
     }
@@ -68,9 +68,10 @@ export default function DeleteCampaign({ campaignId, campaignName }: Props) {
       <button
         className="btn"
         style={{
-          backgroundColor: "var(--danger)",
+          backgroundColor: "#dc3545",
           color: "white",
-          fontWeight: "bold"
+          fontWeight: "bold",
+          borderColor: "#dc3545"
         }}
         onClick={handleDelete}
         disabled={isDeleting}

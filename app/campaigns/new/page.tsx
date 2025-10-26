@@ -125,10 +125,10 @@ export default function NewCampaignPage() {
       }
 
       const result = await response.json();
-      alert(`✅ Kampania "${formData.name}" została utworzona!`);
+      alert(`Kampania "${formData.name}" została utworzona!`);
       router.push(`/campaigns/${result.id}`);
     } catch (error: any) {
-      alert(`❌ Błąd: ${error.message}`);
+      alert(`Błąd: ${error.message}`);
     } finally {
       setIsCreating(false);
     }
@@ -243,7 +243,7 @@ export default function NewCampaignPage() {
               border: "2px solid #bae6fd"
             }}>
               <div style={{ fontWeight: 600, marginBottom: 12, color: "#0369a1", fontSize: 14 }}>
-                🎨 Użyj treści z Content Planner
+                Użyj treści z Content Planner
               </div>
               
               {contentVersions.length === 0 ? (
@@ -274,7 +274,7 @@ export default function NewCampaignPage() {
                   
                   {selectedVersionId && (
                     <div style={{ fontSize: 12, color: "#0369a1" }}>
-                      ✅ Wybrano treść z Content Planner • 
+                      Wybrano treść z Content Planner • 
                       <button
                         type="button"
                         onClick={handleClearVersion}
@@ -468,7 +468,7 @@ export default function NewCampaignPage() {
             disabled={isCreating}
             style={{
               padding: "12px 24px",
-              backgroundColor: isCreating ? "var(--gray-400)" : "var(--primary)",
+              backgroundColor: isCreating ? "var(--gray-400)" : "#28a745",
               color: "white",
               border: "none",
               borderRadius: "6px",
@@ -477,7 +477,7 @@ export default function NewCampaignPage() {
               fontSize: "16px"
             }}
           >
-            {isCreating ? "Tworzenie..." : "✅ Utwórz kampanię"}
+            {isCreating ? "Tworzenie..." : "Utwórz kampanię"}
           </button>
         </div>
       </form>

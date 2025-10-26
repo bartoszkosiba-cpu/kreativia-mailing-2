@@ -8,7 +8,9 @@ interface CampaignSchedulerProps {
   scheduledAt: string | null;
   allowedDays: string;
   startHour: number;
+  startMinute: number;
   endHour: number;
+  endMinute: number;
   delayBetweenEmails: number;
   maxEmailsPerHour: number;
   respectHolidays: boolean;
@@ -22,7 +24,9 @@ export default function CampaignScheduler({
   scheduledAt,
   allowedDays,
   startHour,
+  startMinute,
   endHour,
+  endMinute,
   delayBetweenEmails,
   maxEmailsPerHour,
   respectHolidays,
@@ -44,12 +48,28 @@ export default function CampaignScheduler({
     // "2025-12-20T10:00:00.000Z" -> "2025-12-20T10:00"
     return dateString.slice(0, 16);
   };
+
+  // Konwertuj godzinę i minuty na format HH:MM
+  const toTimeString = (hour: number, minute: number) => {
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  };
+
+  // Parsuj format HH:MM na godzinę i minutę
+  const parseTimeString = (timeStr: string): { hour: number; minute: number } => {
+    if (!timeStr || !timeStr.includes(':')) {
+      return { hour: 9, minute: 0 }; // Default
+    }
+    const parts = timeStr.split(':');
+    const hour = parseInt(parts[0]) || 9;
+    const minute = parseInt(parts[1]) || 0;
+    return { hour, minute };
+  };
   
   const [schedule, setSchedule] = useState({
     scheduledAt: toLocalDateTimeString(scheduledAt),
     allowedDays: allowedDays.split(","),
-    startHour,
-    endHour,
+    startTime: toTimeString(startHour, startMinute || 0),
+    endTime: toTimeString(endHour, endMinute || 0),
     delayBetweenEmails,
     maxEmailsPerHour,
     respectHolidays,
@@ -77,6 +97,19 @@ export default function CampaignScheduler({
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Waliduj format czasu
+      const timePattern = /^([0-1]?[0-9]|2[0-3]):([0-5]?[0-9])$/;
+      if (!timePattern.test(schedule.startTime)) {
+        alert("Nieprawidłowy format czasu początku. Użyj formatu HH:MM (np. 09:30)");
+        setIsSaving(false);
+        return;
+      }
+      if (!timePattern.test(schedule.endTime)) {
+        alert("Nieprawidłowy format czasu końca. Użyj formatu HH:MM (np. 17:45)");
+        setIsSaving(false);
+        return;
+      }
+
       // Konwertuj lokalny datetime-local na ISO string TRAKTUJĄC GO JAKO UTC
       // aby uniknąć problemów z timezone
       let scheduledAtISO = null;
@@ -86,28 +119,42 @@ export default function CampaignScheduler({
         const [datePart, timePart] = schedule.scheduledAt.split('T');
         scheduledAtISO = `${datePart}T${timePart}:00.000Z`;
       }
+
+      // Parsuj czasy na osobne godziny i minuty
+      const startTime = parseTimeString(schedule.startTime);
+      const endTime = parseTimeString(schedule.endTime);
       
       const response = await fetch(`/api/campaigns/${campaignId}/schedule`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...schedule,
           allowedDays: schedule.allowedDays.join(","),
+          startHour: startTime.hour,
+          startMinute: startTime.minute,
+          endHour: endTime.hour,
+          endMinute: endTime.minute,
+          delayBetweenEmails: schedule.delayBetweenEmails,
+          maxEmailsPerHour: schedule.maxEmailsPerHour,
+          respectHolidays: schedule.respectHolidays,
+          targetCountries: schedule.targetCountries,
           scheduledAt: scheduledAtISO
         })
       });
 
-      if (!response.ok) throw new Error("Błąd zapisu");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Błąd zapisu");
+      }
 
       const data = await response.json();
       setStatus(data.status);
       setIsEditing(false);
-      alert("✅ Harmonogram zaktualizowany!");
+      alert("Harmonogram zaktualizowany!");
       
       // Odśwież stronę aby pokazać poprawną datę
       window.location.reload();
-    } catch (error) {
-      alert("❌ Błąd zapisu harmonogramu");
+    } catch (error: any) {
+      alert(`Błąd zapisu harmonogramu: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -149,7 +196,7 @@ export default function CampaignScheduler({
   return (
     <div style={{ marginBottom: 20, padding: 20, backgroundColor: "#f8f9fa", borderRadius: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>📅 Harmonogram wysyłki</h2>
+        <h2 style={{ margin: 0 }}>Harmonogram wysyłki</h2>
         {getStatusBadge()}
       </div>
 
@@ -168,7 +215,7 @@ export default function CampaignScheduler({
               <strong>Dni wysyłki:</strong> {schedule.allowedDays.map(d => dayOptions.find(o => o.value === d)?.label).join(", ")}
             </p>
             <p style={{ margin: "8px 0" }}>
-              <strong>Okno czasowe:</strong> {schedule.startHour}:00 - {schedule.endHour}:00
+              <strong>Okno czasowe:</strong> {schedule.startTime} - {schedule.endTime}
             </p>
             <p style={{ margin: "8px 0" }}>
               <strong>Opóźnienie między mailami:</strong> {schedule.delayBetweenEmails}s
@@ -196,15 +243,15 @@ export default function CampaignScheduler({
               borderRadius: 4,
               cursor: status === "SENDING" || status === "COMPLETED" ? "not-allowed" : "pointer"
             }}
-          >
-            ⚙️ Edytuj harmonogram
+            >
+            Edytuj harmonogram
           </button>
         </div>
       ) : (
         <div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
-              📆 Data i godzina wysyłki:
+              Data i godzina wysyłki:
             </label>
             <input
               type="datetime-local"
@@ -219,7 +266,7 @@ export default function CampaignScheduler({
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 8, fontWeight: "bold" }}>
-              📅 Dozwolone dni tygodnia:
+              Dozwolone dni tygodnia:
             </label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {dayOptions.map(day => (
@@ -244,36 +291,42 @@ export default function CampaignScheduler({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
               <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
-                🕐 Początek okna:
+                Początek okna:
               </label>
               <input
-                type="number"
-                min="0"
-                max="23"
-                value={schedule.startHour}
-                onChange={(e) => setSchedule({ ...schedule, startHour: Number(e.target.value) })}
+                type="text"
+                placeholder="09:00"
+                pattern="[0-9]{1,2}:[0-9]{2}"
+                value={schedule.startTime}
+                onChange={(e) => setSchedule({ ...schedule, startTime: e.target.value })}
                 style={{ padding: 8, width: "100%", borderRadius: 4, border: "1px solid #ddd" }}
               />
+              <p style={{ fontSize: 12, color: "#666", margin: "4px 0" }}>
+                Format: HH:MM (np. 09:30, 14:15)
+              </p>
             </div>
             <div>
               <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
-                🕐 Koniec okna:
+                Koniec okna:
               </label>
               <input
-                type="number"
-                min="0"
-                max="23"
-                value={schedule.endHour}
-                onChange={(e) => setSchedule({ ...schedule, endHour: Number(e.target.value) })}
+                type="text"
+                placeholder="17:00"
+                pattern="[0-9]{1,2}:[0-9]{2}"
+                value={schedule.endTime}
+                onChange={(e) => setSchedule({ ...schedule, endTime: e.target.value })}
                 style={{ padding: 8, width: "100%", borderRadius: 4, border: "1px solid #ddd" }}
               />
+              <p style={{ fontSize: 12, color: "#666", margin: "4px 0" }}>
+                Format: HH:MM (np. 17:30, 23:59)
+              </p>
             </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
               <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
-                ⏱️ Opóźnienie (sekundy):
+                Opóźnienie (sekundy):
               </label>
               <input
                 type="number"
@@ -286,7 +339,7 @@ export default function CampaignScheduler({
             </div>
             <div>
               <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
-                📧 Max maili/h:
+                Max maili/h:
               </label>
               <input
                 type="number"
@@ -306,14 +359,14 @@ export default function CampaignScheduler({
                 checked={schedule.respectHolidays}
                 onChange={(e) => setSchedule({ ...schedule, respectHolidays: e.target.checked })}
               />
-              <span style={{ fontWeight: "bold" }}>🎄 Uwzględniaj święta</span>
+              <span style={{ fontWeight: "bold" }}>Uwzględniaj święta</span>
             </label>
           </div>
 
           {schedule.respectHolidays && (
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
-                🌍 Kraje (kody, oddzielone przecinkami):
+                Kraje (kody, oddzielone przecinkami):
               </label>
               <input
                 type="text"
@@ -330,7 +383,7 @@ export default function CampaignScheduler({
 
           <div style={{ padding: 12, backgroundColor: "#e3f2fd", borderRadius: 4, marginBottom: 16 }}>
             <p style={{ margin: 0, fontSize: 14 }}>
-              <strong>⏱️ Szacowany czas wysyłki:</strong> {estimatedDuration()} dla {leadsCount} leadów
+              <strong>Szacowany czas wysyłki:</strong> {estimatedDuration()} dla {leadsCount} leadów
             </p>
           </div>
 
@@ -347,7 +400,7 @@ export default function CampaignScheduler({
                 cursor: isSaving ? "wait" : "pointer"
               }}
             >
-              {isSaving ? "Zapisuję..." : "💾 Zapisz"}
+              {isSaving ? "Zapisuję..." : "Zapisz"}
             </button>
             <button
               onClick={() => setIsEditing(false)}

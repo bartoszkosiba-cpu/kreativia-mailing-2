@@ -201,21 +201,13 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-lg)" }}>
         <h2>Leady w kampanii ({leads.length})</h2>
         <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
-          <button
-            className="btn btn-secondary"
-              onClick={() => router.refresh()}
-              disabled={isLoading}
-              title="Odśwież listę leadów"
-          >
-            Odśwież
-          </button>
           {isEditable && (
             <button
               className="btn btn-primary"
-              onClick={() => setShowAddPanel(!showAddPanel)}
+              onClick={() => router.push(`/campaigns/${campaignId}/add-leads`)}
               disabled={isLoading}
             >
-              {showAddPanel ? "Anuluj" : "Dodaj leady"}
+              Dodaj leady
             </button>
           )}
         </div>

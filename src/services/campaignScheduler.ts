@@ -15,7 +15,9 @@ export async function isValidSendTime(
   date: Date,
   allowedDays: string[], // ["MON", "TUE", "WED", "THU", "FRI"]
   startHour: number,      // 9
+  startMinute: number,   // 0
   endHour: number,        // 15
+  endMinute: number,     // 0
   respectHolidays: boolean,
   targetCountries: string[]
 ): Promise<ScheduleValidation> {
@@ -30,12 +32,21 @@ export async function isValidSendTime(
     };
   }
   
-  // 2. Sprawdź godziny
+  // 2. Sprawdź godziny i minuty
   const hour = date.getHours();
-  if (hour < startHour || hour >= endHour) {
+  const minute = date.getMinutes();
+  
+  // Oblicz aktualny czas w minutach (od północy)
+  const currentTimeMinutes = hour * 60 + minute;
+  const startTimeMinutes = startHour * 60 + startMinute;
+  const endTimeMinutes = endHour * 60 + endMinute;
+  
+  if (currentTimeMinutes < startTimeMinutes || currentTimeMinutes >= endTimeMinutes) {
+    const startTimeStr = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
     return {
       isValid: false,
-      reason: `Wysyłka poza dozwolonymi godzinami. Dozwolone: ${startHour}:00-${endHour}:00`
+      reason: `Wysyłka poza dozwolonymi godzinami. Dozwolone: ${startTimeStr}-${endTimeStr}`
     };
   }
   
@@ -60,7 +71,9 @@ export async function findNextAvailableSlot(
   startDate: Date,
   allowedDays: string[],
   startHour: number,
+  startMinute: number,
   endHour: number,
+  endMinute: number,
   respectHolidays: boolean,
   targetCountries: string[]
 ): Promise<Date> {
@@ -69,13 +82,15 @@ export async function findNextAvailableSlot(
   
   for (let i = 0; i < maxDays; i++) {
     // Ustaw na początek okna czasowego
-    testDate.setHours(startHour, 0, 0, 0);
+    testDate.setHours(startHour, startMinute, 0, 0);
     
     const validation = await isValidSendTime(
       testDate,
       allowedDays,
       startHour,
+      startMinute,
       endHour,
+      endMinute,
       respectHolidays,
       targetCountries
     );
@@ -89,10 +104,10 @@ export async function findNextAvailableSlot(
     testDate.setDate(testDate.getDate() + 1);
   }
   
-  // Jeśli nic nie znaleziono, zwróć datę za 7 dni o godz. 9:00
+  // Jeśli nic nie znaleziono, zwróć datę za 7 dni o początku okna
   const fallback = new Date(startDate);
   fallback.setDate(fallback.getDate() + 7);
-  fallback.setHours(startHour, 0, 0, 0);
+  fallback.setHours(startHour, startMinute, 0, 0);
   return fallback;
 }
 
@@ -145,6 +160,12 @@ export async function getNextScheduledCampaign() {
         },
         {
           status: "IN_PROGRESS" // Kampanie wznowione (np. dla OOO leadów)
+        },
+        {
+          status: "PAUSED",
+          scheduledAt: {
+            lte: now  // Kampania PAUSED może być wznowiona jeśli scheduledAt w przeszłości
+          }
         }
       ]
     },

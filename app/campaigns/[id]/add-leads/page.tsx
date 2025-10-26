@@ -35,7 +35,7 @@ export default function AddLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
-  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -46,10 +46,12 @@ export default function AddLeadsPage() {
 
   const fetchLeads = async () => {
     try {
-      const response = await fetch("/api/leads");
+      // ✅ Pobierz WSZYSTKIE leady bez limitu - obsłuży kampanie 3000+ leadów
+      const response = await fetch(`/api/leads?campaignId=${campaignId}&page=1&limit=100000`);
       if (response.ok) {
         const data = await response.json();
-        setLeads(data);
+        console.log('[DEBUG] Pobrano leadów:', data.leads?.length || 0);
+        setLeads(data.leads || []); // ✅ Poprawka: ustaw leady, nie cały obiekt
       }
     } catch (error) {
       console.error("Błąd pobierania leadów:", error);
@@ -71,13 +73,25 @@ export default function AddLeadsPage() {
   };
 
   const filteredLeads = leads.filter(lead => {
-    if (selectedTagIds.length === 0) return false; // WYMAGAJ wyboru tagu
-    
     // Filtruj tylko aktywne leady (nie zablokowane)
-    if (lead.status === 'BLOCKED') return false;
+    if (lead.status === 'BLOCKED' || lead.status === 'BLOKADA') return false;
     
-    return lead.LeadTag.some(leadTag => selectedTagIds.includes(leadTag.tag.id));
+    // Filtr po tagach - muszą mieć WSZYSTKIE wybrane tagi
+    if (selectedTagIds.length > 0) {
+      const leadTags = lead.LeadTag.map(lt => lt.tag.id);
+      const hasAllTags = selectedTagIds.every(tagId => leadTags.includes(tagId));
+      if (!hasAllTags) return false;
+    }
+    
+    // Filtr po językach
+    if (selectedLanguages.length > 0) {
+      return selectedLanguages.includes(lead.language || '');
+    }
+    
+    return true;
   });
+  
+  console.log('[DEBUG] Total leads:', leads.length, 'Filtered:', filteredLeads.length);
 
   const handleTagChange = (tagId: number) => {
     setSelectedTagIds(prev => 
@@ -87,41 +101,36 @@ export default function AddLeadsPage() {
     );
   };
 
-  const handleLeadSelect = (leadId: number) => {
-    setSelectedLeadIds(prev => 
-      prev.includes(leadId)
-        ? prev.filter(id => id !== leadId)
-        : [...prev, leadId]
+  const handleLanguageChange = (language: string) => {
+    setSelectedLanguages(prev => 
+      prev.includes(language)
+        ? prev.filter(lang => lang !== language)
+        : [...prev, language]
     );
   };
 
-  const handleSelectAll = () => {
-    if (selectedLeadIds.length === filteredLeads.length) {
-      setSelectedLeadIds([]);
-    } else {
-      setSelectedLeadIds(filteredLeads.map(lead => lead.id));
-    }
-  };
-
-  const handleAddLeads = async () => {
-    if (selectedLeadIds.length === 0) {
-      alert("Wybierz przynajmniej jednego leada");
+  const handleAddAllLeads = async () => {
+    if (filteredLeads.length === 0) {
+      alert("Brak leadów do dodania - zmień filtry");
       return;
     }
+
+    const allLeadIds = filteredLeads.map(lead => lead.id);
 
     setIsAdding(true);
     try {
       const response = await fetch(`/api/campaigns/${campaignId}/leads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadIds: selectedLeadIds }),
+        body: JSON.stringify({ leadIds: allLeadIds }),
       });
 
       if (response.ok) {
-        alert(`Dodano ${selectedLeadIds.length} leadów do kampanii`);
+        alert(`Dodano ${allLeadIds.length} leadów do kampanii`);
         router.push(`/campaigns/${campaignId}`);
       } else {
-        alert("Błąd dodawania leadów");
+        const errorData = await response.json();
+        alert(`Błąd: ${errorData.error || 'Nie udało się dodać leadów'}`);
       }
     } catch (error) {
       alert("Błąd dodawania leadów");
@@ -154,163 +163,121 @@ export default function AddLeadsPage() {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 20 }}>
+      <div style={{ maxWidth: 800, margin: "0 auto" }}>
         {/* Filtry */}
-        <div style={{ backgroundColor: "#f8f9fa", padding: 20, borderRadius: 8 }}>
-          <h3>Filtruj według tagów</h3>
+        <div style={{ backgroundColor: "#f8f9fa", padding: 24, borderRadius: 8, marginBottom: 24 }}>
+          <h3 style={{ marginTop: 0 }}>Filtruj leady</h3>
           
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
-              Wybierz tagi:
+          {/* Wybór tagów */}
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: "block", fontWeight: "bold", marginBottom: 12, fontSize: 16 }}>
+              Wybierz tagi (możesz wybrać wiele):
             </label>
-            {tags.map(tag => (
-              <label key={tag.id} style={{ display: "block", marginBottom: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={selectedTagIds.includes(tag.id)}
-                  onChange={() => handleTagChange(tag.id)}
-                  style={{ marginRight: 8 }}
-                />
-                <span style={{ 
-                  backgroundColor: tag.color, 
-                  color: "white", 
-                  padding: "2px 8px", 
-                  borderRadius: 12, 
-                  fontSize: 12 
-                }}>
-                  {tag.name}
-                </span>
-              </label>
-            ))}
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <button
-              onClick={() => setSelectedTagIds([])}
-              style={{
-                padding: "8px 16px",
-                backgroundColor: "#dc3545",
-                color: "white",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer",
-                fontSize: 14
-              }}
-            >
-              Wyczyść filtry
-            </button>
-          </div>
-
-          <div style={{ fontSize: 14, color: "#666" }}>
-            <p>Znaleziono: {filteredLeads.length} leadów</p>
-            <p>Wybrano: {selectedLeadIds.length} leadów</p>
-            {selectedTagIds.length === 0 && (
-              <p style={{ color: "#dc3545", fontWeight: "bold" }}>
-                ⚠️ Wybierz tag aby zobaczyć leady
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Lista leadów */}
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h3>Leady ({filteredLeads.length})</h3>
-            <div>
-              <button
-                onClick={handleSelectAll}
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: "#17a2b8",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {tags.map(tag => (
+                <label key={tag.id} style={{ 
+                  display: "inline-flex", 
+                  alignItems: "center",
+                  padding: "8px 12px",
+                  border: `2px solid ${selectedTagIds.includes(tag.id) ? tag.color : '#ddd'}`,
+                  borderRadius: 6,
                   cursor: "pointer",
-                  marginRight: 8
-                }}
-              >
-                {selectedLeadIds.length === filteredLeads.length ? "Odznacz wszystkie" : "Zaznacz wszystkie"}
-              </button>
-              <button
-                onClick={handleAddLeads}
-                disabled={selectedLeadIds.length === 0 || isAdding}
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: selectedLeadIds.length === 0 || isAdding ? "#ccc" : "#28a745",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: selectedLeadIds.length === 0 || isAdding ? "not-allowed" : "pointer"
-                }}
-              >
-                {isAdding ? "Dodawanie..." : `Dodaj ${selectedLeadIds.length} leadów`}
-              </button>
+                  backgroundColor: selectedTagIds.includes(tag.id) ? tag.color : 'white',
+                  color: selectedTagIds.includes(tag.id) ? 'white' : '#333'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedTagIds.includes(tag.id)}
+                    onChange={() => handleTagChange(tag.id)}
+                    style={{ marginRight: 8 }}
+                  />
+                  {tag.name}
+                </label>
+              ))}
             </div>
           </div>
 
-          <div style={{ maxHeight: 600, overflowY: "auto", border: "1px solid #ddd", borderRadius: 4 }}>
-            {filteredLeads.map(lead => (
-              <div
-                key={lead.id}
-                style={{
-                  padding: 12,
-                  borderBottom: "1px solid #eee",
-                  backgroundColor: selectedLeadIds.includes(lead.id) ? "#e8f4fd" : "white",
-                  cursor: "pointer"
-                }}
-                onClick={() => handleLeadSelect(lead.id)}
-              >
-                <div style={{ display: "flex", alignItems: "center" }}>
+          {/* Wybór języków */}
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: "block", fontWeight: "bold", marginBottom: 12, fontSize: 16 }}>
+              Wybierz języki (możesz wybrać wiele):
+            </label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {['pl', 'en', 'de', 'fr'].map(lang => (
+                <label key={lang} style={{ 
+                  display: "inline-flex", 
+                  alignItems: "center",
+                  padding: "8px 12px",
+                  border: `2px solid ${selectedLanguages.includes(lang) ? '#d81e42' : '#ddd'}`,
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  backgroundColor: selectedLanguages.includes(lang) ? '#d81e42' : 'white',
+                  color: selectedLanguages.includes(lang) ? 'white' : '#333'
+                }}>
                   <input
                     type="checkbox"
-                    checked={selectedLeadIds.includes(lead.id)}
-                    onChange={() => handleLeadSelect(lead.id)}
-                    style={{ marginRight: 12 }}
+                    checked={selectedLanguages.includes(lang)}
+                    onChange={() => handleLanguageChange(lang)}
+                    style={{ marginRight: 8 }}
                   />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: "bold" }}>
-                      {lead.firstName} {lead.lastName}
-                    </div>
-                    <div style={{ color: "#666", fontSize: 14 }}>
-                      {lead.company} • {lead.email}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#888" }}>
-                      {lead.industry} • {lead.language?.toUpperCase()} • 
-                      <span style={{ 
-                        color: lead.status === 'ACTIVE' ? '#28a745' : 
-                               lead.status === 'BLOCKED' ? '#dc3545' : 
-                               lead.status === 'INACTIVE' ? '#ffc107' : '#17a2b8',
-                        fontWeight: 'bold',
-                        marginLeft: '4px'
-                      }}>
-                        {lead.status === 'ACTIVE' && '✓ Aktywny'}
-                        {lead.status === 'BLOCKED' && '🚫 Zablokowany'}
-                        {lead.status === 'INACTIVE' && '⏸️ Nieaktywny'}
-                        {lead.status === 'TEST' && '🧪 Test'}
-                      </span>
-                    </div>
-                    <div style={{ marginTop: 4 }}>
-                      {lead.LeadTag.map(leadTag => (
-                        <span
-                          key={leadTag.tag.id}
-                          style={{
-                            backgroundColor: leadTag.tag.color,
-                            color: "white",
-                            padding: "2px 6px",
-                            borderRadius: 10,
-                            fontSize: 11,
-                            marginRight: 4
-                          }}
-                        >
-                          {leadTag.tag.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+                  {lang.toUpperCase()}
+                </label>
+              ))}
+            </div>
           </div>
+
+          {/* Statystyki */}
+          <div style={{ 
+            backgroundColor: filteredLeads.length > 0 ? "#d4edda" : "#f8d7da",
+            border: `1px solid ${filteredLeads.length > 0 ? "#c3e6cb" : "#f5c6cb"}`,
+            color: filteredLeads.length > 0 ? "#155724" : "#721c24",
+            padding: 16,
+            borderRadius: 6,
+            marginBottom: 16
+          }}>
+            <strong>Znaleziono: {filteredLeads.length} leadów</strong>
+            {filteredLeads.length === 0 && (
+              <div style={{ marginTop: 8 }}>
+                Brak leadów pasujących do wybranych filtrów. Zmień tagi lub języki.
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => {
+              setSelectedTagIds([]);
+              setSelectedLanguages([]);
+            }}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: 14,
+              marginRight: 12
+            }}
+          >
+            Wyczyść wszystkie filtry
+          </button>
+
+          <button
+            onClick={handleAddAllLeads}
+            disabled={filteredLeads.length === 0 || isAdding}
+            style={{
+              padding: "12px 24px",
+              backgroundColor: filteredLeads.length === 0 || isAdding ? "#ccc" : "#28a745",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: filteredLeads.length === 0 || isAdding ? "not-allowed" : "pointer",
+              fontSize: 16,
+              fontWeight: "bold"
+            }}
+          >
+            {isAdding ? "Dodawanie..." : `Dodaj wszystkie znalezione leady (${filteredLeads.length})`}
+          </button>
         </div>
       </div>
     </main>

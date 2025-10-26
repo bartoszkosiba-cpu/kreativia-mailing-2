@@ -418,8 +418,8 @@ export default function MailboxesPage() {
                       onChange={(e) => setFormData({ ...formData, mailboxType: e.target.value })}
                       style={{ width: "100%", padding: 8 }}
                     >
-                      <option value="new">🆕 Nowa skrzynka (wymaga warmup)</option>
-                      <option value="warmed_up">✅ Stara skrzynka (już rozgrzana)</option>
+                      <option value="new">Nowa skrzynka (wymaga warmup)</option>
+                      <option value="warmed_up">Stara skrzynka (już rozgrzana)</option>
                     </select>
                     <small style={{ color: "#666" }}>
                       {formData.mailboxType === 'new' 
@@ -720,16 +720,16 @@ export default function MailboxesPage() {
               fontSize: '13px',
               color: '#64748b'
             }}>
-              <h4 style={{ margin: '0 0 12px 0', color: '#374151', fontSize: '14px' }}>📋 Objaśnienia kolumn:</h4>
+              <h4 style={{ margin: '0 0 12px 0', color: '#374151', fontSize: '14px' }}>Objaśnienia kolumn:</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '12px' }}>
                 <div>
-                  <strong>✅ Weryfikacja:</strong> Status połączenia SMTP/IMAP
+                  <strong>Weryfikacja:</strong> Status połączenia SMTP/IMAP
                 </div>
                 <div>
-                  <strong>🎯 Dostępność:</strong> Czy skrzynka jest aktywna do wysyłania
+                  <strong>Dostępność:</strong> Czy skrzynka jest aktywna do wysyłania
                 </div>
                 <div>
-                  <strong>🔥 Warmup:</strong> Status rozgrzewania skrzynki
+                  <strong>Warmup:</strong> Status rozgrzewania skrzynki
                 </div>
               </div>
             </div>
@@ -765,7 +765,7 @@ export default function MailboxesPage() {
                         {/* Sprawdź czy to główna skrzynka */}
                         {salesperson?.email === mailbox.email && (
                           <div style={{ fontSize: 11, color: "#059669", marginTop: 2, fontWeight: "600" }}>
-                            🎯 Główna skrzynka
+                            Główna skrzynka
                           </div>
                         )}
                         {/* Pokaż description tylko jeśli to nie jest główna skrzynka */}
@@ -888,15 +888,15 @@ export default function MailboxesPage() {
                           }}
                           title={mailbox.verificationStatus !== 'verified' ? 'Skrzynka musi przejść weryfikację aby mogła być aktywna' : ''}
                         >
-                          {mailbox.isActive ? "✅ Dostępna" : "❌ Zablokowana"}
+                          {mailbox.isActive ? "Dostępna" : "Zablokowana"}
                         </button>
                       </td>
                       <td style={{ padding: 12, textAlign: "center" }}>
                         <div style={{ fontSize: 11, color: "#666" }}>
-                          {mailbox.mailboxType === 'warmed_up' ? '✅ Gotowa (istniejąca)' : 
-                           mailbox.warmupStatus === 'warming' ? '🔥 Rozgrzewana' : 
-                           (mailbox.warmupStatus === 'ready' && mailbox.warmupDay > 0) ? '✅ Rozgrzana' :
-                           '⏸️ Nowa'}
+                          {mailbox.mailboxType === 'warmed_up' ? 'Gotowa (istniejąca)' : 
+                           mailbox.warmupStatus === 'warming' ? 'Rozgrzewana' : 
+                           (mailbox.warmupStatus === 'ready' && mailbox.warmupDay > 0) ? 'Rozgrzana' :
+                           'Nowa'}
                         </div>
                       </td>
                       <td style={{ padding: 12, textAlign: "center" }}>

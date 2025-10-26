@@ -161,7 +161,7 @@ export async function POST(
     const existingIds = existing.map(cl => cl.leadId);
     const newLeadIds = leadIds.filter(id => !existingIds.includes(id));
 
-    // Sprawdź status leadów - blokuj leady bez powitania
+    // Sprawdź status leadów
     const leadsToCheck = await db.lead.findMany({
       where: {
         id: { in: newLeadIds }
@@ -174,19 +174,44 @@ export async function POST(
       }
     });
 
-    const leadsWithoutGreeting = leadsToCheck.filter(lead => 
-      lead.status === "NO_GREETING" || !lead.greetingForm
-    );
-
-    if (leadsWithoutGreeting.length > 0) {
+    // BLOKUJ ZABLOKOWANYCH LEADÓW
+    const blockedLeads = leadsToCheck.filter(lead => lead.status === 'BLOCKED' || lead.status === 'BLOKADA');
+    if (blockedLeads.length > 0) {
       return NextResponse.json({ 
-        error: `Nie można dodać ${leadsWithoutGreeting.length} leadów bez przygotowanych powitań. Użyj funkcji "Przygotuj powitanie" najpierw.`,
-        leadsWithoutGreeting: leadsWithoutGreeting.map(lead => ({
+        error: `Nie można dodać ${blockedLeads.length} zablokowanych leadów do kampanii. Ledy zostały odblokowane lub usunięte.`,
+        blockedLeads: blockedLeads.map(lead => ({
           id: lead.id,
           email: lead.email,
           status: lead.status
         }))
       }, { status: 400 });
+    }
+
+    // ✅ NOWE: Automatycznie dodaj powitania dla leadów które nie mają
+    const leadsWithoutGreeting = leadsToCheck.filter(lead => 
+      lead.status === "NO_GREETING" || !lead.greetingForm
+    );
+
+    if (leadsWithoutGreeting.length > 0) {
+      console.log(`[CAMPAIGN LEADS] Znaleziono ${leadsWithoutGreeting.length} leadów bez powitania - generuję domyślne...`);
+      
+      // Generuj powitania dla leadów bez nich
+      for (const lead of leadsWithoutGreeting) {
+        const lang = lead.language || "pl";
+        let defaultGreeting: string;
+        
+        if (lang === "en") defaultGreeting = "Hello,";
+        else if (lang === "de") defaultGreeting = "Guten Tag,";
+        else if (lang === "fr") defaultGreeting = "Bonjour,";
+        else defaultGreeting = "Dzień dobry,";
+        
+        await db.lead.update({
+          where: { id: lead.id },
+          data: { greetingForm: defaultGreeting }
+        });
+        
+        console.log(`[CAMPAIGN LEADS] Dodano domyślne powitanie dla ${lead.email}: "${defaultGreeting}"`);
+      }
     }
 
     // Dodaj nowe powiązania

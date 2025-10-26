@@ -5,6 +5,7 @@ import CampaignTextEditor from "./CampaignTextEditor";
 import SalespersonEditor from "./SalespersonEditor";
 import CampaignSender from "./CampaignSender";
 import CampaignScheduler from "./CampaignScheduler";
+import CampaignStartButton from "./CampaignStartButton";
 import CampaignReport from "./CampaignReport";
 import LeadsEditor from "./LeadsEditor";
 import DeleteCampaign from "./DeleteCampaign";
@@ -106,7 +107,6 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
             fontSize: 13
           }}>
             <strong>Treść z Content Planner:</strong>{" "}
-            {campaign.savedContent.productGroup.iconEmoji}{" "}
             {campaign.savedContent.productGroup.name} &gt;{" "}
             {campaign.savedContent.name}{" "}
             ({campaign.savedContent.type})
@@ -186,12 +186,21 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
         scheduledAt={campaign.scheduledAt?.toISOString() || null}
         allowedDays={campaign.allowedDays}
         startHour={campaign.startHour}
+        startMinute={campaign.startMinute ?? 0}
         endHour={campaign.endHour}
+        endMinute={campaign.endMinute ?? 0}
         delayBetweenEmails={campaign.delayBetweenEmails}
         maxEmailsPerHour={campaign.maxEmailsPerHour}
         respectHolidays={campaign.respectHolidays}
         targetCountries={campaign.targetCountries}
         leadsCount={leadsWithStatus.length}
+      />
+
+      <CampaignStartButton
+        campaignId={campaignId}
+        currentStatus={campaign.status}
+        leadsCount={leadsWithStatus.length}
+        delayBetweenEmails={campaign.delayBetweenEmails}
       />
 
       <CampaignTextEditor 

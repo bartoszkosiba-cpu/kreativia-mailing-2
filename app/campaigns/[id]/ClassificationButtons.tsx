@@ -29,7 +29,7 @@ export default function ClassificationButtons({
     {
       key: "interested",
       label: "Zainteresowani",
-      icon: "😊",
+      icon: "",
       color: "#4caf50",
       bgColor: "#e8f5e8",
       borderColor: "#4caf50",
@@ -38,7 +38,7 @@ export default function ClassificationButtons({
     {
       key: "notInterested", 
       label: "Niezainteresowani",
-      icon: "😐",
+      icon: "",
       color: "#ff9800",
       bgColor: "#fff3e0",
       borderColor: "#ff9800",
@@ -47,7 +47,7 @@ export default function ClassificationButtons({
     {
       key: "unsubscribe",
       label: "Wypisani", 
-      icon: "🚫",
+      icon: "",
       color: "#f44336",
       bgColor: "#ffebee",
       borderColor: "#f44336",
@@ -56,7 +56,7 @@ export default function ClassificationButtons({
     {
       key: "outOfOffice",
       label: "Poza biurem",
-      icon: "🏖️",
+      icon: "",
       color: "#ff9800", 
       bgColor: "#fff3e0",
       borderColor: "#ff9800",
@@ -65,7 +65,7 @@ export default function ClassificationButtons({
     {
       key: "redirect",
       label: "Przekierowania",
-      icon: "🔄",
+      icon: "",
       color: "#9c27b0",
       bgColor: "#f3e5f5", 
       borderColor: "#9c27b0",
@@ -74,7 +74,7 @@ export default function ClassificationButtons({
     {
       key: "bounce",
       label: "Odbite",
-      icon: "📧",
+      icon: "",
       color: "#9c27b0",
       bgColor: "#f3e5f5",
       borderColor: "#9c27b0", 
@@ -83,7 +83,7 @@ export default function ClassificationButtons({
     {
       key: "other",
       label: "Inne",
-      icon: "❓",
+      icon: "",
       color: "#607d8b",
       bgColor: "#eceff1",
       borderColor: "#607d8b",
@@ -108,7 +108,7 @@ export default function ClassificationButtons({
   return (
     <div style={{ marginBottom: 24, padding: 16, backgroundColor: "white", borderRadius: 8 }}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-        <h3 style={{ margin: 0, marginRight: 12 }}>🎯 Klasyfikacja odpowiedzi</h3>
+        <h3 style={{ margin: 0, marginRight: 12 }}>Klasyfikacja odpowiedzi</h3>
         <span style={{ 
           fontSize: "12px", 
           color: "#666", 
@@ -175,7 +175,7 @@ export default function ClassificationButtons({
                 fontWeight: "600",
                 lineHeight: 1.2
               }}>
-                {classification.icon} {classification.label}
+                {classification.icon}{" "}{classification.label}
               </div>
               
               {/* Wskaźnik aktywności */}
@@ -209,7 +209,7 @@ export default function ClassificationButtons({
           alignItems: "center",
           gap: 8
         }}>
-          <span>🔍 Aktywny filtr:</span>
+          <span>Aktywny filtr:</span>
           <span style={{ fontWeight: "bold" }}>
             {classifications.find(c => c.key === activeFilter)?.label} 
             ({stats[activeFilter as keyof ClassificationStats] || 0})
@@ -228,7 +228,7 @@ export default function ClassificationButtons({
               fontSize: "14px"
             }}
           >
-            ✕ Usuń filtr
+            × Usuń filtr
           </button>
         </div>
       )}
@@ -243,7 +243,7 @@ export default function ClassificationButtons({
           fontSize: "12px",
           color: "#f57c00"
         }}>
-          💡 Masz {stats.other} odpowiedzi do ręcznej obsługi. 
+          Masz {stats.other} odpowiedzi do ręcznej obsługi. 
           <button
             onClick={() => handleFilterClick("other")}
             style={{

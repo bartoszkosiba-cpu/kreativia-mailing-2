@@ -67,6 +67,31 @@ export async function GET(
       }
     });
 
+    // Pobierz odpowiedzi dla tej kampanii i powiąż je z sendLogs
+    const replies = await db.inboxReply.findMany({
+      where: {
+        campaignId
+      },
+      select: {
+        id: true,
+        leadId: true,
+        classification: true,
+        receivedAt: true,
+        createdAt: true
+      }
+    });
+
+    // Funkcja do znajdowania odpowiedzi dla leada
+    const getReplyForLead = (leadId: number) => {
+      return replies.find(reply => reply.leadId === leadId) || null;
+    };
+
+    // Dodaj informacje o odpowiedziach do każdego sendLog
+    const sendLogsWithReplies = sendLogs.map(log => ({
+      ...log,
+      reply: getReplyForLead(log.lead?.id || 0)
+    }));
+
     // Statystyki
     const stats = {
       total: sendLogs.length,
@@ -105,7 +130,7 @@ export async function GET(
           name: campaign.name,
           status: campaign.status
         },
-        sendLogs,
+        sendLogs: sendLogsWithReplies,
         stats,
         mailboxStats: Object.values(mailboxStats)
       }

@@ -692,15 +692,33 @@ async function addNewLead(data: any): Promise<void> {
     }
     
     // Wygeneruj greeting dla nowego leada
-    let greetingForm = "Dzień dobry";
-    if (firstName && lastName && originalLead.language === "pl") {
-      greetingForm = `Dzień dobry Panie/Pani ${firstName}`;
-    } else if (firstName && lastName && originalLead.language === "de") {
-      greetingForm = `Guten Tag ${firstName} ${lastName}`;
-    } else if (firstName && lastName && originalLead.language === "en") {
-      greetingForm = `Dear ${firstName} ${lastName}`;
-    } else if (firstName && lastName && originalLead.language === "fr") {
-      greetingForm = `Bonjour ${firstName} ${lastName}`;
+    let greetingForm: string;
+    const lang = originalLead.language || "pl";
+    
+    if (firstName && lastName) {
+      // Ma imię - wygeneruj pełne powitanie z chatgptService
+      try {
+        const { chatgptService } = await import("@/services/chatgptService");
+        const results = await chatgptService.batchProcessNames(
+          [firstName],
+          [lastName],
+          [lang]
+        );
+        greetingForm = results && results[0]?.greetingForm ? results[0].greetingForm : "Dzień dobry,";
+      } catch (error) {
+        console.error("[AI AGENT] Błąd generowania powitania:", error);
+        // Fallback do powitania BEZ tytułu
+        if (lang === "en") greetingForm = "Hello,";
+        else if (lang === "de") greetingForm = "Guten Tag,";
+        else if (lang === "fr") greetingForm = "Bonjour,";
+        else greetingForm = "Dzień dobry,";
+      }
+    } else {
+      // Nie ma imienia - domyślne powitanie BEZ tytułu
+      if (lang === "en") greetingForm = "Hello,";
+      else if (lang === "de") greetingForm = "Guten Tag,";
+      else if (lang === "fr") greetingForm = "Bonjour,";
+      else greetingForm = "Dzień dobry,";
     }
     
     console.log(`[AI AGENT] Greeting dla ${data.email}: ${greetingForm}`);

@@ -180,23 +180,39 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         continue;
       }
       
-      // Sprawdź czy mail już został wysłany (zapobieganie duplikatom)
-      // SKIP jeśli forceResend = true
+      // Sprawdź czy mail już został wysłany (zapobieganie duplikatom TYLKO jeśli sukces)
+      const alreadySent = await db.sendLog.findFirst({
+        where: {
+          campaignId: campaignId,
+          leadId: lead.id,
+          status: "sent"
+        }
+      });
+
+      if (alreadySent && !forceResend) {
+        console.log(`Pomijam leada ${lead.email} - mail już wysłany (${alreadySent.createdAt.toLocaleString()})`);
+        continue;
+      } else if (alreadySent && forceResend) {
+        console.log(`[FORCE RESEND] Wysyłam ponownie do ${lead.email} (pomimo wcześniejszej wysyłki)`);
+      }
+      
+      // Sprawdź czy był błąd w ciągu ostatnich 60 sekund (zapobieganie retry flood)
       if (!forceResend) {
-        const alreadySent = await db.sendLog.findFirst({
+        const recentError = await db.sendLog.findFirst({
           where: {
             campaignId: campaignId,
             leadId: lead.id,
-            status: "sent"
+            status: "error",
+            createdAt: {
+              gte: new Date(Date.now() - 60000) // Ostatnia minuta
+            }
           }
         });
 
-        if (alreadySent) {
-          console.log(`Pomijam leada ${lead.email} - mail już wysłany (${alreadySent.createdAt.toLocaleString()})`);
-          continue;
+        if (recentError) {
+          console.log(`Pomijam leada ${lead.email} - błąd przed chwilą (${recentError.createdAt}), czekam przed retry`);
+          continue; // Skip retry flood
         }
-      } else {
-        console.log(`[FORCE RESEND] Wysyłam ponownie do ${lead.email}`);
       }
       
       // Log priorytetu (1 = wysoki priorytet, np. OOO lead)

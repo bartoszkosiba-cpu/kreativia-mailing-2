@@ -137,10 +137,40 @@ export default function ArchivePage() {
 
   const getTypeLabel = (type: "sent" | "received" | "warmup") => {
     switch (type) {
-      case "sent": return "📤 Wysłany";
-      case "received": return "📥 Odebrany";
-      case "warmup": return "🔥 Warmup";
-      default: return "❓ Nieznany";
+      case "sent": return "Wysłany";
+      case "received": return "Odebrany";
+      case "warmup": return "Warmup";
+      default: return "Nieznany";
+    }
+  };
+
+  const handleClearArchive = async () => {
+    if (!confirm('Czy na pewno chcesz wyczyścić archiwum? To usunie WSZYSTKIE maile z bazy danych.\n\nTej operacji NIE MOŻNA COFNĄĆ!')) {
+      return;
+    }
+
+    if (!confirm('OSTATNIE OSTRZEŻENIE!\n\nTo trwale usunie wszystkie maile (wysłane, odebrane i warmup).\n\nCzy naprawdę chcesz kontynuować?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/archive', {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(data.message);
+        fetchArchive(); // Odśwież listę
+      } else {
+        alert(`Błąd: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`Błąd podczas czyszczenia archiwum: ${error}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -205,13 +235,29 @@ export default function ArchivePage() {
 
   return (
     <div className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <div style={{ marginBottom: "var(--spacing-2xl)" }}>
-        <h1 style={{ fontSize: "2.5rem", marginBottom: "var(--spacing-sm)" }}>
-          Archiwum Maili
-        </h1>
-        <p style={{ fontSize: "1.1rem", color: "var(--gray-600)" }}>
-          Centralne archiwum wszystkich maili - wysłanych, odebranych i warmup
-        </p>
+      <div style={{ marginBottom: "var(--spacing-2xl)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ fontSize: "2.5rem", marginBottom: "var(--spacing-sm)" }}>
+            Archiwum Maili
+          </h1>
+          <p style={{ fontSize: "1.1rem", color: "var(--gray-600)" }}>
+            Centralne archiwum wszystkich maili - wysłanych, odebranych i warmup
+          </p>
+        </div>
+        <button
+          onClick={handleClearArchive}
+          disabled={loading}
+          className="btn"
+          style={{
+            backgroundColor: "#dc3545",
+            color: "white",
+            borderColor: "#dc3545",
+            fontWeight: "bold",
+            padding: "12px 24px"
+          }}
+        >
+          Wyczyść archiwum
+        </button>
       </div>
 
       {/* Statystyki */}

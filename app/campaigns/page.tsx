@@ -56,28 +56,71 @@ export default async function CampaignsPage() {
     sendingCompletedAt: c.sendingCompletedAt ? c.sendingCompletedAt.toISOString() : null
   }));
 
+  // Statystyki
+  const stats = {
+    total: campaigns.length,
+    inProgress: campaigns.filter(c => c.status === "IN_PROGRESS").length,
+    completed: campaigns.filter(c => c.status === "COMPLETED").length,
+    scheduled: campaigns.filter(c => c.status === "SCHEDULED").length
+  };
+
   return (
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <div className="flex-between" style={{ marginBottom: "var(--spacing-lg)" }}>
-        <div>
-          <h1>Kampanie</h1>
-          <p style={{ color: "var(--gray-600)" }}>
-            Wszystkie kampanie ({campaigns.length} rekordów)
-          </p>
+      <div style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <h1 style={{ fontSize: "2.5rem", marginBottom: "var(--spacing-sm)" }}>
+          Kampanie
+        </h1>
+        <p style={{ fontSize: "1.1rem", color: "var(--gray-600)" }}>
+          Zarządzaj kampaniami email - tworzenie, wysyłka i monitoring
+        </p>
+      </div>
+
+      {/* Statystyki */}
+      <div className="grid grid-4" style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Wszystkie</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--primary)" }}>
+            {stats.total}
+          </div>
         </div>
-        <div className="flex gap-sm">
-          <Link 
-            href="/campaigns/new" 
-            className="btn btn-success"
-          >
-            ➕ Nowa kampania
-          </Link>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Wysyła się</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--warning)" }}>
+            {stats.inProgress}
+          </div>
+        </div>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Zakończone</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--success)" }}>
+            {stats.completed}
+          </div>
+        </div>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Zaplanowane</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--info)" }}>
+            {stats.scheduled}
+          </div>
         </div>
       </div>
-      <CampaignsList 
-        initialCampaigns={campaignsForClient}
-        initialProgress={progressData}
-      />
+
+      {/* Header z przyciskiem */}
+      <div className="flex-between" style={{ marginBottom: "var(--spacing-lg)" }}>
+        <h2>Lista kampanii</h2>
+        <Link 
+          href="/campaigns/new" 
+          className="btn btn-success"
+        >
+          Nowa kampania
+        </Link>
+      </div>
+
+      {/* Lista kampanii w card */}
+      <div className="card">
+        <CampaignsList 
+          initialCampaigns={campaignsForClient}
+          initialProgress={progressData}
+        />
+      </div>
     </main>
   );
 }

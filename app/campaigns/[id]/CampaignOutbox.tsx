@@ -29,6 +29,13 @@ interface OutboxData {
       email: string;
       displayName: string | null;
     } | null;
+    reply: {
+      id: number;
+      leadId: number | null;
+      classification: string | null;
+      receivedAt: string;
+      createdAt: string;
+    } | null;
   }>;
   stats: {
     total: number;
@@ -44,6 +51,32 @@ interface OutboxData {
     failed: number;
   }>;
 }
+
+// Funkcja do formatowania statusu odpowiedzi
+const getReplyStatus = (classification: string | null, hasReply: boolean) => {
+  if (!hasReply) {
+    return { label: 'Brak odpowiedzi', color: '#999' };
+  }
+  
+  switch (classification) {
+    case 'INTERESTED':
+      return { label: 'Zainteresowany', color: '#4caf50' };
+    case 'NOT_INTERESTED':
+      return { label: 'Niezainteresowany', color: '#ff9800' };
+    case 'UNSUBSCRIBE':
+      return { label: 'Wypisany', color: '#f44336' };
+    case 'OOO':
+      return { label: 'Poza biurem', color: '#ff9800' };
+    case 'REDIRECT':
+      return { label: 'Przekierowanie', color: '#9c27b0' };
+    case 'BOUNCE':
+      return { label: 'Odbity', color: '#f44336' };
+    case 'OTHER':
+      return { label: 'Inne', color: '#607d8b' };
+    default:
+      return { label: 'Klasa nieznana', color: '#999' };
+  }
+};
 
 export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
   const [data, setData] = useState<OutboxData | null>(null);
@@ -119,7 +152,7 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
 
   return (
     <div style={{ padding: 24 }}>
-      <h2 style={{ marginBottom: 24 }}>📤 Wysyłki kampanii: {data.campaign.name}</h2>
+      <h2 style={{ marginBottom: 24 }}>Wysyłki kampanii: {data.campaign.name}</h2>
 
       {/* Statystyki */}
       <div style={{ 
@@ -165,16 +198,16 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
             borderRadius: 8,
             border: '1px solid #ffeeba'
           }}>
-            <div style={{ fontSize: 14, color: '#856404', marginBottom: 4 }}>⚠️ Do zablokowanych</div>
+            <div style={{ fontSize: 14, color: '#856404', marginBottom: 4 }}>Do zablokowanych</div>
             <div style={{ fontSize: 28, fontWeight: 'bold', color: '#856404' }}>{data.stats.sentToBlocked}</div>
           </div>
         )}
       </div>
 
       {/* Statystyki skrzynek */}
-      {data.mailboxStats.length > 0 && (
+        {data.mailboxStats.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ marginBottom: 12 }}>📬 Użyte skrzynki</h3>
+          <h3 style={{ marginBottom: 12 }}>Użyte skrzynki</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             {data.mailboxStats.map((mailbox, i) => (
               <div key={i} style={{ 
@@ -189,8 +222,8 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
                   <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>{mailbox.displayName}</div>
                 )}
                 <div style={{ fontSize: 14, color: '#0066cc' }}>
-                  ✅ {mailbox.sent} wysłanych
-                  {mailbox.failed > 0 && ` | ❌ ${mailbox.failed} błędów`}
+                  {mailbox.sent} wysłanych
+                  {mailbox.failed > 0 && ` | ${mailbox.failed} błędów`}
                 </div>
               </div>
             ))}
@@ -251,7 +284,7 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
               fontWeight: filter === 'blocked' ? 'bold' : 'normal'
             }}
           >
-            ⚠️ Do zablokowanych ({data.stats.sentToBlocked})
+            Do zablokowanych ({data.stats.sentToBlocked})
           </button>
         )}
       </div>
@@ -269,13 +302,14 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
               <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Data i godzina</th>
               <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Do kogo</th>
               <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Z jakiej skrzynki</th>
-              <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Status</th>
+              <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Status wysyłki</th>
+              <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Odpowiedź</th>
             </tr>
           </thead>
           <tbody>
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ padding: 24, textAlign: 'center', color: '#999' }}>
+                <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#999' }}>
                   Brak wysyłek w wybranym filtrze
                 </td>
               </tr>
@@ -283,6 +317,8 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
               filteredLogs.map((log) => {
                 const isBlocked = log.lead.isBlocked || log.lead.status === 'BLOCKED';
                 const isFailed = log.status === 'error';
+                const hasReply = !!log.reply;
+                const replyStatus = getReplyStatus(log.reply?.classification || null, hasReply);
                 
                 return (
                   <tr 
@@ -307,7 +343,7 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
                       )}
                       {isBlocked && (
                         <div style={{ fontSize: 11, color: '#856404', marginTop: 4 }}>
-                          ⚠️ ZABLOKOWANY: {log.lead.blockedReason || 'Nieznany powód'}
+                          ZABLOKOWANY: {log.lead.blockedReason || 'Nieznany powód'}
                         </div>
                       )}
                     </td>
@@ -325,10 +361,10 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
                     </td>
                     <td style={{ padding: 12 }}>
                       {log.status === 'sent' ? (
-                        <span style={{ color: '#28a745', fontWeight: 'bold' }}>✅ Wysłano</span>
+                        <span style={{ color: '#28a745', fontWeight: 'bold' }}>Wysłano</span>
                       ) : log.status === 'error' ? (
                         <>
-                          <span style={{ color: '#dc3545', fontWeight: 'bold' }}>❌ Błąd</span>
+                          <span style={{ color: '#dc3545', fontWeight: 'bold' }}>Błąd</span>
                           {log.error && (
                             <div style={{ fontSize: 11, color: '#721c24', marginTop: 4 }}>
                               {log.error}
@@ -336,7 +372,18 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
                           )}
                         </>
                       ) : (
-                        <span style={{ color: '#6c757d' }}>⏳ {log.status}</span>
+                        <span style={{ color: '#6c757d' }}>{log.status}</span>
+                      )}
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      {hasReply ? (
+                        <span style={{ color: replyStatus.color, fontWeight: 'bold' }}>
+                          {replyStatus.label}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#999', fontStyle: 'italic' }}>
+                          Brak odpowiedzi
+                        </span>
                       )}
                     </td>
                   </tr>

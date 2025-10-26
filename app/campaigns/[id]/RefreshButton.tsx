@@ -64,7 +64,7 @@ export default function RefreshButton() {
         color: "var(--gray-600)",
         marginLeft: "auto"
       }}>
-        ℹ️ Dane odświeżają się automatycznie, aby pokazać zmiany z bazy kontaktów
+        Dane odświeżają się automatycznie, aby pokazać zmiany z bazy kontaktów
       </span>
     </div>
   );

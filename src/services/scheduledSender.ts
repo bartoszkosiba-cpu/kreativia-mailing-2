@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { sendCampaignEmail } from "@/integrations/smtp/client";
 import { getNextScheduledCampaign, isValidSendTime } from "./campaignScheduler";
 import { getRemainingDailyLimit, incrementSentCounter, recalculateQueueForSalesperson } from "./queueManager";
+import { getNextAvailableMailbox, incrementMailboxCounter } from "./mailboxManager";
 
 /**
  * Wysyła pojedynczego maila z opóźnieniem
@@ -21,6 +22,31 @@ async function sendSingleEmail(
       content = lead.greetingForm + "\n\n" + campaign.text;
     }
 
+    // Pobierz dostępną skrzynkę mailową (round-robin)
+    let mailbox = null;
+    if (campaign.virtualSalespersonId) {
+      mailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId);
+      
+      if (!mailbox) {
+        const error = "Brak dostępnych skrzynek mailowych dla handlowca";
+        console.error(`[SENDER] ${error}`);
+        
+        // Zapisz log błędu
+        await db.sendLog.create({
+          data: {
+            campaignId: campaign.id,
+            leadId: lead.id,
+            status: "error",
+            error: error
+          }
+        });
+
+        return { success: false, error: error };
+      }
+      
+      console.log(`[SENDER] Używam skrzynki: ${mailbox.email} (pozostało: ${mailbox.remainingToday})`);
+    }
+
     const result = await sendCampaignEmail({
       subject: campaign.subject || "Brak tematu",
       content: content,
@@ -29,6 +55,7 @@ async function sendSingleEmail(
       leadName: lead.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : undefined,
       leadCompany: lead.company,
       salesperson: campaign.virtualSalesperson,
+      mailbox: mailbox || undefined, // NOWE: Przekaż mailbox
       campaign: {
         jobDescription: campaign.jobDescription,
         postscript: campaign.postscript,
@@ -43,10 +70,18 @@ async function sendSingleEmail(
       data: {
         campaignId: campaign.id,
         leadId: lead.id,
+        mailboxId: mailbox?.id || null,
+        subject: campaign.subject || "Brak tematu", // NOWE: Zapisz subject
+        content: content, // NOWE: Zapisz content
         status: "sent",
         messageId: result.messageId
       }
     });
+
+    // Inkrementuj licznik użycia skrzynki
+    if (mailbox) {
+      await incrementMailboxCounter(mailbox.id);
+    }
 
     return { success: true, messageId: result.messageId };
   } catch (error: any) {
@@ -91,7 +126,9 @@ export async function processScheduledCampaign(): Promise<void> {
     now,
     allowedDays,
     campaign.startHour,
+    campaign.startMinute ?? 0,
     campaign.endHour,
+    campaign.endMinute ?? 0,
     campaign.respectHolidays,
     targetCountries
   );
@@ -128,6 +165,18 @@ export async function processScheduledCampaign(): Promise<void> {
   
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i];
+    
+    // ✅ NOWE: Sprawdź czy kampania nie została zatrzymana (PAUSED)
+    const currentCampaign = await db.campaign.findUnique({
+      where: { id: campaign.id },
+      select: { status: true }
+    });
+    
+    if (currentCampaign?.status === "PAUSED") {
+      console.log('[SCHEDULED SENDER] ⏸️  Kampania zatrzymana przez użytkownika');
+      skippedCount = leads.length - i;
+      break;
+    }
     
     // Sprawdź czy mail już został wysłany (zapobieganie duplikatom)
     const alreadySent = await db.sendLog.findFirst({
@@ -167,7 +216,9 @@ export async function processScheduledCampaign(): Promise<void> {
       checkTime,
       allowedDays,
       campaign.startHour,
+      campaign.startMinute ?? 0,
       campaign.endHour,
+      campaign.endMinute ?? 0,
       campaign.respectHolidays,
       targetCountries
     );
