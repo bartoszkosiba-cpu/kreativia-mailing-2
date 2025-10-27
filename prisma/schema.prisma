@@ -77,7 +77,7 @@ model Campaign {
   sendingStartedAt   DateTime? // Kiedy faktycznie rozpoczęto wysyłkę
   sendingCompletedAt DateTime? // Kiedy zakończono wysyłkę
   delayBetweenEmails Int       @default(90) // Opóźnienie między mailami w sekundach (90s = 1.5min)
-  maxEmailsPerHour   Int       @default(40) // Max maili na godzinę
+  maxEmailsPerDay    Int       @default(500) // Max maili dziennie dla kampanii
 
   // Ustawienia okien czasowych
   allowedDays     String  @default("MON,TUE,WED,THU,FRI") // Dni tygodnia
@@ -263,6 +263,10 @@ model CompanySettings {
   disclaimerFr String? // "En cas d'absence d'intérêt..." - Français
   legalFooter  String? // Stopka prawna
   forwardEmail String? // Email do powiadomień (forwarding zainteresowanych)
+  
+  // Ustawienia wydajności skrzynek (warmup & kampanie)
+  warmupPerformanceSettings String? // JSON: [{week:1, warmup:15, campaign:10}, ...]
+  
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

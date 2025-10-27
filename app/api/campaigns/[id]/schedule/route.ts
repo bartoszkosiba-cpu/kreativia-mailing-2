@@ -21,7 +21,7 @@ export async function PUT(
         endHour: data.endHour,
         endMinute: data.endMinute || 0,
         delayBetweenEmails: data.delayBetweenEmails,
-        maxEmailsPerHour: data.maxEmailsPerHour,
+        maxEmailsPerDay: data.maxEmailsPerDay,
         respectHolidays: data.respectHolidays,
         targetCountries: data.targetCountries || null,
         status: data.scheduledAt ? "SCHEDULED" : "DRAFT"

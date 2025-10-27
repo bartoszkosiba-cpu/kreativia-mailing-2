@@ -77,6 +77,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
       lastName: cl.lead.lastName,
       email: cl.lead.email,
       company: cl.lead.company,
+      language: cl.lead.language || "pl",
       hasSentEmail: sentLeadIds.has(cl.lead.id)
     }));
 
@@ -190,7 +191,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
         endHour={campaign.endHour}
         endMinute={campaign.endMinute ?? 0}
         delayBetweenEmails={campaign.delayBetweenEmails}
-        maxEmailsPerHour={campaign.maxEmailsPerHour}
+        maxEmailsPerDay={campaign.maxEmailsPerDay}
         respectHolidays={campaign.respectHolidays}
         targetCountries={campaign.targetCountries}
         leadsCount={leadsWithStatus.length}

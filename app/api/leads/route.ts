@@ -35,16 +35,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ✅ ZAWSZE filtruj zablokowanych leadów (chyba że user jawnie chce je zobaczyć)
-    if (status && (status === 'BLOKADA' || status === 'BLOCKED')) {
-      // User chce zobaczyć tylko zablokowanych - nie filtruj
-    } else {
-      // Filtruj zablokowanych - NIE POKAZUJ w standardowej liście
-      whereConditions.NOT = [
-        { status: 'BLOKADA' },
-        { status: 'BLOCKED' }
-      ];
-    }
+    // ✅ NIE filtruj zablokowanych - użytkownik może je zobaczyć w liście statusów
+    // (tylko w "dodaj leady do kampanii" filtrujemy na status=AKTYWNY)
 
     if (search) {
       whereConditions.OR = [

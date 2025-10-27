@@ -51,6 +51,7 @@ export async function PUT(req: NextRequest) {
           disclaimerFr: data.disclaimerFr || null,
           legalFooter: data.legalFooter || null,
           forwardEmail: data.forwardEmail || null,
+          warmupPerformanceSettings: data.warmupPerformanceSettings || null,
         }
       });
     } else {
@@ -66,6 +67,7 @@ export async function PUT(req: NextRequest) {
           disclaimerFr: data.disclaimerFr || null,
           legalFooter: data.legalFooter || null,
           forwardEmail: data.forwardEmail || null,
+          warmupPerformanceSettings: data.warmupPerformanceSettings || null,
         }
       });
     }

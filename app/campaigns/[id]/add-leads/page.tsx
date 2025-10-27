@@ -73,8 +73,8 @@ export default function AddLeadsPage() {
   };
 
   const filteredLeads = leads.filter(lead => {
-    // Filtruj tylko aktywne leady (nie zablokowane)
-    if (lead.status === 'BLOCKED' || lead.status === 'BLOKADA') return false;
+    // Tylko leady ze statusem AKTYWNY mogą być dodane do kampanii
+    if (lead.status !== 'AKTYWNY') return false;
     
     // Filtr po tagach - muszą mieć WSZYSTKIE wybrane tagi
     if (selectedTagIds.length > 0) {

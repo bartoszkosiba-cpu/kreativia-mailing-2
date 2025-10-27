@@ -16,6 +16,7 @@ export interface ImapConfig {
   imapUser: string;
   imapPass: string;
   imapSecure: boolean;
+  createdAt?: Date; // Opcjonalna data od której pobierać maile (np. data utworzenia skrzynki)
 }
 
 export interface ParsedEmail {
@@ -64,12 +65,23 @@ export async function fetchUnreadEmails(config?: ImapConfig): Promise<ParsedEmai
     const emails: ParsedEmail[] = [];
     let fetchCompleted = false;
 
-    // Używaj ostatnich 2 dni jako filtr daty (bezpieczniejsze niż 24h)
-    const sinceDate = new Date();
-    sinceDate.setDate(sinceDate.getDate() - 2);
-    console.log(`[IMAP] Używam ostatnich 2 dni: ${sinceDate.toISOString()}`);
+    // Użyj createdAt z config jeśli podane, w przeciwnym razie ostatnie 15 minut (zamiast 2 dni)
+    let sinceDate: Date;
+    let filterByDate = false;
+    
+    if (config?.createdAt) {
+      sinceDate = config.createdAt;
+      filterByDate = true; // Zapamiętaj że musimy filtrować po dacie i godzinie
+      console.log(`[IMAP] Używam daty utworzenia skrzynki: ${sinceDate.toISOString()}`);
+    } else {
+      sinceDate = new Date();
+      sinceDate.setMinutes(sinceDate.getMinutes() - 15); // Ostatnie 15 minut
+      console.log(`[IMAP] Używam ostatnich 15 minut: ${sinceDate.toISOString()}`);
+    }
 
     const dateStr = sinceDate.toISOString().split('T')[0].replace(/-/g, '-');
+    // ZAPAMIĘTAJ sinceDate dla filtrowania w kodzie (bo SINCE działa tylko na dzień, nie godziny)
+    const filterDate = filterByDate ? sinceDate : null;
 
     imap.once("ready", () => {
       console.log("[IMAP] Połączono, otwieranie skrzynki...");
@@ -152,11 +164,27 @@ export async function fetchUnreadEmails(config?: ImapConfig): Promise<ParsedEmai
             // Poczekaj chwilę na parsowanie wszystkich maili
             setTimeout(() => {
               console.log(`[IMAP] Timeout zakończony, pobrano ${emails.length} maili`);
+              
+              // NOWE: Filtruj maile po dacie createdAt (jeśli podane)
+              let filteredEmails = emails;
+              if (filterDate && emails.length > 0) {
+                const beforeFilter = emails.length;
+                filteredEmails = emails.filter(email => {
+                  const emailDate = new Date(email.date);
+                  const isAfterCreated = emailDate >= filterDate;
+                  if (!isAfterCreated) {
+                    console.log(`[IMAP] 🔒 Odfiltrowano stary mail z ${emailDate.toISOString()} (przed ${filterDate.toISOString()})`);
+                  }
+                  return isAfterCreated;
+                });
+                console.log(`[IMAP] 📊 Filtrowanie: ${beforeFilter} maili -> ${filteredEmails.length} maili (po createdAt)`);
+              }
+              
               if (!fetchCompleted) {
                 fetchCompleted = true;
-                console.log(`[IMAP] Rozwiązuję Promise z ${emails.length} mailami`);
+                console.log(`[IMAP] Rozwiązuję Promise z ${filteredEmails.length} mailami`);
                 imap.end();
-                resolve(emails); // RESOLVE TUTAJ!
+                resolve(filteredEmails); // RESOLVE TUTAJ!
               }
             }, 2000);
           });
@@ -175,10 +203,18 @@ export async function fetchUnreadEmails(config?: ImapConfig): Promise<ParsedEmai
     imap.once("end", () => {
       console.log(`[IMAP] Połączenie zakończone, zwracam ${emails.length} maili`);
       if (!fetchCompleted) {
-        console.log(`[IMAP] ⚠️  fetchCompleted był false, resolving...`);
+        // NOWE: Filtruj maile po dacie createdAt (jeśli podane)
+        let filteredEmails = emails;
+        if (filterDate && emails.length > 0) {
+          filteredEmails = emails.filter(email => {
+            const emailDate = new Date(email.date);
+            return emailDate >= filterDate;
+          });
+          console.log(`[IMAP] 📊 Filtrowanie END: ${emails.length} maili -> ${filteredEmails.length} maili (po createdAt)`);
+        }
         fetchCompleted = true;
+        resolve(filteredEmails);
       }
-      resolve(emails);
     });
 
     console.log("[IMAP] Łączę się...");

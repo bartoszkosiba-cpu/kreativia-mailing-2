@@ -100,7 +100,7 @@ export async function GET(
       queued: sendLogs.filter(log => log.status === 'queued').length,
       sentToBlocked: sendLogs.filter(log => 
         log.status === 'sent' && 
-        (log.lead.status === 'BLOCKED' || log.lead.isBlocked)
+        log.lead && (log.lead.status === 'BLOCKED' || log.lead.isBlocked)
       ).length
     };
 

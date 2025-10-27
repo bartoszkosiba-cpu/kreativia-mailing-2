@@ -48,6 +48,7 @@ export default function ArchivePage() {
     byClassification: {}
   });
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   
   // Filtry
   const [type, setType] = useState<"all" | "sent" | "received" | "warmup">("all");
@@ -141,6 +142,28 @@ export default function ArchivePage() {
       case "received": return "Odebrany";
       case "warmup": return "Warmup";
       default: return "Nieznany";
+    }
+  };
+
+  const handleFetch = async () => {
+    setIsFetching(true);
+    try {
+      const response = await fetch('/api/inbox/fetch', {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(data.message || `Przetworzono ${data.count || 0} nowych maili`);
+        fetchArchive(); // Odśwież listę
+      } else {
+        alert(`Błąd: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`Błąd podczas pobierania maili: ${error}`);
+    } finally {
+      setIsFetching(false);
     }
   };
 
@@ -244,20 +267,38 @@ export default function ArchivePage() {
             Centralne archiwum wszystkich maili - wysłanych, odebranych i warmup
           </p>
         </div>
-        <button
-          onClick={handleClearArchive}
-          disabled={loading}
-          className="btn"
-          style={{
-            backgroundColor: "#dc3545",
-            color: "white",
-            borderColor: "#dc3545",
-            fontWeight: "bold",
-            padding: "12px 24px"
-          }}
-        >
-          Wyczyść archiwum
-        </button>
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button
+            onClick={handleFetch}
+            disabled={isFetching}
+            className="btn"
+            style={{
+              backgroundColor: isFetching ? "#ccc" : "var(--primary)",
+              color: "white",
+              border: "none",
+              fontWeight: "bold",
+              padding: "12px 24px",
+              borderRadius: "6px",
+              cursor: isFetching ? "not-allowed" : "pointer"
+            }}
+          >
+            {isFetching ? "⏳ Pobieranie..." : "🔄 Odśwież"}
+          </button>
+          <button
+            onClick={handleClearArchive}
+            disabled={loading}
+            className="btn"
+            style={{
+              backgroundColor: "#dc3545",
+              color: "white",
+              borderColor: "#dc3545",
+              fontWeight: "bold",
+              padding: "12px 24px"
+            }}
+          >
+            Wyczyść archiwum
+          </button>
+        </div>
       </div>
 
       {/* Statystyki */}
@@ -737,12 +778,29 @@ export default function ArchivePage() {
                 borderRadius: "var(--radius)",
                 border: "1px solid #bae6fd"
               }}>
-                <strong style={{ color: "#0369a1" }}>📤 Nadawca</strong><br />
+                <strong style={{ color: "#0369a1" }}>📤 {selectedEmail.type === 'received' ? 'Odebrał' : 'Wysłał'}</strong><br />
                 <div style={{ marginTop: "var(--spacing-xs)" }}>
-                  <strong>{selectedEmail.mailboxName}</strong><br />
-                  <span style={{ color: "var(--gray-600)", fontSize: "12px", wordBreak: "break-all" }}>
-                    {selectedEmail.fromEmail}
-                  </span>
+                  {selectedEmail.type === 'received' ? (
+                    // Dla odpowiedzi: kto odpisał
+                    <>
+                      <span style={{ color: "var(--gray-700)", wordBreak: "break-all" }}>
+                        {selectedEmail.fromEmail}
+                      </span>
+                      {selectedEmail.leadName && selectedEmail.leadName !== selectedEmail.fromEmail && (
+                        <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--gray-600)" }}>
+                          Lead: {selectedEmail.leadName} {selectedEmail.leadCompany && `(${selectedEmail.leadCompany})`}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    // Dla wysłanych: nasza skrzynka
+                    <>
+                      <strong>{selectedEmail.mailboxName}</strong><br />
+                      <span style={{ color: "var(--gray-600)", fontSize: "12px", wordBreak: "break-all" }}>
+                        {selectedEmail.fromEmail}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
               
@@ -752,15 +810,28 @@ export default function ArchivePage() {
                 borderRadius: "var(--radius)",
                 border: "1px solid #bbf7d0"
               }}>
-                <strong style={{ color: "#166534" }}>📥 Odbiorca</strong><br />
+                <strong style={{ color: "#166534" }}>📥 {selectedEmail.type === 'received' ? 'Na skrzynkę' : 'Otrzymał'}</strong><br />
                 <div style={{ marginTop: "var(--spacing-xs)" }}>
-                  <span style={{ color: "var(--gray-700)", wordBreak: "break-all" }}>
-                    {selectedEmail.toEmail}
-                  </span>
-                  {selectedEmail.leadName && selectedEmail.leadName !== selectedEmail.toEmail && (
-                    <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--gray-600)" }}>
-                      Lead: {selectedEmail.leadName} {selectedEmail.leadCompany && `(${selectedEmail.leadCompany})`}
-                    </div>
+                  {selectedEmail.type === 'received' ? (
+                    // Dla odpowiedzi: nasza skrzynka
+                    <>
+                      <strong>{selectedEmail.mailboxName}</strong><br />
+                      <span style={{ color: "var(--gray-600)", fontSize: "12px", wordBreak: "break-all" }}>
+                        {selectedEmail.toEmail}
+                      </span>
+                    </>
+                  ) : (
+                    // Dla wysłanych: lead
+                    <>
+                      <span style={{ color: "var(--gray-700)", wordBreak: "break-all" }}>
+                        {selectedEmail.toEmail}
+                      </span>
+                      {selectedEmail.leadName && selectedEmail.leadName !== selectedEmail.toEmail && (
+                        <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--gray-600)" }}>
+                          Lead: {selectedEmail.leadName} {selectedEmail.leadCompany && `(${selectedEmail.leadCompany})`}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -813,11 +884,10 @@ export default function ArchivePage() {
                   border: "1px solid var(--gray-200)",
                   maxHeight: "300px",
                   overflow: "auto",
-                  fontSize: "12px",
-                  whiteSpace: "pre-wrap"
-                }}>
-                  {selectedEmail.content}
-                </div>
+                  fontSize: "12px"
+                }}
+                dangerouslySetInnerHTML={{ __html: selectedEmail.content }}
+                />
               </div>
             )}
 

@@ -12,7 +12,7 @@ interface CampaignSchedulerProps {
   endHour: number;
   endMinute: number;
   delayBetweenEmails: number;
-  maxEmailsPerHour: number;
+  maxEmailsPerDay: number;
   respectHolidays: boolean;
   targetCountries: string | null;
   leadsCount: number;
@@ -28,7 +28,7 @@ export default function CampaignScheduler({
   endHour,
   endMinute,
   delayBetweenEmails,
-  maxEmailsPerHour,
+  maxEmailsPerDay,
   respectHolidays,
   targetCountries,
   leadsCount
@@ -60,9 +60,29 @@ export default function CampaignScheduler({
       return { hour: 9, minute: 0 }; // Default
     }
     const parts = timeStr.split(':');
-    const hour = parseInt(parts[0]) || 9;
+    const hour = parseInt(parts[0]) || 0;
     const minute = parseInt(parts[1]) || 0;
     return { hour, minute };
+  };
+
+  // Formatuj czas z automatycznym dodawaniem ":"
+  const formatTimeInput = (value: string, currentValue: string): string => {
+    // Usuń wszystko co nie jest cyfrą
+    const digits = value.replace(/[^0-9]/g, '');
+    
+    if (digits.length === 0) return '';
+    
+    // Jeśli ma więcej niż 4 cyfry, obetnij
+    const limitedDigits = digits.slice(0, 4);
+    
+    // Formatuj jako HH:MM
+    if (limitedDigits.length <= 2) {
+      return limitedDigits;
+    } else if (limitedDigits.length === 3) {
+      return `${limitedDigits[0]}${limitedDigits[1]}:${limitedDigits[2]}`;
+    } else {
+      return `${limitedDigits[0]}${limitedDigits[1]}:${limitedDigits[2]}${limitedDigits[3]}`;
+    }
   };
   
   const [schedule, setSchedule] = useState({
@@ -71,7 +91,7 @@ export default function CampaignScheduler({
     startTime: toTimeString(startHour, startMinute || 0),
     endTime: toTimeString(endHour, endMinute || 0),
     delayBetweenEmails,
-    maxEmailsPerHour,
+    maxEmailsPerDay,
     respectHolidays,
     targetCountries: targetCountries || ""
   });
@@ -97,15 +117,26 @@ export default function CampaignScheduler({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Waliduj format czasu
-      const timePattern = /^([0-1]?[0-9]|2[0-3]):([0-5]?[0-9])$/;
+      // Waliduj format czasu (allow 00:00 to 23:59)
+      const timePattern = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
       if (!timePattern.test(schedule.startTime)) {
-        alert("Nieprawidłowy format czasu początku. Użyj formatu HH:MM (np. 09:30)");
+        alert("Nieprawidłowy format czasu początku. Użyj formatu HH:MM (np. 00:00, 09:30)");
         setIsSaving(false);
         return;
       }
       if (!timePattern.test(schedule.endTime)) {
-        alert("Nieprawidłowy format czasu końca. Użyj formatu HH:MM (np. 17:45)");
+        alert("Nieprawidłowy format czasu końca. Użyj formatu HH:MM (np. 23:59, 17:45)");
+        setIsSaving(false);
+        return;
+      }
+      
+      // Parsuj czasy na osobne godziny i minuty
+      const startTime = parseTimeString(schedule.startTime);
+      const endTime = parseTimeString(schedule.endTime);
+      
+      // Waliduj zakres godzin (0-23)
+      if (startTime.hour < 0 || startTime.hour > 23 || endTime.hour < 0 || endTime.hour > 23) {
+        alert("Godziny muszą być w zakresie 00-23");
         setIsSaving(false);
         return;
       }
@@ -119,10 +150,6 @@ export default function CampaignScheduler({
         const [datePart, timePart] = schedule.scheduledAt.split('T');
         scheduledAtISO = `${datePart}T${timePart}:00.000Z`;
       }
-
-      // Parsuj czasy na osobne godziny i minuty
-      const startTime = parseTimeString(schedule.startTime);
-      const endTime = parseTimeString(schedule.endTime);
       
       const response = await fetch(`/api/campaigns/${campaignId}/schedule`, {
         method: "PUT",
@@ -134,7 +161,7 @@ export default function CampaignScheduler({
           endHour: endTime.hour,
           endMinute: endTime.minute,
           delayBetweenEmails: schedule.delayBetweenEmails,
-          maxEmailsPerHour: schedule.maxEmailsPerHour,
+          maxEmailsPerDay: schedule.maxEmailsPerDay,
           respectHolidays: schedule.respectHolidays,
           targetCountries: schedule.targetCountries,
           scheduledAt: scheduledAtISO
@@ -221,7 +248,7 @@ export default function CampaignScheduler({
               <strong>Opóźnienie między mailami:</strong> {schedule.delayBetweenEmails}s
             </p>
             <p style={{ margin: "8px 0" }}>
-              <strong>Max maili/h:</strong> {schedule.maxEmailsPerHour}
+              <strong>Max maili/dzień:</strong> {schedule.maxEmailsPerDay}
             </p>
             <p style={{ margin: "8px 0" }}>
               <strong>Święta:</strong> {schedule.respectHolidays ? "Uwzględniane" : "Ignorowane"}
@@ -296,9 +323,12 @@ export default function CampaignScheduler({
               <input
                 type="text"
                 placeholder="09:00"
-                pattern="[0-9]{1,2}:[0-9]{2}"
+                maxLength={5}
                 value={schedule.startTime}
-                onChange={(e) => setSchedule({ ...schedule, startTime: e.target.value })}
+                onChange={(e) => {
+                  const formatted = formatTimeInput(e.target.value, schedule.startTime);
+                  setSchedule({ ...schedule, startTime: formatted });
+                }}
                 style={{ padding: 8, width: "100%", borderRadius: 4, border: "1px solid #ddd" }}
               />
               <p style={{ fontSize: 12, color: "#666", margin: "4px 0" }}>
@@ -312,9 +342,12 @@ export default function CampaignScheduler({
               <input
                 type="text"
                 placeholder="17:00"
-                pattern="[0-9]{1,2}:[0-9]{2}"
+                maxLength={5}
                 value={schedule.endTime}
-                onChange={(e) => setSchedule({ ...schedule, endTime: e.target.value })}
+                onChange={(e) => {
+                  const formatted = formatTimeInput(e.target.value, schedule.endTime);
+                  setSchedule({ ...schedule, endTime: formatted });
+                }}
                 style={{ padding: 8, width: "100%", borderRadius: 4, border: "1px solid #ddd" }}
               />
               <p style={{ fontSize: 12, color: "#666", margin: "4px 0" }}>
@@ -339,14 +372,14 @@ export default function CampaignScheduler({
             </div>
             <div>
               <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>
-                Max maili/h:
+                Max maili/dzień:
               </label>
               <input
                 type="number"
-                min="10"
-                max="200"
-                value={schedule.maxEmailsPerHour}
-                onChange={(e) => setSchedule({ ...schedule, maxEmailsPerHour: Number(e.target.value) })}
+                min="50"
+                max="2000"
+                value={schedule.maxEmailsPerDay}
+                onChange={(e) => setSchedule({ ...schedule, maxEmailsPerDay: Number(e.target.value) })}
                 style={{ padding: 8, width: "100%", borderRadius: 4, border: "1px solid #ddd" }}
               />
             </div>

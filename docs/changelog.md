@@ -125,3 +125,7 @@
 **Jak sprawdzić:**
 - `git log --oneline -1` - ostatni commit
 - `ls docs/chat-history/` - zapisane konwersacje
+
+## 2025-10-27_00-06-39 - Auto Backup
+- Utworzono kopię zapasową: `backup-2025-10-27_00-06-39`
+- Lokalizacja: `backups/backup-2025-10-27_00-06-39/`

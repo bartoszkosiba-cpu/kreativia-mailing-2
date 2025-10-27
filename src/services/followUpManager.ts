@@ -52,7 +52,7 @@ export async function createFollowUpCampaign(
       startHour: parentCampaign.startHour,
       endHour: parentCampaign.endHour,
       delayBetweenEmails: parentCampaign.delayBetweenEmails,
-      maxEmailsPerHour: parentCampaign.maxEmailsPerHour,
+      maxEmailsPerDay: parentCampaign.maxEmailsPerDay,
       respectHolidays: parentCampaign.respectHolidays,
       targetCountries: parentCampaign.targetCountries
     }

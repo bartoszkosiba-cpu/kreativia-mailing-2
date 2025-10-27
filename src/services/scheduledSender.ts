@@ -149,6 +149,25 @@ export async function processScheduledCampaign(): Promise<void> {
   
   console.log(`[SCHEDULED SENDER] ✓ Rozpoczynam wysyłkę kampanii ${campaign.name}`);
   
+  // SPRAWDŹ CZY SĄ DOSTĘPNE SKRZYNKI (PRZED ROZPOCZĘCIEM)
+  if (campaign.virtualSalespersonId) {
+    const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId);
+    if (!availableMailbox) {
+      console.log('[SCHEDULED SENDER] ⛔ BRAK DOSTĘPNYCH SKRZYNKEK - zatrzymuję kampanię');
+      
+      await db.campaign.update({
+        where: { id: campaign.id },
+        data: { 
+          status: "SCHEDULED",
+          description: (campaign.description || "") + "\n\n[Automatyczne zatrzymanie " + new Date().toISOString() + "] Brak dostępnych skrzynek - kampania zostanie wznowiona jutro."
+        }
+      });
+      
+      return; // Zatrzymaj kampanię natychmiast
+    }
+    console.log(`[SCHEDULED SENDER] ✓ Dostępna skrzynka: ${availableMailbox.email} (limit: ${availableMailbox.remainingToday})`);
+  }
+  
   // Pobierz leady
   const leads = campaign.CampaignLead.map((cl: any) => cl.lead).filter((l: any) => 
     l && l.status !== "BLOCKED" && !l.isBlocked
@@ -162,11 +181,28 @@ export async function processScheduledCampaign(): Promise<void> {
   let successCount = 0;
   let errorCount = 0;
   let skippedCount = 0;
+  let consecutiveNoMailboxErrors = 0; // Licznik kolejnych błędów "brak skrzynek"
   
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i];
     
-    // ✅ NOWE: Sprawdź czy kampania nie została zatrzymana (PAUSED)
+    // Sprawdź limit dzienny kampanii (PIERWSZY FILTR)
+    if (successCount >= campaign.maxEmailsPerDay) {
+      console.log(`[SCHEDULED SENDER] ⛔ Osiągnięto dzienny limit kampanii (${campaign.maxEmailsPerDay} maili). Zatrzymuję.`);
+      
+      await db.campaign.update({
+        where: { id: campaign.id },
+        data: { 
+          status: "SCHEDULED",
+          description: (campaign.description || "") + `\n\n[Automatyczne zatrzymanie ${new Date().toISOString()}] Osiągnięto dzienny limit kampanii - wysłano ${successCount}/${campaign.maxEmailsPerDay} maili. Kampania zostanie wznowiona jutro.`
+        }
+      });
+      
+      skippedCount = leads.length - i;
+      break;
+    }
+    
+    // ✅ Sprawdź czy kampania nie została zatrzymana (PAUSED)
     const currentCampaign = await db.campaign.findUnique({
       where: { id: campaign.id },
       select: { status: true }
@@ -236,11 +272,32 @@ export async function processScheduledCampaign(): Promise<void> {
       break;
     }
     
+    // Sprawdź czy są dostępne skrzynki (przed wysłaniem)
+    if (campaign.virtualSalespersonId) {
+      const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId);
+      if (!availableMailbox) {
+        console.log(`[SCHEDULED SENDER] Osiągnięto dzienny limit wszystkich skrzynek. Zatrzymuję kampanię.`);
+        
+        // Oznacz kampanię jako SCHEDULED - wznowi się jutro
+        await db.campaign.update({
+          where: { id: campaign.id },
+          data: { 
+            status: "SCHEDULED",
+            description: (campaign.description || "") + "\n\n[Automatyczne zatrzymanie " + new Date().toISOString() + "] Osiągnięto dzienny limit - wysłano " + successCount + " maili. Kampania zostanie wznowiona jutro."
+          }
+        });
+        
+        skippedCount = leads.length - i;
+        break;
+      }
+    }
+    
     // Wyślij mail
     const result = await sendSingleEmail(campaign, lead, companySettings);
     
     if (result.success) {
       successCount++;
+      consecutiveNoMailboxErrors = 0; // Reset licznika przy udanym wysłaniu
       
       // Inkrementuj licznik handlowca
       if (campaign.virtualSalesperson) {
@@ -251,13 +308,42 @@ export async function processScheduledCampaign(): Promise<void> {
     } else {
       errorCount++;
       console.log(`[SCHEDULED SENDER] ✗ Błąd ${i + 1}/${leads.length} do ${lead.email}`);
+      
+      // Sprawdź czy to błąd braku skrzynek
+      if (result.error?.includes("Brak dostępnych skrzynek")) {
+        consecutiveNoMailboxErrors++;
+        console.log(`[SCHEDULED SENDER] ⚠️  Brak skrzynek (${consecutiveNoMailboxErrors}/3 z rzędu)`);
+        
+        // Jeśli 3 błędy z rzędu - zatrzymaj kampanię
+        if (consecutiveNoMailboxErrors >= 3) {
+          console.log(`[SCHEDULED SENDER] ⏸️  Zatrzymanie kampanii - brak dostępnych skrzynek (3x z rzędu)`);
+          
+          await db.campaign.update({
+            where: { id: campaign.id },
+            data: { 
+              status: "SCHEDULED",
+              description: (campaign.description || "") + "\n\n[Automatyczne zatrzymanie] Brak dostępnych skrzynek - kampania zostanie wznowiona jutro."
+            }
+          });
+          
+          skippedCount = leads.length - i;
+          break;
+        }
+      } else {
+        consecutiveNoMailboxErrors = 0; // Reset dla innych błędów
+      }
     }
     
-    // Opóźnienie między mailami
+    // Opóźnienie między mailami (dynamiczne ± 20%)
     if (i < leads.length - 1) {
-      const delay = campaign.delayBetweenEmails * 1000; // sekundy → ms
-      console.log(`[SCHEDULED SENDER] Czekam ${campaign.delayBetweenEmails}s przed następnym mailem...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      const baseDelay = campaign.delayBetweenEmails;
+      const randomVariation = 0.2; // ± 20% losowości
+      const minDelay = baseDelay * (1 - randomVariation);
+      const maxDelay = baseDelay * (1 + randomVariation);
+      const actualDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+      
+      console.log(`[SCHEDULED SENDER] Czekam ${actualDelay}s (bazowy: ${baseDelay}s, zmienność: ±20%) przed następnym mailem...`);
+      await new Promise(resolve => setTimeout(resolve, actualDelay * 1000));
     }
   }
   

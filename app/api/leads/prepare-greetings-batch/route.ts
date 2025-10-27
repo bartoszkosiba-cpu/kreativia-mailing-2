@@ -195,7 +195,7 @@ async function updateProgress(
   const percentage = Math.round((currentBatch / totalBatches) * 100);
   const estimatedTime = calculateEstimatedTime(currentBatch, totalBatches, startTime);
   
-  const status = currentBatch === totalBatches ? 'completed' : 'processing';
+  const status: 'processing' | 'completed' = currentBatch === totalBatches ? 'completed' : 'processing';
   
   const progressData = {
     currentBatch,

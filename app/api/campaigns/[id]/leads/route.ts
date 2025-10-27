@@ -59,14 +59,21 @@ export async function GET(
   }
 }
 
-// DELETE - Usuń leada z kampanii
+// DELETE - Usuń leada/lidów z kampanii
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const campaignId = parseInt(params.id);
-    const { leadId } = await req.json();
+    const body = await req.json();
+    const leadIds = body.leadIds || (body.leadId ? [body.leadId] : []);
+
+    if (leadIds.length === 0) {
+      return NextResponse.json({ 
+        error: "Brak leadów do usunięcia" 
+      }, { status: 400 });
+    }
 
     // Sprawdź czy kampania istnieje i jej status
     const campaign = await db.campaign.findUnique({
@@ -84,31 +91,49 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Sprawdź czy lead już otrzymał mail
-    const alreadySent = await db.sendLog.findFirst({
+    // Sprawdź które leady już otrzymały mail
+    const alreadySent = await db.sendLog.findMany({
       where: {
         campaignId,
-        leadId,
+        leadId: { in: leadIds },
         status: "sent"
       }
     });
 
-    if (alreadySent) {
+    if (alreadySent.length > 0) {
+      const sentIds = alreadySent.map(log => log.leadId);
+      // Filtruj tylko leady które jeszcze nie otrzymały maila
+      const idsToRemove = leadIds.filter(id => !sentIds.includes(id));
+      
+      if (idsToRemove.length === 0) {
+        return NextResponse.json({ 
+          error: "Wszystkie zaznaczone leady już otrzymały mail i nie można ich usunąć" 
+        }, { status: 400 });
+      }
+
+      // Usuń tylko te które można usunąć
+      await db.campaignLead.deleteMany({
+        where: {
+          campaignId,
+          leadId: { in: idsToRemove }
+        }
+      });
+
       return NextResponse.json({ 
-        error: "Nie można usunąć leada, który już otrzymał mail" 
-      }, { status: 400 });
+        message: `Usunięto ${idsToRemove.length} leadów z kampanii (${alreadySent.length} pominięto - już wysłano mail)` 
+      });
     }
 
-    // Usuń powiązanie
+    // Usuń wszystkie
     await db.campaignLead.deleteMany({
       where: {
         campaignId,
-        leadId
+        leadId: { in: leadIds }
       }
     });
 
     return NextResponse.json({ 
-      message: "Lead został usunięty z kampanii" 
+      message: `Usunięto ${leadIds.length} leadów z kampanii` 
     });
 
   } catch (error: any) {
@@ -170,7 +195,8 @@ export async function POST(
         id: true,
         email: true,
         status: true,
-        greetingForm: true
+        greetingForm: true,
+        language: true
       }
     });
 

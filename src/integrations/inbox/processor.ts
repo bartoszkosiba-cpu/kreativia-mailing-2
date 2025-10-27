@@ -139,11 +139,12 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
         await db.lead.update({
           where: { id: lead.id },
           data: { 
-            isBlocked: true,
+            status: "BLOKADA",
+            subStatus: "BLOKADA_BOUNCE",
             blockedReason: "Bounce - nieprawidłowy adres email"
           }
         });
-        console.log(`[PROCESSOR] ✅ Oznaczono lead ${lead.email} jako bounced i zablokowano`);
+        console.log(`[PROCESSOR] ✅ Oznaczono lead ${lead.email} jako bounced (status: BLOKADA_BOUNCE)`);
         actionsTaken.push(`Zablokowano lead ${bounceRecipient} z powodu bounce`);
       } else {
         console.log(`[PROCESSOR] ⚠️  Bounce dla nieznanego leada ${bounceRecipient} - zapisano do inbox bez blokowania`);

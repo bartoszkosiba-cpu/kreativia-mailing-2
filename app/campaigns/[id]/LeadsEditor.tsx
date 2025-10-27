@@ -33,6 +33,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
   const [selectedTag, setSelectedTag] = useState<number | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
+  const [selectedCampaignLeads, setSelectedCampaignLeads] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -129,7 +130,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
       const res = await fetch(`/api/campaigns/${campaignId}/leads`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId })
+        body: JSON.stringify({ leadIds: [leadId] })
       });
 
       const data = await res.json();
@@ -149,6 +150,68 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
       setIsLoading(false);
     }
   };
+
+  const handleRemoveSelectedLeads = async () => {
+    if (selectedCampaignLeads.length === 0) {
+      alert("Wybierz przynajmniej jednego leada");
+      return;
+    }
+
+    const count = selectedCampaignLeads.length;
+    if (!confirm(`Czy na pewno chcesz usunąć ${count} ${count === 1 ? 'leada' : 'leadów'} z kampanii?`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const res = await fetch(`/api/campaigns/${campaignId}/leads`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadIds: selectedCampaignLeads })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setLeads(leads.filter(l => !selectedCampaignLeads.includes(l.id)));
+        setSelectedCampaignLeads([]);
+        setMessage({ type: "success", text: data.message });
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        setMessage({ type: "error", text: data.error });
+        setTimeout(() => setMessage(null), 5000);
+      }
+    } catch (error: any) {
+      setMessage({ type: "error", text: error.message });
+      setTimeout(() => setMessage(null), 5000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleCampaignLeadSelection = (leadId: number) => {
+    // Nie pozwól zaznaczyć leadów którzy już dostali mail
+    const lead = leads.find(l => l.id === leadId);
+    if (lead?.hasSentEmail) return;
+
+    setSelectedCampaignLeads(prev => 
+      prev.includes(leadId) 
+        ? prev.filter(id => id !== leadId)
+        : [...prev, leadId]
+    );
+  };
+
+  const selectAllCampaignLeads = () => {
+    const selectableLeads = leads.filter(l => !l.hasSentEmail).map(l => l.id);
+    setSelectedCampaignLeads(selectableLeads);
+  };
+
+  const deselectAllCampaignLeads = () => {
+    setSelectedCampaignLeads([]);
+  };
+
+  const selectedCount = selectedCampaignLeads.length;
+  const allSelected = selectedCount > 0 && selectedCount === leads.filter(l => !l.hasSentEmail).length;
 
   const handleAddLeads = async () => {
     if (selectedLeads.length === 0) {
@@ -201,6 +264,24 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-lg)" }}>
         <h2>Leady w kampanii ({leads.length})</h2>
         <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+          {isEditable && selectedCount > 0 && (
+            <button
+              className="btn"
+              onClick={handleRemoveSelectedLeads}
+              disabled={isLoading}
+              style={{
+                backgroundColor: selectedCount > 0 ? "#dc3545" : "var(--gray-400)",
+                color: "white",
+                fontWeight: "600",
+                padding: "8px 16px",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer"
+              }}
+            >
+              Usuń zaznaczone ({selectedCount})
+            </button>
+          )}
           {isEditable && (
             <button
               className="btn btn-primary"
@@ -380,9 +461,38 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
 
       {/* Lista obecnych leadów */}
       <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+        <div style={{ marginBottom: "var(--spacing-sm)", display: "flex", gap: "8px", alignItems: "center" }}>
+          {isEditable && leads.filter(l => !l.hasSentEmail).length > 0 && (
+            <>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    selectAllCampaignLeads();
+                  } else {
+                    deselectAllCampaignLeads();
+                  }
+                }}
+                style={{ cursor: "pointer" }}
+              />
+              <span style={{ fontSize: "0.9rem", color: "var(--gray-600)" }}>
+                {allSelected ? "Odznacz wszystkich" : "Zaznacz wszystkich"}
+              </span>
+              {selectedCount > 0 && (
+                <span style={{ fontSize: "0.9rem", color: "var(--primary)", fontWeight: "600" }}>
+                  • {selectedCount} zaznaczonych
+                </span>
+              )}
+            </>
+          )}
+        </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ backgroundColor: "var(--gray-100)" }}>
+              {isEditable && (
+                <th style={{ padding: "var(--spacing-sm)", textAlign: "center", borderBottom: "2px solid var(--gray-300)", width: "40px" }}></th>
+              )}
               <th style={{ padding: "var(--spacing-sm)", textAlign: "left", borderBottom: "2px solid var(--gray-300)" }}>Imię i nazwisko</th>
               <th style={{ padding: "var(--spacing-sm)", textAlign: "left", borderBottom: "2px solid var(--gray-300)" }}>Email</th>
               <th style={{ padding: "var(--spacing-sm)", textAlign: "left", borderBottom: "2px solid var(--gray-300)" }}>Firma</th>
@@ -394,7 +504,21 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
           </thead>
           <tbody>
             {leads.map(lead => (
-              <tr key={lead.id} style={{ borderBottom: "1px solid var(--gray-200)" }}>
+              <tr key={lead.id} style={{ borderBottom: "1px solid var(--gray-200)", backgroundColor: selectedCampaignLeads.includes(lead.id) ? "var(--primary-light)" : "transparent" }}>
+                {isEditable && (
+                  <td style={{ padding: "var(--spacing-sm)", textAlign: "center" }}>
+                    {!lead.hasSentEmail ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedCampaignLeads.includes(lead.id)}
+                        onChange={() => toggleCampaignLeadSelection(lead.id)}
+                        style={{ cursor: "pointer" }}
+                      />
+                    ) : (
+                      <span style={{ color: "var(--gray-400)" }}>—</span>
+                    )}
+                  </td>
+                )}
                 <td style={{ padding: "var(--spacing-sm)" }}>
                   {lead.firstName} {lead.lastName}
                 </td>
@@ -417,7 +541,7 @@ export default function LeadsEditor({ campaignId, currentLeads, campaignStatus }
                       <button
                         className="btn btn-sm"
                         style={{ 
-                          backgroundColor: "var(--danger)", 
+                          backgroundColor: "var(--gray-500)", 
                           color: "white",
                           padding: "4px 8px",
                           fontSize: "0.85rem"

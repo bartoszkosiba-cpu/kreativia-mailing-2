@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import DeleteButton from "./DeleteButton";
+import { useRouter } from "next/navigation";
 
 interface Campaign {
   id: number;
@@ -57,19 +57,21 @@ function getStatusBadge(status: string) {
 }
 
 export default function CampaignsList({ initialCampaigns, initialProgress }: Props) {
-  const [campaigns, setCampaigns] = useState(initialCampaigns);
-  const [progress, setProgress] = useState(initialProgress);
+  const router = useRouter();
+  const [campaigns] = useState(initialCampaigns);
+  const [progress] = useState(initialProgress);
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<number>>(new Set());
 
-  const handleDeleted = (campaignId: number) => {
-    setCampaigns(campaigns.filter(c => c.id !== campaignId));
-    const index = campaigns.findIndex(c => c.id === campaignId);
-    if (index !== -1) {
-      setProgress(progress.filter((_, i) => i !== index));
+  const handleRowClick = (campaignId: number, event: React.MouseEvent) => {
+    // Nie przekierowuj jeśli kliknięto w przycisk +/-
+    if ((event.target as HTMLElement).tagName === 'BUTTON') {
+      return;
     }
+    router.push(`/campaigns/${campaignId}`);
   };
   
-  const toggleExpanded = (campaignId: number) => {
+  const toggleExpanded = (campaignId: number, event: React.MouseEvent) => {
+    event.stopPropagation();
     setExpandedCampaigns(prev => {
       const newSet = new Set(prev);
       if (newSet.has(campaignId)) {
@@ -116,7 +118,7 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
             display: "inline-block"
           }}
         >
-          ➕ Nowa kampania
+          Nowa kampania
         </Link>
       </div>
     );
@@ -131,7 +133,6 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
           <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Postęp</th>
           <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Leady</th>
           <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Daty</th>
-          <th style={{ textAlign: "center", borderBottom: "1px solid #ddd", padding: 8 }}>Akcje</th>
         </tr>
       </thead>
       <tbody>
@@ -145,12 +146,21 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
           return (
             <React.Fragment key={c.id}>
               {/* Kampania główna */}
-              <tr style={{ borderBottom: hasFollowUps && !isExpanded ? "none" : "1px solid #e5e7eb" }}>
+              <tr 
+                onClick={(e) => handleRowClick(c.id, e)}
+                style={{ 
+                  borderBottom: hasFollowUps && !isExpanded ? "none" : "1px solid #e5e7eb",
+                  cursor: "pointer",
+                  transition: "background-color 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f9fafb"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+              >
                 <td style={{ padding: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     {hasFollowUps && (
                       <button
-                        onClick={() => toggleExpanded(c.id)}
+                        onClick={(e) => toggleExpanded(c.id, e)}
                         style={{
                           background: "none",
                           border: "none",
@@ -165,9 +175,9 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
                       </button>
                     )}
                     {!hasFollowUps && <span style={{ width: "22px" }}></span>}
-                    <Link href={`/campaigns/${c.id}`} style={{ fontWeight: 600 }}>
+                    <span style={{ fontWeight: 600 }}>
                       {c.name}
-                    </Link>
+                    </span>
                     {hasFollowUps && (
                       <span style={{ 
                         fontSize: "11px", 
@@ -222,13 +232,6 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
                     <span style={{ color: "#999" }}>Nie zaplanowano</span>
                   )}
                 </td>
-                <td style={{ padding: 8, textAlign: "center" }}>
-                  <DeleteButton 
-                    campaignId={c.id}
-                    campaignName={c.name}
-                    onDeleted={() => handleDeleted(c.id)}
-                  />
-                </td>
               </tr>
 
               {/* Follow-upy (jeśli rozwinięte) */}
@@ -237,13 +240,24 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
                 const fuProg = progress[fuIndex];
                 
                 return (
-                  <tr key={fu.id} style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  <tr 
+                    key={fu.id} 
+                    onClick={(e) => handleRowClick(fu.id, e)}
+                    style={{ 
+                      backgroundColor: "#f9fafb", 
+                      borderBottom: "1px solid #e5e7eb",
+                      cursor: "pointer",
+                      transition: "background-color 0.2s"
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f3f4f6"}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#f9fafb"}
+                  >
                     <td style={{ padding: 8, paddingLeft: 40 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ color: "#9ca3af", fontSize: "12px" }}>├─</span>
-                        <Link href={`/campaigns/${fu.id}`} style={{ fontWeight: 500, fontSize: "14px" }}>
+                        <span style={{ fontWeight: 500, fontSize: "14px" }}>
                           Follow-up #{fu.followUpSequence}
-                        </Link>
+                        </span>
                       </div>
                     </td>
                     <td style={{ padding: 8 }}>
@@ -274,18 +288,11 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
                     <td style={{ padding: 8, fontSize: "12px", color: "#6b7280" }}>
                       {fu.scheduledAt ? (
                         <>
-                          📅 {new Date(fu.scheduledAt).toLocaleDateString('pl-PL')}
+                          {new Date(fu.scheduledAt).toLocaleDateString('pl-PL')}
                         </>
                       ) : (
                         <span style={{ color: "#999" }}>Nie zaplanowano</span>
                       )}
-                    </td>
-                    <td style={{ padding: 8, textAlign: "center" }}>
-                      <DeleteButton 
-                        campaignId={fu.id}
-                        campaignName={`Follow-up #${fu.followUpSequence}`}
-                        onDeleted={() => handleDeleted(fu.id)}
-                      />
                     </td>
                   </tr>
                 );
@@ -297,4 +304,3 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
     </table>
   );
 }
-

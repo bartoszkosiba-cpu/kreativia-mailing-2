@@ -75,7 +75,8 @@ export function startEmailCron() {
             imapPort: mailbox.imapPort!,
             imapUser: mailbox.imapUser!,
             imapPass: mailbox.imapPass!,
-            imapSecure: mailbox.imapSecure ?? true
+            imapSecure: mailbox.imapSecure ?? true,
+            createdAt: mailbox.createdAt // Przekaż datę utworzenia skrzynki jako filtr
           };
 
           // Pobierz nowe maile z tego mailbox

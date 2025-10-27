@@ -14,6 +14,7 @@ interface CompanySettings {
   disclaimerFr: string | null;
   legalFooter: string | null;
   forwardEmail: string | null;
+  warmupPerformanceSettings: string | null;
 }
 
 export default function SettingsPage() {
@@ -108,8 +109,17 @@ export default function SettingsPage() {
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
       <h1>⚙️ Ustawienia firmowe</h1>
 
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 20, display: "flex", gap: "12px", alignItems: "center" }}>
         <Link href="/">← Wróć do strony głównej</Link>
+        <Link href="/settings/performance" style={{ 
+          padding: "8px 16px", 
+          backgroundColor: "#0056b3", 
+          color: "white", 
+          borderRadius: 4, 
+          textDecoration: "none" 
+        }}>
+          ⚡ Ustawienia wydajności skrzynek
+        </Link>
       </div>
 
       <div style={{ backgroundColor: "#f8f9fa", padding: 20, borderRadius: 8, marginBottom: 20 }}>

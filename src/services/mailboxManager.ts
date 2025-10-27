@@ -11,6 +11,56 @@
 import { db } from "@/lib/db";
 import { Mailbox } from "@prisma/client";
 
+interface PerformanceWeek {
+  week: number;
+  warmup: number;
+  campaign: number;
+}
+
+/**
+ * Pobiera tydzień na podstawie dnia warmup (1-35)
+ * Tydzień 1 = dni 1-7
+ * Tydzień 2 = dni 8-14
+ * Tydzień 3 = dni 15-21
+ * Tydzień 4 = dni 22-28
+ * Tydzień 5 = dni 29-35
+ */
+function getWeekFromDay(day: number): number {
+  if (day <= 0) return 1; // Dla skrzynek bez warmup użyj tygodnia 1
+  if (day <= 7) return 1;
+  if (day <= 14) return 2;
+  if (day <= 21) return 3;
+  if (day <= 28) return 4;
+  return 5;
+}
+
+/**
+ * Pobiera limity wydajności dla danego tygodnia
+ */
+async function getPerformanceLimits(week: number): Promise<{ warmup: number; campaign: number }> {
+  try {
+    const settings = await db.companySettings.findFirst();
+    
+    if (!settings || !settings.warmupPerformanceSettings) {
+      // Domyślne wartości jeśli brak ustawień
+      return { warmup: 15, campaign: 10 };
+    }
+    
+    const weeks: PerformanceWeek[] = JSON.parse(settings.warmupPerformanceSettings);
+    const weekData = weeks.find(w => w.week === week);
+    
+    if (!weekData) {
+      // Fallback do tygodnia 1
+      return weeks[0] || { warmup: 15, campaign: 10 };
+    }
+    
+    return { warmup: weekData.warmup, campaign: weekData.campaign };
+  } catch (error) {
+    console.error('[MAILBOX] Błąd pobierania ustawień wydajności:', error);
+    return { warmup: 15, campaign: 10 };
+  }
+}
+
 export interface AvailableMailbox {
   id: number;
   email: string;
@@ -79,24 +129,58 @@ export async function getNextAvailableMailbox(
   // Resetuj liczniki dla skrzynek jeśli nowy dzień
   for (const mailbox of mailboxes) {
     if (!mailbox.lastResetDate || mailbox.lastResetDate.toDateString() !== today) {
-      await resetMailboxCounter(mailbox.id);
+      await resetMailboxCounter(mailbox.id, mailbox.warmupStatus);
       console.log(`[MAILBOX] ✓ Zresetowano licznik dla ${mailbox.email}`);
     }
   }
 
   // Znajdź pierwszą skrzynkę która ma wolne miejsce
   for (const mailbox of mailboxes) {
-    const remaining = mailbox.dailyEmailLimit - mailbox.currentDailySent;
+    // Ustaw właściwy limit w zależności od statusu warmup
+    let effectiveLimit: number;
+    let currentSent: number;
+    
+    if (mailbox.warmupStatus === 'warming' || mailbox.warmupStatus === 'ready_to_warmup') {
+      // W trybie warmup - użyj Math.min(3 limity)
+      const week = getWeekFromDay(mailbox.warmupDay || 0);
+      const performanceLimits = await getPerformanceLimits(week);
+      
+      // Math.min(3 limity): dailyEmailLimit, warmupDailyLimit, campaign z ustawień
+      effectiveLimit = Math.min(
+        mailbox.dailyEmailLimit,
+        mailbox.warmupDailyLimit,
+        performanceLimits.campaign
+      );
+      
+      currentSent = mailbox.warmupTodaySent;
+    } else {
+      // W normalnym trybie (bez warmup) - użyj Math.min(2 limity)
+      const week = getWeekFromDay(0); // Tydzień 1 dla skrzynek bez warmup
+      const performanceLimits = await getPerformanceLimits(week);
+      
+      effectiveLimit = Math.min(
+        mailbox.dailyEmailLimit,
+        performanceLimits.campaign
+      );
+      
+      currentSent = mailbox.currentDailySent;
+    }
+    
+    const remaining = effectiveLimit - currentSent;
     
     if (remaining > 0) {
-      console.log(`[MAILBOX] ✅ Wybrano skrzynkę: ${mailbox.email} (pozostało: ${remaining}/${mailbox.dailyEmailLimit})`);
+      const statusInfo = mailbox.warmupStatus === 'warming' || mailbox.warmupStatus === 'ready_to_warmup' 
+        ? `(warmup: pozostało: ${remaining}/${effectiveLimit})`
+        : `(pozostało: ${remaining}/${effectiveLimit})`;
+      
+      console.log(`[MAILBOX] ✅ Wybrano skrzynkę: ${mailbox.email} ${statusInfo}`);
       
       return {
         id: mailbox.id,
         email: mailbox.email,
         displayName: mailbox.displayName,
-        dailyEmailLimit: mailbox.dailyEmailLimit,
-        currentDailySent: mailbox.currentDailySent,
+        dailyEmailLimit: effectiveLimit,
+        currentDailySent: currentSent,
         remainingToday: remaining,
         smtpHost: mailbox.smtpHost,
         smtpPort: mailbox.smtpPort,
@@ -105,7 +189,7 @@ export async function getNextAvailableMailbox(
         smtpSecure: mailbox.smtpSecure
       };
     } else {
-      console.log(`[MAILBOX] ⏭️  Skrzynka ${mailbox.email} wyczerpana (${mailbox.currentDailySent}/${mailbox.dailyEmailLimit})`);
+      console.log(`[MAILBOX] ⏭️  Skrzynka ${mailbox.email} wyczerpana (${currentSent}/${effectiveLimit})`);
     }
   }
 
@@ -116,13 +200,21 @@ export async function getNextAvailableMailbox(
 /**
  * Resetuje licznik dziennych wysyłek dla skrzynki
  */
-export async function resetMailboxCounter(mailboxId: number): Promise<void> {
+export async function resetMailboxCounter(mailboxId: number, warmupStatus?: string): Promise<void> {
+  const updateData: any = {
+    lastResetDate: new Date()
+  };
+  
+  // Zresetuj odpowiedni licznik w zależności od statusu warmup
+  if (warmupStatus === 'warming' || warmupStatus === 'ready_to_warmup') {
+    updateData.warmupTodaySent = 0;
+  } else {
+    updateData.currentDailySent = 0;
+  }
+  
   await db.mailbox.update({
     where: { id: mailboxId },
-    data: {
-      currentDailySent: 0,
-      lastResetDate: new Date()
-    }
+    data: updateData
   });
 }
 
@@ -130,16 +222,36 @@ export async function resetMailboxCounter(mailboxId: number): Promise<void> {
  * Zwiększa licznik wysłanych maili dla skrzynki
  */
 export async function incrementMailboxCounter(mailboxId: number): Promise<void> {
-  await db.mailbox.update({
+  // Pobierz skrzynkę aby sprawdzić status warmup
+  const mailbox = await db.mailbox.findUnique({
     where: { id: mailboxId },
-    data: {
-      currentDailySent: { increment: 1 },
-      totalEmailsSent: { increment: 1 },
-      lastUsedAt: new Date()
-    }
+    select: { warmupStatus: true }
   });
   
-  console.log(`[MAILBOX] ✓ Zwiększono licznik dla skrzynki ID: ${mailboxId}`);
+  if (!mailbox) {
+    console.log(`[MAILBOX] ❌ Nie znaleziono skrzynki ID: ${mailboxId}`);
+    return;
+  }
+  
+  // Przygotuj dane do aktualizacji
+  const updateData: any = {
+    totalEmailsSent: { increment: 1 },
+    lastUsedAt: new Date()
+  };
+  
+  // Zwiększ odpowiedni licznik w zależności od statusu warmup
+  if (mailbox.warmupStatus === 'warming' || mailbox.warmupStatus === 'ready_to_warmup') {
+    updateData.warmupTodaySent = { increment: 1 };
+    console.log(`[MAILBOX] ✓ Zwiększono licznik warmup dla skrzynki ID: ${mailboxId}`);
+  } else {
+    updateData.currentDailySent = { increment: 1 };
+    console.log(`[MAILBOX] ✓ Zwiększono licznik dla skrzynki ID: ${mailboxId}`);
+  }
+  
+  await db.mailbox.update({
+    where: { id: mailboxId },
+    data: updateData
+  });
 }
 
 /**

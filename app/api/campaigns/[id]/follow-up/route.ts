@@ -168,7 +168,7 @@ export async function POST(
         status: "SCHEDULED",
         scheduledAt: scheduledDate,
         delayBetweenEmails: parentCampaign.delayBetweenEmails,
-        maxEmailsPerHour: parentCampaign.maxEmailsPerHour,
+        maxEmailsPerDay: parentCampaign.maxEmailsPerDay,
         allowedDays: parentCampaign.allowedDays,
         startHour: parentCampaign.startHour,
         endHour: parentCampaign.endHour,
