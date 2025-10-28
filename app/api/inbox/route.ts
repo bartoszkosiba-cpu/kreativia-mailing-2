@@ -23,7 +23,21 @@ export async function GET(req: NextRequest) {
     
     // Filtrowanie według klasyfikacji
     if (filter !== "all") {
-      where.classification = filter.toUpperCase();
+      if (filter === "interested") {
+        where.classification = "INTERESTED";
+      } else if (filter === "replies") {
+        // Odpowiedzi które nie są auto-obsłużone
+        where.classification = {
+          notIn: ["INTERESTED", "BOUNCE", "UNSUBSCRIBE"]
+        };
+      } else {
+        where.classification = filter.toUpperCase();
+      }
+    } else {
+      // Domyślnie NIE pokazuj auto-obsłużonych (BOUNCE, UNSUBSCRIBE)
+      where.classification = {
+        notIn: ["BOUNCE", "UNSUBSCRIBE"]
+      };
     }
     
     if (unreadOnly) {
