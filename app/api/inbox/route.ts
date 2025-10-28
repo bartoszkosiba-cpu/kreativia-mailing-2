@@ -34,9 +34,9 @@ export async function GET(req: NextRequest) {
         where.classification = filter.toUpperCase();
       }
     } else {
-      // Domyślnie NIE pokazuj auto-obsłużonych (BOUNCE, UNSUBSCRIBE)
+      // Domyślnie NIE pokazuj auto-obsłużonych (BOUNCE, UNSUBSCRIBE) oraz warmup/test
       where.classification = {
-        notIn: ["BOUNCE", "UNSUBSCRIBE"]
+        notIn: ["BOUNCE", "UNSUBSCRIBE", "INTERNAL_WARMUP"]
       };
     }
     
