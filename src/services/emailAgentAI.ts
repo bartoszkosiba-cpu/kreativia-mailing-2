@@ -15,7 +15,7 @@ export interface EmailClassification {
 }
 
 export interface EmailAction {
-  type: 'FORWARD' | 'BLOCK' | 'UNSUBSCRIBE' | 'ADD_LEAD' | 'SCHEDULE_FOLLOWUP' | 'AUTO_FOLLOWUP' | 'NO_ACTION';
+  type: 'FORWARD' | 'BLOCK' | 'UNSUBSCRIBE' | 'ADD_LEAD' | 'SCHEDULE_FOLLOWUP' | 'AUTO_FOLLOWUP' | 'NOTIFY' | 'NO_ACTION';
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   description: string;
   data?: any;
@@ -159,11 +159,18 @@ export class EmailAgentAI {
       case 'INTERESTED':
         return {
           classification,
-          actions: [{
-            type: 'FORWARD',
-            priority: 'HIGH',
-            description: 'Przekaż do handlowca - lead zainteresowany'
-          }],
+          actions: [
+            {
+              type: 'FORWARD',
+              priority: 'HIGH',
+              description: 'Przekaż do handlowca - lead zainteresowany'
+            },
+            {
+              type: 'NOTIFY',
+              priority: 'HIGH',
+              description: 'Wyślij powiadomienia o zainteresowanym leadzie'
+            }
+          ],
           leadStatus: 'ZAINTERESOWANY',
           leadSubStatus: campaignId ? 'ZAINTERESOWANY_CAMPAIGN' : 'ZAINTERESOWANY_NEW',
           shouldBlockCampaigns: campaignId ? [campaignId] : [],
@@ -376,6 +383,11 @@ export class EmailAgentAI {
         console.log(`[EMAIL AGENT AI] AUTO_FOLLOWUP: Lead ${reply.lead.id} będzie obsłużony przez cron job`);
         break;
 
+      case 'NOTIFY':
+        // Wyślij powiadomienie o zainteresowanym leadzie
+        await this.sendInterestedNotification(reply);
+        break;
+
       case 'NO_ACTION':
         console.log(`[EMAIL AGENT AI] NO_ACTION: Brak akcji dla lead ${reply.lead.id}`);
         break;
@@ -435,6 +447,26 @@ export class EmailAgentAI {
       } catch (error) {
         console.error(`[EMAIL AGENT AI] Błąd tworzenia pochodnego leada ${email}:`, error);
       }
+    }
+  }
+
+  /**
+   * Wysyła powiadomienia o zainteresowanym leadzie
+   */
+  private static async sendInterestedNotification(reply: any): Promise<void> {
+    try {
+      const { sendInterestedLeadNotification } = await import('./interestedLeadNotifier');
+      
+      await sendInterestedLeadNotification({
+        replyId: reply.id,
+        leadId: reply.leadId || reply.lead?.id,
+        campaignId: reply.campaignId || reply.campaign?.id,
+        salespersonEmail: reply.campaign?.virtualSalesperson?.realSalespersonEmail
+      });
+      
+      console.log(`[EMAIL AGENT AI] Wysłano powiadomienia dla lead ${reply.lead?.id}`);
+    } catch (error) {
+      console.error(`[EMAIL AGENT AI] Błąd wysyłki powiadomień:`, error);
     }
   }
 
