@@ -31,6 +31,18 @@ export async function GET(
         },
         replies: {
           orderBy: { receivedAt: "desc" }
+        },
+        originalLead: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
+        },
+        statusHistory: {
+          orderBy: { createdAt: "desc" },
+          take: 10
         }
       }
     });

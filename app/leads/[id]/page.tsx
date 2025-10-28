@@ -27,6 +27,26 @@ interface Lead {
   blockedAt: Date | null;
   personalization: string | null;
   greetingForm: string | null;
+  source: string | null;
+  sourceDetails: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  originalLead: {
+    id: number;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+  statusHistory: Array<{
+    id: number;
+    oldStatus: string | null;
+    oldSubStatus: string | null;
+    newStatus: string;
+    newSubStatus: string | null;
+    reason: string | null;
+    changedBy: string | null;
+    createdAt: Date;
+  }>;
   CampaignLead: Array<{
     id: number;
     campaign: {
@@ -271,6 +291,54 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
           </div>
         </div>
 
+        {/* Informacje o źródle i datach */}
+        <div className="card">
+          <div className="card-header">
+            <h3>Informacje</h3>
+          </div>
+          <div>
+            <table style={{ width: "100%", fontSize: "14px" }}>
+              <tbody>
+                {lead.source && (
+                  <tr>
+                    <td style={{ padding: "8px", fontWeight: "600", color: "var(--gray-700)", width: "40%" }}>Źródło:</td>
+                    <td style={{ padding: "8px" }}>
+                      <span style={{ 
+                        padding: "2px 8px", 
+                        backgroundColor: lead.source === "CSV_IMPORT" ? "#e3f2fd" : 
+                                        lead.source === "OOO_RESPONSE" ? "#fff3e0" :
+                                        lead.source === "REDIRECT_RESPONSE" ? "#f3e5f5" : "#e8f5e9",
+                        borderRadius: 12,
+                        fontSize: "12px"
+                      }}>
+                        {lead.source}
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                {lead.originalLead && (
+                  <tr>
+                    <td style={{ padding: "8px", fontWeight: "600", color: "var(--gray-700)" }}>Utworzony przez:</td>
+                    <td style={{ padding: "8px" }}>
+                      <Link href={`/leads/${lead.originalLead.id}`} style={{ color: "#0066cc" }}>
+                        {lead.originalLead.firstName} {lead.originalLead.lastName} ({lead.originalLead.email})
+                      </Link>
+                    </td>
+                  </tr>
+                )}
+                <tr>
+                  <td style={{ padding: "8px", fontWeight: "600", color: "var(--gray-700)" }}>Utworzono:</td>
+                  <td style={{ padding: "8px" }}>{new Date(lead.createdAt).toLocaleString()}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "8px", fontWeight: "600", color: "var(--gray-700)" }}>Ostatnia aktualizacja:</td>
+                  <td style={{ padding: "8px" }}>{new Date(lead.updatedAt).toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Tagi */}
         {lead.LeadTag.length > 0 && (
           <div className="card">
@@ -474,6 +542,45 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Historia zmian statusu */}
+        {lead.statusHistory && lead.statusHistory.length > 0 && (
+          <div className="card">
+            <div className="card-header">
+              <h3>Historia statusów</h3>
+            </div>
+            <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {lead.statusHistory.slice(0, 5).map((history) => (
+                  <div
+                    key={history.id}
+                    style={{
+                      padding: "8px 12px",
+                      backgroundColor: "var(--gray-50)",
+                      border: "1px solid var(--gray-200)",
+                      borderRadius: "var(--radius)",
+                      fontSize: "13px"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontWeight: "600" }}>
+                        {history.oldStatus || "NOWY"} → {history.newStatus}
+                      </span>
+                      <span style={{ color: "var(--gray-500)", fontSize: "12px" }}>
+                        {new Date(history.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    {history.reason && (
+                      <div style={{ color: "var(--gray-600)", fontSize: "12px" }}>
+                        Przyczyna: {history.reason} {history.changedBy && `(${history.changedBy})`}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
