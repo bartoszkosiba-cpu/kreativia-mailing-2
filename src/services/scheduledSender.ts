@@ -374,13 +374,16 @@ export async function processScheduledCampaign(): Promise<void> {
         const remainingInLoop = leads.length - i - 1; // -1 bo obecny jest już wysłany w linii 296
         const optimalDelay = Math.floor(msRemaining / Math.max(1, remainingInLoop));
         
+        // ZAWSZE używaj co najmniej bazowego delay
+        const finalOptimalDelay = Math.max(campaign.delayBetweenEmails, optimalDelay);
+        
         // Losowość ±20%
         const randomVariation = 0.2;
-        const minDelay = Math.max(1, optimalDelay * (1 - randomVariation));
-        const maxDelay = optimalDelay * (1 + randomVariation);
-        actualDelay = Math.max(1, Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay));
+        const minDelay = finalOptimalDelay * (1 - randomVariation);
+        const maxDelay = finalOptimalDelay * (1 + randomVariation);
+        actualDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
         
-        console.log(`[SCHEDULED SENDER] ⏱️  Delay: ${actualDelay}s (optymalny: ${optimalDelay}s, okno: ${Math.floor(msRemaining/1000/60)}min, pozostało: ${remainingInLoop} maili)`);
+        console.log(`[SCHEDULED SENDER] ⏱️  Delay: ${actualDelay}s (optymalny: ${optimalDelay}s → użyty: ${finalOptimalDelay}s, okno: ${Math.floor(msRemaining/1000/60)}min, pozostało: ${remainingInLoop} maili)`);
       }
       
       if (actualDelay > 0) {
