@@ -164,6 +164,7 @@ model SendLog {
   campaignId Int? // Opcjonalne - maile testowe/warmup nie mają kampanii
   leadId     Int? // Opcjonalne - maile testowe/warmup nie mają leada
   mailboxId  Int? // NOWE: Z której skrzynki wysłano
+  toEmail    String? // NOWE: Do kogo wysłano mail (dla powiadomień)
   messageId  String?
   threadId   String?
   subject    String? // NOWE: Temat wysłanego maila

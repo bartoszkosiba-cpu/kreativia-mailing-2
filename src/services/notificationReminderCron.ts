@@ -188,6 +188,24 @@ async function sendSingleReminder(notification: any, settings: any): Promise<voi
         replyTo: lead.email
       });
       
+      // Zapisz do SendLog dla archiwum
+      try {
+        await db.sendLog.create({
+          data: {
+            mailboxId: mailbox.id,
+            leadId: lead.id,
+            campaignId: campaign?.id,
+            toEmail: recipient, // NOWE: Zapisz odbiorcę przypomnienia
+            subject: subject,
+            content: body,
+            status: "sent"
+          }
+        });
+        console.log(`[REMINDER CRON] ✅ Przypomnienie zapisane do archiwum`);
+      } catch (logError) {
+        console.error(`[REMINDER CRON] ⚠️ Błąd zapisu do archiwum:`, logError);
+      }
+      
       console.log(`[REMINDER CRON] ✅ Przypomnienie wysłane do: ${recipient}`);
     } catch (error: any) {
       console.error(`[REMINDER CRON] ❌ Błąd wysyłki do ${recipient}:`, error.message);

@@ -33,6 +33,35 @@ interface InboxReply {
   };
 }
 
+// Funkcja konwersji zwykłego tekstu na HTML
+function convertTextToHtml(text: string): string {
+  if (!text) return '';
+  
+  // Sprawdź czy to prawdziwy HTML (zawiera tagi HTML)
+  const hasHtmlTags = text.includes('<html>') || 
+                     text.includes('<br>') || 
+                     text.includes('<p>') || 
+                     text.includes('<div>') ||
+                     text.includes('<body>') ||
+                     text.includes('<head>');
+  
+  // Jeśli już zawiera prawdziwy HTML, zwróć jak jest
+  if (hasHtmlTags) {
+    return text;
+  }
+  
+  // Konwertuj zwykły tekst na HTML
+  return text
+    .replace(/\r\n/g, '<br>') // Windows line breaks
+    .replace(/\n/g, '<br>') // Unix line breaks
+    .replace(/\r/g, '<br>') // Mac line breaks
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>') // Cytaty na blockquote
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') // **tekst** na <strong>
+    .replace(/\*(.+?)\*/g, '<em>$1</em>') // *tekst* na <em>
+    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>') // Linki
+    .replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<a href="mailto:$1">$1</a>'); // Emaile
+}
+
 export default function InboxPage() {
   const [replies, setReplies] = useState<InboxReply[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -190,45 +219,45 @@ export default function InboxPage() {
       {/* Kontrolki i filtry */}
       <div className="card" style={{ marginBottom: "var(--spacing-2xl)" }}>
         <div style={{ display: "flex", gap: "var(--spacing-md)", flexWrap: "wrap", alignItems: "center" }}>
-          <button
-            onClick={handleFetchNew}
-            disabled={isFetching}
+        <button
+          onClick={handleFetchNew}
+          disabled={isFetching}
             className="btn"
-            style={{
+          style={{
               backgroundColor: isFetching ? "#ccc" : "var(--primary)",
-              color: "white",
-              border: "none",
+            color: "white",
+            border: "none",
               fontWeight: "600",
               padding: "12px 24px"
-            }}
-          >
+          }}
+        >
             {isFetching ? "Pobieranie..." : "Pobierz nowe maile"}
-          </button>
+        </button>
 
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={{
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          style={{
               padding: "var(--spacing-sm)",
               border: "1px solid var(--gray-300)",
               borderRadius: "var(--radius)",
-              fontSize: "14px"
-            }}
-          >
+            fontSize: "14px"
+          }}
+        >
             <option value="all">Wszystkie do obsługi</option>
             <option value="interested">Tylko zainteresowani</option>
             <option value="replies">Inne odpowiedzi</option>
-          </select>
+        </select>
 
           <label style={{ display: "flex", alignItems: "center", cursor: "pointer", padding: "var(--spacing-sm)" }}>
-            <input
-              type="checkbox"
-              checked={unreadOnly}
-              onChange={(e) => setUnreadOnly(e.target.checked)}
+          <input
+            type="checkbox"
+            checked={unreadOnly}
+            onChange={(e) => setUnreadOnly(e.target.checked)}
               style={{ marginRight: "var(--spacing-xs)" }}
-            />
+          />
             <span style={{ fontSize: "14px" }}>Tylko nieprzeczytane</span>
-          </label>
+        </label>
         </div>
       </div>
 
@@ -270,7 +299,7 @@ export default function InboxPage() {
         ) : (
           <div className="card" style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
+            <thead>
                 <tr style={{ borderBottom: "2px solid var(--gray-200)" }}>
                   <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "40px" }}></th>
                   <th style={{ padding: "var(--spacing-md)", textAlign: "left" }}>Od / Do</th>
@@ -278,8 +307,8 @@ export default function InboxPage() {
                   <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "150px" }}>Data</th>
                   <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "120px" }}>Typ</th>
                   <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "100px" }}>Akcje</th>
-                </tr>
-              </thead>
+              </tr>
+            </thead>
             <tbody>
               {replies
                 .sort((a, b) => {
@@ -513,9 +542,29 @@ export default function InboxPage() {
                   borderRadius: "var(--radius)",
                   marginTop: "var(--spacing-xs)",
                   maxHeight: "400px",
-                  overflow: "auto"
+                  overflow: "auto",
+                  fontSize: "14px",
+                  lineHeight: "1.6",
+                  fontFamily: "Arial, sans-serif"
                 }}
-                dangerouslySetInnerHTML={{ __html: selectedReply.content }}
+                dangerouslySetInnerHTML={{ 
+                  __html: `
+                    <style>
+                      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                      p { margin: 0 0 10px 0; }
+                      br { line-height: 1.6; }
+                      div { margin: 0 0 10px 0; }
+                      strong, b { font-weight: bold; }
+                      em, i { font-style: italic; }
+                      ul, ol { margin: 10px 0; padding-left: 20px; }
+                      li { margin: 5px 0; }
+                      blockquote { margin: 10px 0; padding: 10px; border-left: 3px solid #ccc; background: #f9f9f9; }
+                      a { color: #0066cc; text-decoration: underline; }
+                      img { max-width: 100%; height: auto; }
+                    </style>
+                    ${convertTextToHtml(selectedReply.content)}
+                  `
+                }}
               />
             </div>
 

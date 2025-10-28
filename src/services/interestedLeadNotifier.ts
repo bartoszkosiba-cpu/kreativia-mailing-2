@@ -109,6 +109,25 @@ export async function sendInterestedLeadNotification(data: NotificationData): Pr
           replyTo: reply.lead.email // Odpowiedz bezpośrednio do leada
         });
         
+        // Zapisz do SendLog dla archiwum
+        try {
+          await db.sendLog.create({
+            data: {
+              mailboxId: mailbox.id,
+              leadId: reply.leadId,
+              campaignId: reply.campaignId,
+              toEmail: recipient, // NOWE: Zapisz odbiorcę powiadomienia
+              subject: emailContent.subject,
+              content: isForSalesperson ? emailContent.bodyWithButton : emailContent.body,
+              status: "sent"
+            }
+          });
+          console.log(`[NOTIFIER] ✅ Mail zapisany do archiwum`);
+        } catch (logError) {
+          console.error(`[NOTIFIER] ⚠️ Błąd zapisu do archiwum:`, logError);
+          // Nie przerywamy procesu - mail został wysłany
+        }
+        
         console.log(`[NOTIFIER] ✅ Powiadomienie wysłane do: ${recipient}`);
         
       } catch (error) {

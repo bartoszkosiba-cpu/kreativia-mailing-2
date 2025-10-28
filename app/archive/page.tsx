@@ -37,6 +37,35 @@ interface ArchiveStats {
   byClassification: Record<string, number>;
 }
 
+// Funkcja konwersji zwykłego tekstu na HTML
+function convertTextToHtml(text: string): string {
+  if (!text) return '';
+  
+  // Sprawdź czy to prawdziwy HTML (zawiera tagi HTML)
+  const hasHtmlTags = text.includes('<html>') || 
+                     text.includes('<br>') || 
+                     text.includes('<p>') || 
+                     text.includes('<div>') ||
+                     text.includes('<body>') ||
+                     text.includes('<head>');
+  
+  // Jeśli już zawiera prawdziwy HTML, zwróć jak jest
+  if (hasHtmlTags) {
+    return text;
+  }
+  
+  // Konwertuj zwykły tekst na HTML
+  return text
+    .replace(/\r\n/g, '<br>') // Windows line breaks
+    .replace(/\n/g, '<br>') // Unix line breaks
+    .replace(/\r/g, '<br>') // Mac line breaks
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>') // Cytaty na blockquote
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') // **tekst** na <strong>
+    .replace(/\*(.+?)\*/g, '<em>$1</em>') // *tekst* na <em>
+    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>') // Linki
+    .replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<a href="mailto:$1">$1</a>'); // Emaile
+}
+
 export default function ArchivePage() {
   const [emails, setEmails] = useState<ArchiveEmail[]>([]);
   const [stats, setStats] = useState<ArchiveStats>({
@@ -231,6 +260,7 @@ export default function ArchivePage() {
   const getClassificationColor = (classification: string | null) => {
     if (!classification) return "#f5f5f5";
     switch (classification) {
+      case "NOTIFICATION": return "#fff3e0";
       case "INTERESTED": return "#e8f5e9";
       case "NOT_INTERESTED": return "#ffebee";
       case "REDIRECT": return "#e3f2fd";
@@ -245,6 +275,7 @@ export default function ArchivePage() {
   const getClassificationLabel = (classification: string | null) => {
     if (!classification) return "";
     switch (classification) {
+      case "NOTIFICATION": return "Powiadomienia";
       case "INTERESTED": return "Zainteresowany";
       case "NOT_INTERESTED": return "Nie zainteresowany";
       case "REDIRECT": return "Przekierowanie";
@@ -273,7 +304,7 @@ export default function ArchivePage() {
             disabled={isFetching}
             className="btn"
             style={{
-              backgroundColor: isFetching ? "#ccc" : "var(--primary)",
+              backgroundColor: isFetching ? "#ccc" : "#6b7280",
               color: "white",
               border: "none",
               fontWeight: "bold",
@@ -282,7 +313,7 @@ export default function ArchivePage() {
               cursor: isFetching ? "not-allowed" : "pointer"
             }}
           >
-            {isFetching ? "⏳ Pobieranie..." : "🔄 Odśwież"}
+            {isFetching ? "Pobieranie..." : "Odśwież"}
           </button>
           <button
             onClick={handleClearArchive}
@@ -397,6 +428,7 @@ export default function ArchivePage() {
               style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
             >
               <option value="">Wszystkie</option>
+              <option value="NOTIFICATION">Powiadomienia</option>
               <option value="INTERESTED">Zainteresowany</option>
               <option value="NOT_INTERESTED">Nie zainteresowany</option>
               <option value="REDIRECT">Przekierowanie</option>
@@ -884,9 +916,28 @@ export default function ArchivePage() {
                   border: "1px solid var(--gray-200)",
                   maxHeight: "300px",
                   overflow: "auto",
-                  fontSize: "12px"
+                  fontSize: "12px",
+                  lineHeight: "1.6",
+                  fontFamily: "Arial, sans-serif"
                 }}
-                dangerouslySetInnerHTML={{ __html: selectedEmail.content }}
+                dangerouslySetInnerHTML={{ 
+                  __html: `
+                    <style>
+                      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                      p { margin: 0 0 10px 0; }
+                      br { line-height: 1.6; }
+                      div { margin: 0 0 10px 0; }
+                      strong, b { font-weight: bold; }
+                      em, i { font-style: italic; }
+                      ul, ol { margin: 10px 0; padding-left: 20px; }
+                      li { margin: 5px 0; }
+                      blockquote { margin: 10px 0; padding: 10px; border-left: 3px solid #ccc; background: #f9f9f9; }
+                      a { color: #0066cc; text-decoration: underline; }
+                      img { max-width: 100%; height: auto; }
+                    </style>
+                    ${convertTextToHtml(selectedEmail.content)}
+                  `
+                }}
                 />
               </div>
             )}

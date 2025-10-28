@@ -50,16 +50,27 @@ export async function GET(request: NextRequest) {
 
       allEmails.push(...sentEmails.map(email => {
         // Określ kategorię maila
-        const emailType = email.campaignId && email.leadId ? "CAMPAIGN" : "TEST";
+        const isNotification = email.subject?.includes('[LEAD ZAINTERESOWANY]') || email.subject?.includes('[NOWY LEAD]');
+        const emailType = isNotification ? "NOTIFICATION" : (email.campaignId && email.leadId ? "CAMPAIGN" : "TEST");
         const direction = "outgoing";
-        const source = email.campaignId ? "campaign" : "verification";
+        const source = isNotification ? "notification" : (email.campaignId ? "campaign" : "verification");
+        
+        // Dla powiadomień: użyj zapisany toEmail, dla zwykłych maili: użyj email leada
+        let toEmail = "Nieznany odbiorca";
+        if (isNotification && email.toEmail) {
+          // Dla powiadomień: użyj zapisany odbiorca
+          toEmail = email.toEmail;
+        } else {
+          // Dla zwykłych maili: użyj email leada lub skrzynki
+          toEmail = email.lead?.email || email.mailbox?.email || "Nieznany odbiorca";
+        }
         
         return {
           id: `sent-${email.id}`,
           type: "sent",
           date: email.createdAt,
           fromEmail: email.mailbox?.email || "Nieznana skrzynka",
-          toEmail: email.lead?.email || email.mailbox?.email || "Nieznany odbiorca",
+          toEmail: toEmail,
           subject: email.subject || "Brak tematu",
           content: email.content,
           status: email.status,
@@ -72,7 +83,7 @@ export async function GET(request: NextRequest) {
           mailboxId: email.mailboxId,
           mailboxName: email.mailbox?.displayName || email.mailbox?.email,
           salespersonName: email.mailbox?.virtualSalesperson?.name,
-          classification: null,
+          classification: isNotification ? "NOTIFICATION" : null,
           sentiment: null,
           aiSummary: null,
           emailType,
