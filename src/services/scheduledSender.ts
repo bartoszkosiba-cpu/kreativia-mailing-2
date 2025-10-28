@@ -374,10 +374,10 @@ export async function processScheduledCampaign(): Promise<void> {
         const remainingInLoop = leads.length - i - 1; // -1 bo obecny jest już wysłany w linii 296
         const optimalDelay = Math.floor(msRemaining / Math.max(1, remainingInLoop));
         
-        // ZAWSZE używaj co najmniej bazowego delay, ale maksymalnie 5x bazowy (żeby nie było zbyt długich opóźnień)
+        // ZAWSZE używaj co najmniej bazowego delay, ale maksymalnie 10x bazowy (żeby nie było zbyt długich opóźnień)
         const finalOptimalDelay = Math.max(
           campaign.delayBetweenEmails, 
-          Math.min(optimalDelay, campaign.delayBetweenEmails * 5)
+          Math.min(optimalDelay, campaign.delayBetweenEmails * 10)
         );
         
         // Losowość ±20%
