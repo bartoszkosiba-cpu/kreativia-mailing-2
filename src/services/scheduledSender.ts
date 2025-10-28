@@ -334,16 +334,58 @@ export async function processScheduledCampaign(): Promise<void> {
       }
     }
     
-    // Opóźnienie między mailami (dynamiczne ± 20%)
+    // Opóźnienie między mailami (dynamiczne rozkładanie w oknie czasowym)
     if (i < leads.length - 1) {
-      const baseDelay = campaign.delayBetweenEmails;
-      const randomVariation = 0.2; // ± 20% losowości
-      const minDelay = baseDelay * (1 - randomVariation);
-      const maxDelay = baseDelay * (1 + randomVariation);
-      const actualDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+      const now = new Date();
       
-      console.log(`[SCHEDULED SENDER] Czekam ${actualDelay}s (bazowy: ${baseDelay}s, zmienność: ±20%) przed następnym mailem...`);
-      await new Promise(resolve => setTimeout(resolve, actualDelay * 1000));
+      // Oblicz koniec okna z marginesem 1h bezpieczeństwa
+      const endWindow = new Date(now);
+      endWindow.setHours(campaign.endHour, campaign.endMinute ?? 0, 0);
+      endWindow.setMinutes(endWindow.getMinutes() - 60); // -1h margines
+      
+      const msRemaining = endWindow.getTime() - now.getTime();
+      
+      // Sprawdź czy zbliżamy się do limitów
+      const isApproachingDailyLimit = successCount >= campaign.maxEmailsPerDay - 10; // 10 maili przed limitem
+      const isApproachingTimeLimit = msRemaining <= 300000; // 5 minut do końca
+      
+      let actualDelay: number;
+      
+      if (msRemaining <= 0 || isApproachingTimeLimit) {
+        // Czas minął lub kończy się - użyj bazowego delay
+        const baseDelay = campaign.delayBetweenEmails;
+        const randomVariation = 0.2;
+        const minDelay = baseDelay * (1 - randomVariation);
+        const maxDelay = baseDelay * (1 + randomVariation);
+        actualDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+        
+        console.log(`[SCHEDULED SENDER] ⏰ ${isApproachingTimeLimit ? 'Kończy się okno czasowe' : 'Okno wygasło'}. Delay: ${actualDelay}s (bazowy)`);
+      } else if (isApproachingDailyLimit) {
+        // Zbliżamy się do dziennego limitu - zwiększ delay
+        const baseDelay = campaign.delayBetweenEmails;
+        const randomVariation = 0.2;
+        const minDelay = baseDelay * 1.5 * (1 - randomVariation); // 1.5x bazowy
+        const maxDelay = baseDelay * 1.5 * (1 + randomVariation);
+        actualDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+        
+        console.log(`[SCHEDULED SENDER] 📊 Zbliża się limit dzienny (${successCount}/${campaign.maxEmailsPerDay}). Delay: ${actualDelay}s`);
+      } else {
+        // Normalny tryb - dynamiczne rozkładanie
+        const remainingInLoop = leads.length - i - 1; // -1 bo obecny jest już wysłany w linii 296
+        const optimalDelay = Math.floor(msRemaining / Math.max(1, remainingInLoop));
+        
+        // Losowość ±20%
+        const randomVariation = 0.2;
+        const minDelay = Math.max(1, optimalDelay * (1 - randomVariation));
+        const maxDelay = optimalDelay * (1 + randomVariation);
+        actualDelay = Math.max(1, Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay));
+        
+        console.log(`[SCHEDULED SENDER] ⏱️  Delay: ${actualDelay}s (optymalny: ${optimalDelay}s, okno: ${Math.floor(msRemaining/1000/60)}min, pozostało: ${remainingInLoop} maili)`);
+      }
+      
+      if (actualDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, actualDelay * 1000));
+      }
     }
   }
   

@@ -12,6 +12,7 @@ import DeleteCampaign from "./DeleteCampaign";
 import FollowUpManager from "./FollowUpManager";
 import RefreshButton from "./RefreshButton";
 import CampaignOutbox from "./CampaignOutbox";
+import CampaignPlanningInfo from "./CampaignPlanningInfo";
 
 export default async function CampaignDetailsPage({ params }: { params: { id: string } }) {
   const campaignId = Number(params.id);
@@ -203,6 +204,8 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
         leadsCount={leadsWithStatus.length}
         delayBetweenEmails={campaign.delayBetweenEmails}
       />
+
+      <CampaignPlanningInfo campaignId={campaignId} />
 
       <CampaignTextEditor 
         campaignId={campaignId} 
