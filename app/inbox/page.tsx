@@ -39,6 +39,8 @@ export default function InboxPage() {
   const [isFetching, setIsFetching] = useState(false);
   const [filter, setFilter] = useState("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [selectedReply, setSelectedReply] = useState<InboxReply | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     fetchReplies();
@@ -114,6 +116,20 @@ export default function InboxPage() {
     } catch (error) {
       console.error("Błąd oznaczania jako przeczytane:", error);
     }
+  };
+
+  const handleRowClick = (reply: InboxReply) => {
+    setSelectedReply(reply);
+    setShowModal(true);
+    // Oznacz jako przeczytane przy otwarciu modala
+    if (!reply.isRead) {
+      markAsRead(reply.id);
+    }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedReply(null);
   };
 
   const getClassificationColor = (classification: string | null) => {
@@ -287,7 +303,7 @@ export default function InboxPage() {
                     borderBottom: "1px solid var(--gray-200)",
                     cursor: "pointer"
                   }}
-                  onClick={() => !reply.isRead && markAsRead(reply.id)}
+                  onClick={() => handleRowClick(reply)}
                 >
                   {/* Ikona */}
                   <td style={{ padding: "var(--spacing-md)", textAlign: "center" }}>
@@ -388,6 +404,177 @@ export default function InboxPage() {
           <li><strong>Auto-obsłużone</strong> - OOO/REDIRECT z nowymi kontaktami - już dodane do bazy</li>
         </ul>
       </div>
+
+      {/* Modal szczegółów */}
+      {showModal && selectedReply && (
+        <div 
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}
+          onClick={closeModal}
+        >
+          <div 
+            style={{
+              backgroundColor: "white",
+              borderRadius: "var(--radius)",
+              padding: "var(--spacing-2xl)",
+              maxWidth: "800px",
+              width: "90%",
+              maxHeight: "80vh",
+              overflow: "auto",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-lg)" }}>
+              <h2 style={{ margin: 0, fontSize: "1.5rem" }}>Szczegóły odpowiedzi</h2>
+              <button
+                onClick={closeModal}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  color: "var(--gray-500)",
+                  padding: "4px"
+                }}
+                title="Zamknij"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Podstawowe informacje */}
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "1fr 1fr", 
+              gap: "var(--spacing-md)", 
+              marginBottom: "var(--spacing-lg)",
+              padding: "var(--spacing-md)",
+              backgroundColor: "var(--gray-50)",
+              borderRadius: "var(--radius)",
+              fontSize: "14px"
+            }}>
+              <div>
+                <strong>Od:</strong><br />
+                <span style={{ color: "var(--gray-700)" }}>{selectedReply.fromEmail}</span>
+              </div>
+              <div>
+                <strong>Data:</strong><br />
+                <span style={{ color: "var(--gray-700)" }}>{new Date(selectedReply.receivedAt).toLocaleString('pl-PL')}</span>
+              </div>
+              <div>
+                <strong>Klasyfikacja:</strong><br />
+                <span style={{ 
+                  padding: "2px 8px",
+                  backgroundColor: getClassificationColor(selectedReply.classification),
+                  color: "white",
+                  borderRadius: "4px",
+                  fontSize: "12px"
+                }}>
+                  {selectedReply.classification || "BRAK"}
+                </span>
+              </div>
+              <div>
+                <strong>Kampania:</strong><br />
+                <span style={{ color: "var(--gray-700)" }}>{selectedReply.campaign?.name || "Brak"}</span>
+              </div>
+            </div>
+
+            {/* Temat */}
+            <div style={{ marginBottom: "var(--spacing-lg)" }}>
+              <strong>Temat:</strong>
+              <div style={{ 
+                padding: "var(--spacing-sm)",
+                backgroundColor: "var(--gray-50)",
+                borderRadius: "var(--radius)",
+                marginTop: "var(--spacing-xs)"
+              }}>
+                {selectedReply.subject}
+              </div>
+            </div>
+
+            {/* Treść maila */}
+            <div style={{ marginBottom: "var(--spacing-lg)" }}>
+              <strong>Treść:</strong>
+              <div 
+                style={{ 
+                  padding: "var(--spacing-md)",
+                  backgroundColor: "var(--gray-50)",
+                  borderRadius: "var(--radius)",
+                  marginTop: "var(--spacing-xs)",
+                  maxHeight: "400px",
+                  overflow: "auto"
+                }}
+                dangerouslySetInnerHTML={{ __html: selectedReply.content }}
+              />
+            </div>
+
+            {/* AI Summary */}
+            {selectedReply.aiSummary && (
+              <div style={{ 
+                marginBottom: "var(--spacing-lg)",
+                padding: "var(--spacing-md)",
+                backgroundColor: "#fef3c7",
+                borderRadius: "var(--radius)",
+                border: "1px solid #fbbf24"
+              }}>
+                <strong style={{ color: "#92400e" }}>Podsumowanie AI:</strong>
+                <p style={{ marginTop: "var(--spacing-xs)", color: "#78350f" }}>{selectedReply.aiSummary}</p>
+              </div>
+            )}
+
+            {/* Akcje */}
+            <div style={{ display: "flex", gap: "var(--spacing-md)", justifyContent: "flex-end" }}>
+              {selectedReply.lead && (
+                <Link
+                  href={`/leads/${selectedReply.lead.id}`}
+                  className="btn"
+                  style={{
+                    backgroundColor: "var(--primary)",
+                    color: "white",
+                    textDecoration: "none",
+                    padding: "8px 16px",
+                    borderRadius: "var(--radius)",
+                    fontWeight: "600"
+                  }}
+                >
+                  Zobacz lead
+                </Link>
+              )}
+              {!selectedReply.isHandled && (
+                <button
+                  onClick={async () => {
+                    await markAsHandled(selectedReply.id);
+                    closeModal();
+                  }}
+                  className="btn"
+                  style={{
+                    backgroundColor: "var(--success)",
+                    color: "white",
+                    border: "none",
+                    padding: "8px 16px",
+                    borderRadius: "var(--radius)",
+                    fontWeight: "600",
+                    cursor: "pointer"
+                  }}
+                >
+                  Oznacz jako obsłużone
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
