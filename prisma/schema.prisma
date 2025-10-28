@@ -173,6 +173,9 @@ model SendLog {
   campaign   Campaign? @relation(fields: [campaignId], references: [id])
   lead       Lead?     @relation(fields: [leadId], references: [id])
   mailbox    Mailbox?  @relation(fields: [mailboxId], references: [id])
+
+  // Zapobiega wysłaniu tego samego maila wiele razy do tego samego leada (race condition)
+  @@index([campaignId, leadId, status])
 }
 
 model InboxReply {

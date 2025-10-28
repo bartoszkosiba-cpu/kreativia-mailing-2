@@ -65,18 +65,27 @@ async function sendSingleEmail(
       settings: companySettings
     });
 
-    // Zapisz log wysyłki
-    await db.sendLog.create({
-      data: {
-        campaignId: campaign.id,
-        leadId: lead.id,
-        mailboxId: mailbox?.id || null,
-        subject: campaign.subject || "Brak tematu", // NOWE: Zapisz subject
-        content: content, // NOWE: Zapisz content
-        status: "sent",
-        messageId: result.messageId
+    // Zapisz log wysyłki (z ochroną przed duplikatami)
+    try {
+      await db.sendLog.create({
+        data: {
+          campaignId: campaign.id,
+          leadId: lead.id,
+          mailboxId: mailbox?.id || null,
+          subject: campaign.subject || "Brak tematu", // NOWE: Zapisz subject
+          content: content, // NOWE: Zapisz content
+          status: "sent",
+          messageId: result.messageId
+        }
+      });
+    } catch (error: any) {
+      // Jeśli już istnieje (duplikat przez race condition) - loguj i kontynuuj
+      if (error.code === 'P2002') {
+        console.log(`[SENDER] ⚠️  Duplikat wysyłki do ${lead.email} - już zapisany, pomijam`);
+        return { success: true, messageId: result.messageId };
       }
-    });
+      throw error; // Rzucamy dalej inne błędy
+    }
 
     // Inkrementuj licznik użycia skrzynki
     if (mailbox) {
@@ -138,14 +147,24 @@ export async function processScheduledCampaign(): Promise<void> {
     return;
   }
   
-  // Oznacz kampanię jako "IN_PROGRESS"
-  await db.campaign.update({
-    where: { id: campaign.id },
+  // Oznacz kampanię jako "IN_PROGRESS" (ATOMIC - zapobiega race condition)
+  // Tylko jeśli status = SCHEDULED (ktoś inny nie wziął już)
+  const updated = await db.campaign.updateMany({
+    where: { 
+      id: campaign.id,
+      status: "SCHEDULED" // Tylko SCHEDULED może przejść do IN_PROGRESS
+    },
     data: {
       status: "IN_PROGRESS",
       sendingStartedAt: now
     }
   });
+  
+  if (updated.count === 0) {
+    // Ktoś inny już wziął kampanię (race condition)
+    console.log(`[SCHEDULED SENDER] ⏭️ Kampania ${campaign.name} została już wzięta przez inny proces - pomijam`);
+    return;
+  }
   
   console.log(`[SCHEDULED SENDER] ✓ Rozpoczynam wysyłkę kampanii ${campaign.name}`);
   
@@ -202,16 +221,18 @@ export async function processScheduledCampaign(): Promise<void> {
       break;
     }
     
-    // ✅ Sprawdź czy kampania nie została zatrzymana (PAUSED)
-    const currentCampaign = await db.campaign.findUnique({
-      where: { id: campaign.id },
-      select: { status: true }
-    });
-    
-    if (currentCampaign?.status === "PAUSED") {
-      console.log('[SCHEDULED SENDER] ⏸️  Kampania zatrzymana przez użytkownika');
-      skippedCount = leads.length - i;
-      break;
+    // ✅ Sprawdź czy kampania nie została zatrzymana (PAUSED/CANCELLED) - co 5 maili
+    if (i % 5 === 0) {
+      const currentCampaign = await db.campaign.findUnique({
+        where: { id: campaign.id },
+        select: { status: true }
+      });
+      
+      if (currentCampaign?.status !== "IN_PROGRESS") {
+        console.log(`[SCHEDULED SENDER] ⏸️  Kampania zatrzymana (status: ${currentCampaign?.status}) - przerwanie`);
+        skippedCount = leads.length - i;
+        break;
+      }
     }
     
     // Sprawdź czy mail już został wysłany (zapobieganie duplikatom)
