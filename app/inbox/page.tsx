@@ -129,12 +129,14 @@ export default function InboxPage() {
 
   const getClassificationIcon = (classification: string | null) => {
     switch (classification) {
-      case "INTERESTED": return "🟢";
-      case "UNSUBSCRIBE": return "🚫";
-      case "OOO": return "⏸️";
-      case "REDIRECT": return "🔄";
-      case "BOUNCE": return "❌";
-      default: return "⚪";
+      case "INTERESTED": return "●";
+      case "UNSUBSCRIBE": return "■";
+      case "OOO": return "□";
+      case "REDIRECT": return "◆";
+      case "BOUNCE": return "✖";
+      case "NOT_INTERESTED": return "○";
+      case "MAYBE_LATER": return "▸";
+      default: return "○";
     }
   };
 
@@ -143,122 +145,125 @@ export default function InboxPage() {
   }
 
   return (
-    <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+    <div className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
+      <div style={{ marginBottom: "var(--spacing-2xl)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h1 style={{ margin: 0 }}>📬 Inbox - Do obsługi</h1>
-          <p style={{ color: "var(--gray-600)", marginTop: 8, marginBottom: 0 }}>
+          <h1 style={{ fontSize: "2.5rem", marginBottom: "var(--spacing-sm)" }}>
+            Inbox - Do obsługi
+          </h1>
+          <p style={{ fontSize: "1.1rem", color: "var(--gray-600)" }}>
             Maile wymagające Twojej uwagi - zainteresowani i odpowiedzi
           </p>
         </div>
         <Link 
           href="/archive"
+          className="btn"
           style={{
-            padding: "8px 16px",
             backgroundColor: "var(--gray-100)",
             color: "var(--gray-700)",
             textDecoration: "none",
-            borderRadius: "6px",
             border: "1px solid var(--gray-200)",
-            fontSize: "14px",
-            fontWeight: "500"
+            fontWeight: "600",
+            padding: "12px 24px"
           }}
         >
-          Zobacz archiwum →
+          Zobacz archiwum
         </Link>
       </div>
 
-      {/* Kontrolki */}
-      <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-        <button
-          onClick={handleFetchNew}
-          disabled={isFetching}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: isFetching ? "#ccc" : "#007bff",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: isFetching ? "not-allowed" : "pointer",
-            fontWeight: "bold"
-          }}
-        >
-          {isFetching ? "Pobieranie..." : "🔄 Pobierz nowe maile"}
-        </button>
+      {/* Kontrolki i filtry */}
+      <div className="card" style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <div style={{ display: "flex", gap: "var(--spacing-md)", flexWrap: "wrap", alignItems: "center" }}>
+          <button
+            onClick={handleFetchNew}
+            disabled={isFetching}
+            className="btn"
+            style={{
+              backgroundColor: isFetching ? "#ccc" : "var(--primary)",
+              color: "white",
+              border: "none",
+              fontWeight: "600",
+              padding: "12px 24px"
+            }}
+          >
+            {isFetching ? "Pobieranie..." : "Pobierz nowe maile"}
+          </button>
 
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          style={{
-            padding: "10px",
-            border: "1px solid #ccc",
-            borderRadius: 4,
-            fontSize: "14px"
-          }}
-        >
-          <option value="all">📋 Wszystkie do obsługi</option>
-          <option value="interested">🟢 Tylko zainteresowani</option>
-          <option value="replies">💬 Inne odpowiedzi</option>
-        </select>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            style={{
+              padding: "var(--spacing-sm)",
+              border: "1px solid var(--gray-300)",
+              borderRadius: "var(--radius)",
+              fontSize: "14px"
+            }}
+          >
+            <option value="all">Wszystkie do obsługi</option>
+            <option value="interested">Tylko zainteresowani</option>
+            <option value="replies">Inne odpowiedzi</option>
+          </select>
 
-        <label style={{ display: "flex", alignItems: "center", padding: "10px" }}>
-          <input
-            type="checkbox"
-            checked={unreadOnly}
-            onChange={(e) => setUnreadOnly(e.target.checked)}
-            style={{ marginRight: 8 }}
-          />
-          Tylko nieprzeczytane
-        </label>
+          <label style={{ display: "flex", alignItems: "center", cursor: "pointer", padding: "var(--spacing-sm)" }}>
+            <input
+              type="checkbox"
+              checked={unreadOnly}
+              onChange={(e) => setUnreadOnly(e.target.checked)}
+              style={{ marginRight: "var(--spacing-xs)" }}
+            />
+            <span style={{ fontSize: "14px" }}>Tylko nieprzeczytane</span>
+          </label>
+        </div>
       </div>
 
       {/* Statystyki */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 20 }}>
-        <div style={{ padding: 16, backgroundColor: "#d4edda", borderRadius: 8, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold" }}>
+      <div className="grid grid-4" style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Zainteresowani</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--success)" }}>
             {replies.filter(r => r.classification === "INTERESTED").length}
           </div>
-          <div style={{ fontSize: "12px", color: "#155724" }}>Zainteresowani</div>
         </div>
-        <div style={{ padding: 16, backgroundColor: "#f8d7da", borderRadius: 8, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold" }}>
-            {replies.filter(r => r.classification === "UNSUBSCRIBE").length}
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Odpowiedzi</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--warning)" }}>
+            {replies.filter(r => r.classification !== "INTERESTED" && r.classification !== null).length}
           </div>
-          <div style={{ fontSize: "12px", color: "#721c24" }}>Wypisani</div>
         </div>
-        <div style={{ padding: 16, backgroundColor: "#fff3cd", borderRadius: 8, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold" }}>
-            {replies.filter(r => r.classification === "OOO").length}
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Nieprzeczytane</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--info)" }}>
+            {replies.filter(r => !r.isRead).length}
           </div>
-          <div style={{ fontSize: "12px", color: "#856404" }}>OOO</div>
         </div>
-        <div style={{ padding: 16, backgroundColor: "#e8f4fd", borderRadius: 8, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", fontWeight: "bold" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Do obsługi</h3>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--primary)" }}>
             {replies.filter(r => !r.isHandled).length}
           </div>
-          <div style={{ fontSize: "12px", color: "#004085" }}>Do obsługi</div>
         </div>
       </div>
 
       {/* Lista odpowiedzi */}
       <div>
         {replies.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: "#666" }}>
-            <p>Brak odpowiedzi.</p>
+          <div className="card" style={{ textAlign: "center", padding: "var(--spacing-2xl)", color: "var(--gray-600)" }}>
+            <p style={{ fontSize: "1.1rem", marginBottom: "var(--spacing-sm)" }}>Brak odpowiedzi.</p>
             <p style={{ fontSize: "14px" }}>Kliknij "Pobierz nowe maile" aby sprawdzić skrzynkę.</p>
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#f5f5f5", borderBottom: "2px solid #ddd" }}>
-                <th style={{ padding: 12, textAlign: "left", width: "40px" }}></th>
-                <th style={{ padding: 12, textAlign: "left" }}>Od / Do</th>
-                <th style={{ padding: 12, textAlign: "left" }}>Temat</th>
-                <th style={{ padding: 12, textAlign: "left", width: "150px" }}>Data</th>
-                <th style={{ padding: 12, textAlign: "left", width: "120px" }}>Typ</th>
-                <th style={{ padding: 12, textAlign: "left", width: "100px" }}>Akcje</th>
-              </tr>
-            </thead>
+          <div className="card" style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid var(--gray-200)" }}>
+                  <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "40px" }}></th>
+                  <th style={{ padding: "var(--spacing-md)", textAlign: "left" }}>Od / Do</th>
+                  <th style={{ padding: "var(--spacing-md)", textAlign: "left" }}>Temat</th>
+                  <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "150px" }}>Data</th>
+                  <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "120px" }}>Typ</th>
+                  <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "100px" }}>Akcje</th>
+                </tr>
+              </thead>
             <tbody>
               {replies
                 .sort((a, b) => {
@@ -279,18 +284,18 @@ export default function InboxPage() {
                   key={reply.id}
                   style={{
                     backgroundColor: reply.isRead ? "#fff" : "#f0f8ff",
-                    borderBottom: "1px solid #eee",
+                    borderBottom: "1px solid var(--gray-200)",
                     cursor: "pointer"
                   }}
                   onClick={() => !reply.isRead && markAsRead(reply.id)}
                 >
                   {/* Ikona */}
-                  <td style={{ padding: 12, textAlign: "center" }}>
-                    <span style={{ fontSize: "20px" }}>{getClassificationIcon(reply.classification)}</span>
+                  <td style={{ padding: "var(--spacing-md)", textAlign: "center" }}>
+                    <span style={{ fontSize: "1.2rem", color: getClassificationColor(reply.classification) }}>{getClassificationIcon(reply.classification)}</span>
                   </td>
                   
                   {/* Od / Do */}
-                  <td style={{ padding: 12 }}>
+                  <td style={{ padding: "var(--spacing-md)" }}>
                     {reply.lead ? (
                       <div>
                         <strong>{reply.lead.firstName || ""} {reply.lead.lastName || ""}</strong>
@@ -305,58 +310,59 @@ export default function InboxPage() {
                   </td>
                   
                   {/* Temat */}
-                  <td style={{ padding: 12 }}>
+                  <td style={{ padding: "var(--spacing-md)" }}>
                     <div style={{ maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {reply.subject}
                     </div>
                     {reply.aiSummary && (
-                      <div style={{ fontSize: "11px", color: "#666", marginTop: 4 }}>
+                      <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: 4 }}>
                         {reply.aiSummary.substring(0, 80)}...
                       </div>
                     )}
                   </td>
                   
                   {/* Data */}
-                  <td style={{ padding: 12, fontSize: "12px", color: "#666" }}>
+                  <td style={{ padding: "var(--spacing-md)", fontSize: "12px", color: "var(--gray-600)" }}>
                     {new Date(reply.receivedAt).toLocaleDateString("pl-PL")}
                     <br />
                     {new Date(reply.receivedAt).toLocaleTimeString("pl-PL")}
                   </td>
                   
                   {/* Typ */}
-                  <td style={{ padding: 12, fontSize: "11px" }}>
+                  <td style={{ padding: "var(--spacing-md)", fontSize: "11px" }}>
                     <div style={{
                       padding: "4px 8px",
                       backgroundColor: getClassificationColor(reply.classification),
                       color: "white",
-                      borderRadius: 4,
+                      borderRadius: "var(--radius)",
                       textAlign: "center"
                     }}>
                       {reply.classification?.replace("_", " ")}
                     </div>
                     {reply.campaign && (
-                      <div style={{ marginTop: 4, fontSize: "10px", color: "#666" }}>
+                      <div style={{ marginTop: 4, fontSize: "10px", color: "var(--gray-600)" }}>
                         {reply.campaign.name}
                       </div>
                     )}
                   </td>
                   
                   {/* Akcje */}
-                  <td style={{ padding: 12 }}>
+                  <td style={{ padding: "var(--spacing-md)" }}>
                     {reply.lead && (
                       <Link
                         href={`/leads/${reply.lead.id}`}
+                        className="btn"
                         style={{
-                          padding: "4px 8px",
-                          backgroundColor: "#0066cc",
+                          padding: "6px 12px",
+                          backgroundColor: "var(--primary)",
                           color: "white",
                           textDecoration: "none",
-                          borderRadius: 4,
+                          borderRadius: "var(--radius)",
                           fontSize: "11px",
-                          display: "inline-block"
+                          fontWeight: "600"
                         }}
                       >
-                        👤 Lead
+                        Lead
                       </Link>
                     )}
                   </td>
@@ -364,24 +370,25 @@ export default function InboxPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
       {/* Informacje */}
-      <div style={{ backgroundColor: "#f0f9ff", padding: 16, borderRadius: 8, marginTop: 20 }}>
-        <h3 style={{ marginTop: 0 }}>ℹ️ Co pokazuje inbox?</h3>
+      <div className="card" style={{ marginTop: "var(--spacing-2xl)" }}>
+        <h3 style={{ marginTop: 0 }}>Co pokazuje inbox?</h3>
         <p style={{ fontSize: "14px", marginBottom: 12 }}>
           Tutaj są <strong>tylko te maile, które wymagają Twojej uwagi</strong> - zainteresowani i odpowiedzi. 
-          Pełne archiwum wszystkich maili znajdziesz w <Link href="/archive" style={{ color: "#0066cc" }}>Archiwum</Link>.
+          Pełne archiwum wszystkich maili znajdziesz w <Link href="/archive" style={{ color: "var(--primary)" }}>Archiwum</Link>.
         </p>
         <ul style={{ fontSize: "14px", margin: 0 }}>
-          <li><strong>🟢 Zainteresowani</strong> - najważniejsze! Automatycznie forwarded, ale sprawdź czy wszystko OK</li>
-          <li><strong>💬 Inne odpowiedzi</strong> - np. NOT_INTERESTED, MAYBE_LATER - warto sprawdzić co piszą</li>
-          <li><strong>✅ Oznacz jako obsłużone</strong> - usuwa z listy (maile i tak zostają w archiwum)</li>
-          <li><strong>🔄 Auto-obsłużone</strong> - OOO/REDIRECT z nowymi kontaktami - już dodane do bazy</li>
+          <li><strong>Zainteresowani</strong> - najważniejsze! Automatycznie forwarded, ale sprawdź czy wszystko OK</li>
+          <li><strong>Inne odpowiedzi</strong> - np. NOT_INTERESTED, MAYBE_LATER - warto sprawdzić co piszą</li>
+          <li><strong>Oznacz jako obsłużone</strong> - usuwa z listy (maile i tak zostają w archiwum)</li>
+          <li><strong>Auto-obsłużone</strong> - OOO/REDIRECT z nowymi kontaktami - już dodane do bazy</li>
         </ul>
       </div>
-    </main>
+    </div>
   );
 }
 
