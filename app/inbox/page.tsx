@@ -368,7 +368,7 @@ export default function InboxPage() {
       </div>
 
       {/* Informacje */}
-      <div style={{ backgroundColor: "#f0f9ff", padding: 16, borderRadius: 8 there, marginTop: 20 }}>
+      <div style={{ backgroundColor: "#f0f9ff", padding: 16, borderRadius: 8, marginTop: 20 }}>
         <h3 style={{ marginTop: 0 }}>ℹ️ Co pokazuje inbox?</h3>
         <p style={{ fontSize: "14px", marginBottom: 12 }}>
           Tutaj są <strong>tylko te maile, które wymagają Twojej uwagi</strong> - zainteresowani i odpowiedzi. 
