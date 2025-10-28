@@ -144,10 +144,28 @@ export default function InboxPage() {
 
   return (
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <h1>📬 Skrzynka odbiorcza</h1>
-
-      <div style={{ marginBottom: 20 }}>
-        <Link href="/">← Wróć do strony głównej</Link>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <h1 style={{ margin: 0 }}>📬 Inbox - Do obsługi</h1>
+          <p style={{ color: "var(--gray-600)", marginTop: 8, marginBottom: 0 }}>
+            Maile wymagające Twojej uwagi - zainteresowani i odpowiedzi
+          </p>
+        </div>
+        <Link 
+          href="/archive"
+          style={{
+            padding: "8px 16px",
+            backgroundColor: "var(--gray-100)",
+            color: "var(--gray-700)",
+            textDecoration: "none",
+            borderRadius: "6px",
+            border: "1px solid var(--gray-200)",
+            fontSize: "14px",
+            fontWeight: "500"
+          }}
+        >
+          Zobacz archiwum →
+        </Link>
       </div>
 
       {/* Kontrolki */}
@@ -178,12 +196,9 @@ export default function InboxPage() {
             fontSize: "14px"
           }}
         >
-          <option value="all">Wszystkie</option>
-          <option value="interested">🟢 Zainteresowani</option>
-          <option value="unsubscribe">🚫 Wypisani</option>
-          <option value="ooo">⏸️ OOO</option>
-          <option value="redirect">🔄 Przekierowania</option>
-          <option value="other">⚪ Inne</option>
+          <option value="all">📋 Wszystkie do obsługi</option>
+          <option value="interested">🟢 Tylko zainteresowani</option>
+          <option value="replies">💬 Inne odpowiedzi</option>
         </select>
 
         <label style={{ display: "flex", alignItems: "center", padding: "10px" }}>
@@ -245,7 +260,21 @@ export default function InboxPage() {
               </tr>
             </thead>
             <tbody>
-              {replies.map((reply) => (
+              {replies
+                .sort((a, b) => {
+                  // INTERESTED zawsze na górze
+                  if (a.classification === "INTERESTED" && b.classification !== "INTERESTED") return -1;
+                  if (a.classification !== "INTERESTED" && b.classification === "INTERESTED") return 1;
+                  // Potem nieobsłużone
+                  if (!a.isHandled && b.isHandled) return -1;
+                  if (a.isHandled && !b.isHandled) return 1;
+                  // Potem nieprzeczytane
+                  if (!a.isRead && b.isRead) return -1;
+                  if (a.isRead && !b.isRead) return 1;
+                  // Ostatecznie po dacie
+                  return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+                })
+                .map((reply) => (
                 <tr
                   key={reply.id}
                   style={{
@@ -339,14 +368,17 @@ export default function InboxPage() {
       </div>
 
       {/* Informacje */}
-      <div style={{ backgroundColor: "#e8f4fd", padding: 16, borderRadius: 8, marginTop: 20 }}>
-        <h3>ℹ️ Jak to działa?</h3>
-        <ul style={{ fontSize: "14px" }}>
-          <li><strong>🔄 Pobierz nowe maile</strong> - pobiera odpowiedzi z IMAP i klasyfikuje je przez AI</li>
-          <li><strong>🟢 Zainteresowani</strong> - automatycznie forwarded na Twój email</li>
-          <li><strong>🚫 Wypisani/Spam</strong> - kontakt automatycznie zablokowany + powiadomienie</li>
-          <li><strong>⏸️ OOO z zastępcą</strong> - nowe kontakty automatycznie dodane do bazy</li>
-          <li><strong>✅ Oznacz jako obsłużone</strong> - usuwa z listy "do obsługi"</li>
+      <div style={{ backgroundColor: "#f0f9ff", padding: 16, borderRadius: 8 there, marginTop: 20 }}>
+        <h3 style={{ marginTop: 0 }}>ℹ️ Co pokazuje inbox?</h3>
+        <p style={{ fontSize: "14px", marginBottom: 12 }}>
+          Tutaj są <strong>tylko te maile, które wymagają Twojej uwagi</strong> - zainteresowani i odpowiedzi. 
+          Pełne archiwum wszystkich maili znajdziesz w <Link href="/archive" style={{ color: "#0066cc" }}>Archiwum</Link>.
+        </p>
+        <ul style={{ fontSize: "14px", margin: 0 }}>
+          <li><strong>🟢 Zainteresowani</strong> - najważniejsze! Automatycznie forwarded, ale sprawdź czy wszystko OK</li>
+          <li><strong>💬 Inne odpowiedzi</strong> - np. NOT_INTERESTED, MAYBE_LATER - warto sprawdzić co piszą</li>
+          <li><strong>✅ Oznacz jako obsłużone</strong> - usuwa z listy (maile i tak zostają w archiwum)</li>
+          <li><strong>🔄 Auto-obsłużone</strong> - OOO/REDIRECT z nowymi kontaktami - już dodane do bazy</li>
         </ul>
       </div>
     </main>
