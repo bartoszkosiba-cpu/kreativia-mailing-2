@@ -31,15 +31,21 @@ async function sendSingleEmail(
         const error = "Brak dostępnych skrzynek mailowych dla handlowca";
         console.error(`[SENDER] ${error}`);
         
-        // Zapisz log błędu
-        await db.sendLog.create({
-          data: {
-            campaignId: campaign.id,
-            leadId: lead.id,
-            status: "error",
-            error: error
+        // Zapisz log błędu (z ochroną przed duplikatami)
+        try {
+          await db.sendLog.create({
+            data: {
+              campaignId: campaign.id,
+              leadId: lead.id,
+              status: "error",
+              error: error
+            }
+          });
+        } catch (dupError: any) {
+          if (dupError.code !== 'P2002') {
+            throw dupError; // Tylko duplikaty ignorujemy
           }
-        });
+        }
 
         return { success: false, error: error };
       }

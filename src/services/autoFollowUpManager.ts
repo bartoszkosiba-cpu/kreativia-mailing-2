@@ -171,18 +171,25 @@ async function sendAutoFollowUp(lead: any): Promise<void> {
     });
 
     if (emailResult.success) {
-      // Zapisz w SendLog
-      await db.sendLog.create({
-        data: {
-          leadId: lead.id,
-          campaignId: lastCampaign.id,
-          mailboxId: mailbox.id,
-          messageId: emailResult.messageId,
-          subject: template.subject,
-          content: template.text,
-          status: "SENT"
+      // Zapisz w SendLog (z ochroną przed duplikatami)
+      try {
+        await db.sendLog.create({
+          data: {
+            leadId: lead.id,
+            campaignId: lastCampaign.id,
+            mailboxId: mailbox.id,
+            messageId: emailResult.messageId,
+            subject: template.subject,
+            content: template.text,
+            status: "SENT"
+          }
+        });
+      } catch (dupError: any) {
+        if (dupError.code !== 'P2002') {
+          throw dupError;
         }
-      });
+        console.log(`[AUTO FOLLOWUP] ⚠️  Duplikat SendLog dla lead ${lead.id}`);
+      }
 
       // Zaktualizuj lead - dodaj informację o wysłanym AUTO_FOLLOWUP
       await db.lead.update({

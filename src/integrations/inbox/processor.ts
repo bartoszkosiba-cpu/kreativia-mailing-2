@@ -729,18 +729,25 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
                         settings: companySettings || undefined
                       });
                       
-                      // Zapisz log wysyłki
-                      await db.sendLog.create({
-                        data: {
-                          campaignId: targetCampaign.id,
-                          leadId: newLead.id,
-                          mailboxId: mailbox?.id || null, // NOWE: Dodaj mailboxId
-                          subject: targetCampaign.subject || "Brak tematu", // NOWE: Zapisz subject
-                          content: content, // NOWE: Zapisz content
-                          status: "sent",
-                          messageId: result.messageId
+                      // Zapisz log wysyłki (z ochroną przed duplikatami)
+                      try {
+                        await db.sendLog.create({
+                          data: {
+                            campaignId: targetCampaign.id,
+                            leadId: newLead.id,
+                            mailboxId: mailbox?.id || null, // NOWE: Dodaj mailboxId
+                            subject: targetCampaign.subject || "Brak tematu", // NOWE: Zapisz subject
+                            content: content, // NOWE: Zapisz content
+                            status: "sent",
+                            messageId: result.messageId
+                          }
+                        });
+                      } catch (dupError: any) {
+                        if (dupError.code !== 'P2002') {
+                          throw dupError; // Tylko duplikaty ignorujemy
                         }
-                      });
+                        console.log(`[PROCESSOR] ⚠️  Duplikat SendLog dla lead ${newLead.id}`);
+                      }
                       
                       // Inkrementuj licznik użycia skrzynki
                       if (mailbox) {
@@ -779,15 +786,22 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
                     } catch (sendError: any) {
                       console.error(`[PROCESSOR] ❌ Błąd wysyłki OOO lead:`, sendError);
                       
-                      // Zapisz log błędu
-                      await db.sendLog.create({
-                        data: {
-                          campaignId: targetCampaign.id,
-                          leadId: newLead.id,
-                          status: "error",
-                          error: sendError.message || "Nieznany błąd"
+                      // Zapisz log błędu (z ochroną przed duplikatami)
+                      try {
+                        await db.sendLog.create({
+                          data: {
+                            campaignId: targetCampaign.id,
+                            leadId: newLead.id,
+                            status: "error",
+                            error: sendError.message || "Nieznany błąd"
+                          }
+                        });
+                      } catch (dupError: any) {
+                        if (dupError.code !== 'P2002') {
+                          throw dupError;
                         }
-                      });
+                        console.log(`[PROCESSOR] ⚠️  Duplikat SendLog (error) dla lead ${newLead.id}`);
+                      }
                       
                       actionsTaken.push(`Błąd wysyłki OOO: ${sendError.message}`);
                     }
