@@ -107,6 +107,7 @@ model Campaign {
   sendLogs     SendLog[]
   CampaignLead CampaignLead[]
   replies      InboxReply[]
+  notifications InterestedLeadNotification[]
 }
 
 model Lead {
@@ -153,6 +154,7 @@ model Lead {
   LeadTag       LeadTag[]
   replies       InboxReply[]
   statusHistory LeadStatusHistory[]
+  notifications InterestedLeadNotification[]
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @default(now()) @updatedAt
 }
@@ -215,6 +217,7 @@ model InboxReply {
 
   lead     Lead?     @relation(fields: [leadId], references: [id])
   campaign Campaign? @relation(fields: [campaignId], references: [id])
+  notifications InterestedLeadNotification[]
 }
 
 model CampaignLead {
@@ -269,6 +272,10 @@ model CompanySettings {
   
   // Ustawienia wydajności skrzynek (warmup & kampanie)
   warmupPerformanceSettings String? // JSON: [{week:1, warmup:15, campaign:10}, ...]
+  
+  // Ustawienia przypomnień dla zainteresowanych
+  reminderIntervalDays Int @default(3) // Ile dni między przypomnieniami
+  maxReminderCount     Int @default(2) // Ile razy przypomnieć
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -718,4 +725,29 @@ model LeadStatusHistory {
   @@index([leadId])
   @@index([createdAt])
   @@index([newStatus])
+}
+
+model InterestedLeadNotification {
+  id                Int       @id @default(autoincrement())
+  replyId           Int
+  reply             InboxReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  leadId            Int
+  lead              Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaignId        Int?
+  campaign          Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  
+  salespersonEmail  String? // Email handlowca (może być null jeśli nie z kampanii)
+  notifiedAt        DateTime  @default(now())
+  confirmedAt       DateTime? // Kiedy handlowiec kliknął potwierdzenie
+  reminderCount     Int       @default(0) // Ile razy wysłano przypomnienie
+  lastReminderAt    DateTime? // Data ostatniego przypomnienia
+  status            String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([leadId])
+  @@index([replyId])
+  @@index([status])
+  @@index([salespersonEmail])
 }
