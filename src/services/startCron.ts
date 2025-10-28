@@ -3,6 +3,7 @@
 
 import { startEmailCron } from './emailCron';
 import { startWarmupCron } from './warmup/cron'; // NOWY SYSTEM
+import { startReminderCron } from './notificationReminderCron';
 
 // Globalna flaga zapobiegająca wielokrotnej inicjalizacji
 let cronInitialized = false;
@@ -14,6 +15,7 @@ if (typeof window === 'undefined' && !cronInitialized) {
   console.log('[INIT] Inicjalizacja cron jobs...');
   startEmailCron();
   startWarmupCron(); // NOWY SYSTEM WARMUP
+  startReminderCron(); // System przypomnień o zainteresowanych
 }
 
 export {};
