@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { createSmtpTransport } from "@/integrations/smtp/client";
+import nodemailer from "nodemailer";
 
 interface NotificationData {
   replyId: number;
@@ -91,7 +91,15 @@ export async function sendInterestedLeadNotification(data: NotificationData): Pr
       const isForSalesperson = recipient === data.salespersonEmail;
       
       try {
-        const transporter = createSmtpTransport(mailbox);
+        const transporter = nodemailer.createTransport({
+          host: mailbox.smtpHost,
+          port: mailbox.smtpPort || 587,
+          secure: mailbox.smtpSecure,
+          auth: {
+            user: mailbox.smtpUser,
+            pass: mailbox.smtpPass
+          }
+        });
         
         await transporter.sendMail({
           from: `"${reply.campaign?.virtualSalesperson?.name || 'Kreativia Mailing'}" <${mailbox.email}>`,

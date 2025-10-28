@@ -1,9 +1,10 @@
 // AI Agent do automatycznej analizy i obsługi odpowiedzi emailowych
 import { db } from "@/lib/db";
 import { classifyReply } from "@/integrations/ai/client";
+import { sendInterestedLeadNotification } from "./interestedLeadNotifier";
 
 export interface AIAction {
-  type: "FORWARD" | "BLOCK" | "UNSUBSCRIBE" | "ADD_LEAD" | "SCHEDULE_FOLLOWUP" | "UPDATE_STATUS" | "NO_ACTION";
+  type: "FORWARD" | "BLOCK" | "UNSUBSCRIBE" | "ADD_LEAD" | "SCHEDULE_FOLLOWUP" | "UPDATE_STATUS" | "NOTIFY" | "NO_ACTION";
   priority: "HIGH" | "MEDIUM" | "LOW";
   description: string;
   data?: any;
@@ -175,6 +176,19 @@ async function executeActions(reply: any, analysis: Omit<AIAnalysis, 'actions'>)
       } else {
         console.log("[AI AGENT] Brak prawdziwego handlowca przypisanego do wirtualnego handlowca - pomijam forward");
       }
+      
+      // Wyślij powiadomienia (NOWE: nowy system powiadomień)
+      actions.push({
+        type: "NOTIFY",
+        priority: "HIGH",
+        description: `Wyślij powiadomienia o zainteresowanym leadzie`,
+        data: {
+          replyId: reply.id,
+          leadId: reply.lead?.id,
+          campaignId: reply.campaignId,
+          salespersonEmail: reply.campaign?.virtualSalesperson?.realSalespersonEmail
+        }
+      });
       break;
       
     case "NOT_INTERESTED":
@@ -330,6 +344,10 @@ async function executeAction(action: AIAction, reply: any): Promise<void> {
       
     case "UPDATE_STATUS":
       await updateLeadStatus(action.data.leadId, action.data.newStatus, action.data.reason);
+      break;
+      
+    case "NOTIFY":
+      await sendInterestedLeadNotification(action.data);
       break;
       
     case "NO_ACTION":
