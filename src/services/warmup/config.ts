@@ -8,8 +8,7 @@ export interface WarmupDayConfig {
   day: number;
   dailyLimit: number;        // Ile maili warmup dziennie
   campaignLimit: number;     // Ile maili z kampanii dziennie
-  internalPercent: number;   // % maili między skrzynkami (80 = 80%)
-  seedPercent: number;       // % maili do seed addresses (20 = 20%)
+  // UWAGA: Wszystkie maile warmup wysyłane są TYLKO między skrzynkami systemowymi (internal)
 }
 
 /**
@@ -23,48 +22,86 @@ export interface WarmupDayConfig {
  */
 export const WARMUP_SCHEDULE: WarmupDayConfig[] = [
   // DNI 1-2: SILENT PHASE - BEZPIECZNE ROZPOCZĘCIE
-  { day: 1, dailyLimit: 15, campaignLimit: 5, internalPercent: 80, seedPercent: 20 },
-  { day: 2, dailyLimit: 15, campaignLimit: 5, internalPercent: 80, seedPercent: 20 },
+  { day: 1, dailyLimit: 15, campaignLimit: 5 },
+  { day: 2, dailyLimit: 15, campaignLimit: 5 },
   
   // DNI 3-7: GRADUAL PHASE - STOPNIOWY WZROST
-  { day: 3, dailyLimit: 20, campaignLimit: 10, internalPercent: 75, seedPercent: 25 },
-  { day: 4, dailyLimit: 20, campaignLimit: 10, internalPercent: 75, seedPercent: 25 },
-  { day: 5, dailyLimit: 20, campaignLimit: 10, internalPercent: 70, seedPercent: 30 },
-  { day: 6, dailyLimit: 25, campaignLimit: 10, internalPercent: 70, seedPercent: 30 },
-  { day: 7, dailyLimit: 25, campaignLimit: 10, internalPercent: 70, seedPercent: 30 },
+  { day: 3, dailyLimit: 20, campaignLimit: 10 },
+  { day: 4, dailyLimit: 20, campaignLimit: 10 },
+  { day: 5, dailyLimit: 20, campaignLimit: 10 },
+  { day: 6, dailyLimit: 25, campaignLimit: 10 },
+  { day: 7, dailyLimit: 25, campaignLimit: 10 },
   
   // DNI 8-14: BUILDING PHASE - KONTROLOWANY WZROST
-  { day: 8, dailyLimit: 25, campaignLimit: 15, internalPercent: 65, seedPercent: 35 },
-  { day: 9, dailyLimit: 25, campaignLimit: 15, internalPercent: 65, seedPercent: 35 },
-  { day: 10, dailyLimit: 30, campaignLimit: 15, internalPercent: 60, seedPercent: 40 },
-  { day: 11, dailyLimit: 30, campaignLimit: 15, internalPercent: 60, seedPercent: 40 },
-  { day: 12, dailyLimit: 30, campaignLimit: 15, internalPercent: 60, seedPercent: 40 },
-  { day: 13, dailyLimit: 35, campaignLimit: 15, internalPercent: 60, seedPercent: 40 },
-  { day: 14, dailyLimit: 35, campaignLimit: 15, internalPercent: 60, seedPercent: 40 },
+  { day: 8, dailyLimit: 25, campaignLimit: 15 },
+  { day: 9, dailyLimit: 25, campaignLimit: 15 },
+  { day: 10, dailyLimit: 30, campaignLimit: 15 },
+  { day: 11, dailyLimit: 30, campaignLimit: 15 },
+  { day: 12, dailyLimit: 30, campaignLimit: 15 },
+  { day: 13, dailyLimit: 35, campaignLimit: 15 },
+  { day: 14, dailyLimit: 35, campaignLimit: 15 },
   
   // DNI 15-30: ACTIVE PHASE - STABILNE LIMITY
-  { day: 15, dailyLimit: 30, campaignLimit: 20, internalPercent: 55, seedPercent: 45 },
-  { day: 16, dailyLimit: 30, campaignLimit: 20, internalPercent: 55, seedPercent: 45 },
-  { day: 17, dailyLimit: 30, campaignLimit: 20, internalPercent: 55, seedPercent: 45 },
-  { day: 18, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 19, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 20, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 21, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 22, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 23, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 24, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 25, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 26, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 27, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 28, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 29, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
-  { day: 30, dailyLimit: 30, campaignLimit: 20, internalPercent: 50, seedPercent: 50 },
+  { day: 15, dailyLimit: 30, campaignLimit: 20 },
+  { day: 16, dailyLimit: 30, campaignLimit: 20 },
+  { day: 17, dailyLimit: 30, campaignLimit: 20 },
+  { day: 18, dailyLimit: 30, campaignLimit: 20 },
+  { day: 19, dailyLimit: 30, campaignLimit: 20 },
+  { day: 20, dailyLimit: 30, campaignLimit: 20 },
+  { day: 21, dailyLimit: 30, campaignLimit: 20 },
+  { day: 22, dailyLimit: 30, campaignLimit: 20 },
+  { day: 23, dailyLimit: 30, campaignLimit: 20 },
+  { day: 24, dailyLimit: 30, campaignLimit: 20 },
+  { day: 25, dailyLimit: 30, campaignLimit: 20 },
+  { day: 26, dailyLimit: 30, campaignLimit: 20 },
+  { day: 27, dailyLimit: 30, campaignLimit: 20 },
+  { day: 28, dailyLimit: 30, campaignLimit: 20 },
+  { day: 29, dailyLimit: 30, campaignLimit: 20 },
+  { day: 30, dailyLimit: 30, campaignLimit: 20 },
 ];
 
 /**
- * Pobiera konfigurację dla danego dnia warmup
+ * Pobiera aktualny harmonogram (z bazy lub domyślny)
  */
-export function getWarmupConfig(day: number): WarmupDayConfig | null {
+export async function getWarmupSchedule(): Promise<WarmupDayConfig[]> {
+  try {
+    const { db } = await import('@/lib/db');
+    const settings = await db.companySettings.findFirst();
+    
+    if (settings?.warmupSchedule) {
+      try {
+        const customSchedule = JSON.parse(settings.warmupSchedule) as WarmupDayConfig[];
+        if (Array.isArray(customSchedule) && customSchedule.length === 30) {
+          return customSchedule;
+        }
+      } catch (e) {
+        // Jeśli parsing się nie powiedzie, użyj domyślnego
+      }
+    }
+  } catch (error) {
+    console.error('[WARMUP CONFIG] Błąd pobierania harmonogramu z bazy:', error);
+  }
+  
+  return WARMUP_SCHEDULE;
+}
+
+/**
+ * Pobiera konfigurację dla danego dnia warmup (async)
+ */
+export async function getWarmupConfig(day: number): Promise<WarmupDayConfig | null> {
+  if (day < 1 || day > 30) {
+    return null;
+  }
+  
+  const schedule = await getWarmupSchedule();
+  return schedule[day - 1] || null;
+}
+
+/**
+ * Synchronous version - używa tylko domyślnego harmonogramu (dla backwards compatibility)
+ * @deprecated Użyj getWarmupConfig() async
+ */
+export function getWarmupConfigSync(day: number): WarmupDayConfig | null {
   if (day < 1 || day > 30) {
     return null;
   }
@@ -107,16 +144,6 @@ export const WARMUP_TEMPLATES = {
     },
   ],
   
-  seed: [
-    {
-      subject: 'Test dostarczenia - {{date}}',
-      body: 'Hello,\n\nThis is a test message.\n\nBest regards,\n{{senderName}}'
-    },
-    {
-      subject: 'System check - {{date}}',
-      body: 'Hi,\n\nSystem check email.\n\nBest,\n{{senderName}}'
-    },
-  ]
 };
 
 // USTALENIE: Warmup TYLKO między naszymi skrzynkami (internal)

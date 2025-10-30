@@ -48,6 +48,25 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'desc' }
       });
 
+      // Pobierz wszystkie potwierdzone powiadomienia dla leadów z tych maili
+      const leadIds = sentEmails.filter(e => e.leadId).map(e => e.leadId!);
+      const confirmedNotifications = leadIds.length > 0 ? await db.interestedLeadNotification.findMany({
+        where: {
+          leadId: { in: leadIds },
+          status: 'CONFIRMED'
+        },
+        select: {
+          leadId: true,
+          confirmedAt: true,
+          salespersonEmail: true
+        }
+      }) : [];
+
+      // Mapuj powiadomienia do leadId
+      const confirmedByLeadId = new Map(
+        confirmedNotifications.map(n => [n.leadId, n])
+      );
+
       allEmails.push(...sentEmails.map(email => {
         // Określ kategorię maila
         const isNotification = email.subject?.includes('[LEAD ZAINTERESOWANY]') || email.subject?.includes('[NOWY LEAD]');
@@ -64,6 +83,16 @@ export async function GET(request: NextRequest) {
           // Dla zwykłych maili: użyj email leada lub skrzynki
           toEmail = email.lead?.email || email.mailbox?.email || "Nieznany odbiorca";
         }
+        
+        // Sprawdź czy powiadomienie zostało potwierdzone
+        const isConfirmed = email.leadId && isNotification && confirmedByLeadId.has(email.leadId);
+        const confirmationData = email.leadId && isConfirmed ? confirmedByLeadId.get(email.leadId) : null;
+        
+        // "Potwierdzone" pokazuj TYLKO jeśli mail był wysłany do handlowca (salespersonEmail)
+        // NIE pokazuj dla administratora (forwardEmail)
+        const isToSalesperson = isNotification && email.toEmail && confirmationData?.salespersonEmail && 
+                                email.toEmail === confirmationData.salespersonEmail;
+        const shouldShowConfirmed = isConfirmed && isToSalesperson;
         
         return {
           id: `sent-${email.id}`,
@@ -88,7 +117,10 @@ export async function GET(request: NextRequest) {
           aiSummary: null,
           emailType,
           direction,
-          source
+          source,
+          isConfirmed: shouldShowConfirmed || false,
+          confirmedAt: shouldShowConfirmed ? confirmationData?.confirmedAt : null,
+          confirmedBy: shouldShowConfirmed ? confirmationData?.salespersonEmail : null
         };
       }));
     }
@@ -111,7 +143,17 @@ export async function GET(request: NextRequest) {
         where: receivedWhere,
         include: {
           lead: true,
-          campaign: true
+          campaign: true,
+          notifications: {
+            where: { status: 'CONFIRMED' },
+            select: {
+              id: true,
+              status: true,
+              confirmedAt: true,
+              salespersonEmail: true
+            },
+            take: 1
+          }
         },
         orderBy: { receivedAt: 'desc' }
       });
@@ -144,6 +186,14 @@ export async function GET(request: NextRequest) {
           source = "unknown";
         }
         
+        // Dla INTERESTED: jeśli jest potwierdzone, zmień status na "confirmed"
+        const isConfirmed = email.classification === "INTERESTED" && 
+                           email.notifications && 
+                           email.notifications.length > 0;
+        const status = isConfirmed 
+          ? "confirmed" 
+          : (email.isHandled ? "handled" : "unhandled");
+        
         return {
           id: `received-${email.id}`,
           type: "received",
@@ -152,7 +202,7 @@ export async function GET(request: NextRequest) {
           toEmail: email.toEmail || "Nieznana skrzynka",
           subject: email.subject,
           content: email.content,
-          status: email.isHandled ? "handled" : "unhandled",
+          status: status,
           error: null,
           leadId: email.leadId,
           leadName: email.lead ? `${email.lead.firstName || ''} ${email.lead.lastName || ''}`.trim() || email.lead.email : email.fromEmail,
@@ -167,7 +217,10 @@ export async function GET(request: NextRequest) {
           aiSummary: email.aiSummary,
           emailType,
           direction,
-          source
+          source,
+          isConfirmed: isConfirmed || false,
+          confirmedAt: isConfirmed && email.notifications?.[0]?.confirmedAt ? email.notifications[0].confirmedAt : null,
+          confirmedBy: isConfirmed && email.notifications?.[0]?.salespersonEmail ? email.notifications[0].salespersonEmail : null
         };
       }));
     }

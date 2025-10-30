@@ -100,7 +100,6 @@ export function HotLeadsList({ className = '' }: HotLeadsListProps) {
     return (
       <div className={`bg-white rounded-lg border border-gray-200 p-6 ${className}`}>
         <div className="text-center text-gray-500">
-          <div className="text-4xl mb-3">🎯</div>
           <p className="font-medium">Brak hot leads</p>
           <p className="text-sm mt-1">Wszystkie leady są aktualnie obsłużone</p>
         </div>
@@ -114,7 +113,6 @@ export function HotLeadsList({ className = '' }: HotLeadsListProps) {
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-2xl">🔥</div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Hot Leads</h3>
               <p className="text-sm text-gray-600">
@@ -190,22 +188,22 @@ export function HotLeadsList({ className = '' }: HotLeadsListProps) {
   );
 }
 
-// Compact version for dashboard
+// Compact version for dashboard - shows interested leads count
 export function HotLeadsWidget({ className = '' }: HotLeadsListProps) {
-  const [hotLeadsCount, setHotLeadsCount] = useState(0);
+  const [interestedCount, setInterestedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    fetchHotLeadsCount();
+    fetchInterestedCount();
   }, []);
   
-  const fetchHotLeadsCount = async () => {
+  const fetchInterestedCount = async () => {
     try {
-      const response = await fetch('/api/leads/hot?count=true');
+      const response = await fetch('/api/inbox?filter=interested');
       const data = await response.json();
-      setHotLeadsCount(data.count || 0);
+      setInterestedCount(Array.isArray(data) ? data.length : 0);
     } catch (err) {
-      console.error('Błąd pobierania liczby hot leads:', err);
+      console.error('Błąd pobierania liczby zainteresowanych leadów:', err);
     } finally {
       setLoading(false);
     }
@@ -213,7 +211,7 @@ export function HotLeadsWidget({ className = '' }: HotLeadsListProps) {
   
   if (loading) {
     return (
-      <div className={`bg-white rounded-lg border border-gray-200 p-4 ${className}`}>
+      <div className={`bg-white rounded-lg border border-gray-200 p-4 ${className}`} style={{ borderRadius: "var(--radius)" }}>
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
           <div className="h-6 bg-gray-200 rounded w-1/2"></div>
@@ -223,20 +221,19 @@ export function HotLeadsWidget({ className = '' }: HotLeadsListProps) {
   }
   
   return (
-    <Link href="/leads?filter=hot" className={`block ${className}`}>
-      <div className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-colors">
+    <Link href="/inbox?filter=interested" className={`block ${className}`} style={{ textDecoration: "none" }}>
+      <div className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-colors" style={{ borderRadius: "var(--radius)" }}>
         <div className="flex items-center gap-3">
-          <div className="text-2xl">🔥</div>
           <div>
-            <h3 className="font-medium text-gray-900">Hot Leads</h3>
-            <p className="text-2xl font-bold text-red-600">
-              {hotLeadsCount}
+            <h3 className="font-medium text-gray-900" style={{ fontSize: "1rem", marginBottom: "4px" }}>Zainteresowani leady</h3>
+            <p className="text-2xl font-bold" style={{ color: "var(--success)" }}>
+              {interestedCount}
             </p>
           </div>
         </div>
-        {hotLeadsCount > 0 && (
-          <p className="text-sm text-gray-600 mt-2">
-            Wymagają natychmiastowej obsługi
+        {interestedCount > 0 && (
+          <p className="text-sm text-gray-600 mt-2" style={{ marginTop: "8px", fontSize: "0.875rem" }}>
+            Wymagają obsługi
           </p>
         )}
       </div>

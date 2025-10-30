@@ -99,7 +99,7 @@ export async function advanceWarmupDays(): Promise<{
           
         } else {
           // Zwiększ dzień i zaktualizuj limit
-          const newConfig = getWarmupConfig(correctDay);
+          const newConfig = await getWarmupConfig(correctDay);
           
           if (newConfig) {
             console.log(`[WARMUP TRACKER] ⬆️  Zwiększam dzień: ${mailbox.warmupDay} → ${correctDay}`);
@@ -143,7 +143,7 @@ export async function startWarmup(mailboxId: number): Promise<void> {
   try {
     console.log(`[WARMUP TRACKER] 🚀 Rozpoczynam warmup dla skrzynki ${mailboxId}`);
     
-    const config = getWarmupConfig(1); // Dzień 1
+    const config = await getWarmupConfig(1); // Dzień 1
     
     if (!config) {
       throw new Error('Brak konfiguracji dla dnia 1');

@@ -117,3 +117,4 @@ if (mailbox) {
 **Data naprawy:** 2025-10-26  
 **Status:** ✅ Naprawione
 
+

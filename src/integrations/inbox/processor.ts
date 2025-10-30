@@ -369,8 +369,10 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
     }
     
     if (classification.classification === "INTERESTED") {
-      // Forward zainteresowanej odpowiedzi do użytkownika (zawsze, nawet jeśli nie ma leada)
-      if (forwardEmail) {
+      // Forward zainteresowanej odpowiedzi do użytkownika (WYŁĄCZONE - używamy nowego systemu powiadomień z interestedLeadNotifier)
+      // Nowy system wysyła ładne HTML powiadomienia z przyciskiem, więc stary tekstowy forward nie jest potrzebny
+      // if (forwardEmail) {
+      if (false && forwardEmail) { // WYŁĄCZONE - nowy system powiadomień obsługuje to lepiej
         let conversationText = `
 ========================================
 ODPOWIEDŹ KLIENTA (${email.date.toLocaleString("pl-PL")}):
@@ -395,28 +397,41 @@ Email: ${fromEmail}`;
 
         if (currentLead) {
           // Jeśli mamy leada, dodaj jego dane
+          const lead = currentLead; // Zachowaj referencję dla TypeScript
+          const leadId = lead!.id; // currentLead nie jest null w tym bloku
           const sentLog = await db.sendLog.findFirst({
             where: {
-              leadId: currentLead.id,
+              leadId: leadId,
               campaignId: campaign?.id
             },
             orderBy: { createdAt: "desc" }
           });
           
+          // Wyciągnij wartości przed template stringiem dla TypeScript
+          const leadFirstName = lead!.firstName || "-";
+          const leadLastName = lead!.lastName || "-";
+          const leadCompany = lead!.company || "-";
+          const leadLinkedIn = lead!.linkedinUrl || "-";
+          const leadEmail = lead!.email;
+          
           conversationText += `
-Imię i nazwisko: ${currentLead.firstName || "-"} ${currentLead.lastName || "-"}
-Firma: ${currentLead.company || "-"}
+Imię i nazwisko: ${leadFirstName} ${leadLastName}
+Firma: ${leadCompany}
 Telefon: (sprawdź w bazie)
-LinkedIn: ${currentLead.linkedinUrl || "-"}`;
+LinkedIn: ${leadLinkedIn}`;
 
           if (campaign && sentLog) {
+            // Wyciągnij wartości sentLog przed template stringiem
+            const sentLogCreatedAt = sentLog!.createdAt.toLocaleString("pl-PL");
+            const sentLogSubject = sentLog!.subject || campaign.subject;
+            
             conversationText += `
 
 ========================================
-ORYGINALNY MAIL (wysłany ${sentLog.createdAt.toLocaleString("pl-PL")}):
+ORYGINALNY MAIL (wysłany ${sentLogCreatedAt}):
 ========================================
-Temat: ${sentLog.subject || campaign.subject}
-Do: ${currentLead.email}
+Temat: ${sentLogSubject}
+Do: ${leadEmail}
 
 ${campaign.text || "(brak treści)"}`;
           }
@@ -433,12 +448,19 @@ Firma: (do uzupełnienia)`;
 Link do szczegółów: http://localhost:3000/inbox/${reply.id}
         `.trim();
         
+        // Wyciągnij wartości przed template stringiem dla TypeScript
         const subject = currentLead 
-          ? `[ZAINTERESOWANY] ${currentLead.firstName || ""} ${currentLead.lastName || ""} - ${currentLead.company || ""}`
+          ? (() => {
+              const lead = currentLead!; // currentLead nie jest null w tym branch
+              const leadFirstName = lead.firstName || "";
+              const leadLastName = lead.lastName || "";
+              const leadCompany = lead.company || "";
+              return `[ZAINTERESOWANY] ${leadFirstName} ${leadLastName} - ${leadCompany}`;
+            })()
           : `[NOWY KONTAKT - ZAINTERESOWANY] ${fromEmail}`;
         
         await sendNotificationEmail(
-          forwardEmail,
+          forwardEmail!, // Wyłączony kod - forwardEmail nie jest null w tym kontekście
           subject,
           conversationText,
           email

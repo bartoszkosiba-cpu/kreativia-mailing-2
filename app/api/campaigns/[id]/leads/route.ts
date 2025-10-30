@@ -103,7 +103,7 @@ export async function DELETE(
     if (alreadySent.length > 0) {
       const sentIds = alreadySent.map(log => log.leadId);
       // Filtruj tylko leady które jeszcze nie otrzymały maila
-      const idsToRemove = leadIds.filter(id => !sentIds.includes(id));
+      const idsToRemove = leadIds.filter((id: number) => !sentIds.includes(id));
       
       if (idsToRemove.length === 0) {
         return NextResponse.json({ 

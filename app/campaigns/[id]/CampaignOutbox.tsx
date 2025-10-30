@@ -132,9 +132,10 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
 
   // Filtrowanie logów
   const filteredLogs = data.sendLogs.filter(log => {
-    if (filter === 'sent') return log.status === 'sent' && !log.lead.isBlocked && log.lead.status !== 'BLOCKED';
+    const lead = log.lead as any;
+    if (filter === 'sent') return log.status === 'sent' && !!lead && !lead.isBlocked && lead.status !== 'BLOCKED';
     if (filter === 'failed') return log.status === 'error';
-    if (filter === 'blocked') return log.status === 'sent' && (log.lead.isBlocked || log.lead.status === 'BLOCKED');
+    if (filter === 'blocked') return log.status === 'sent' && !!lead && (lead.isBlocked || lead.status === 'BLOCKED');
     return true;
   });
 
@@ -315,7 +316,8 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
               </tr>
             ) : (
               filteredLogs.map((log) => {
-                const isBlocked = log.lead.isBlocked || log.lead.status === 'BLOCKED';
+                const lead = log.lead as any;
+                const isBlocked = (lead?.isBlocked) || (lead?.status === 'BLOCKED');
                 const isFailed = log.status === 'error';
                 const hasReply = !!log.reply;
                 const replyStatus = getReplyStatus(log.reply?.classification || null, hasReply);
@@ -332,19 +334,25 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
                       {formatDate(log.createdAt)}
                     </td>
                     <td style={{ padding: 12 }}>
-                      <div style={{ fontWeight: 'bold' }}>{log.lead.email}</div>
-                      {(log.lead.firstName || log.lead.lastName) && (
-                        <div style={{ fontSize: 12, color: '#666' }}>
-                          {log.lead.firstName} {log.lead.lastName}
-                        </div>
-                      )}
-                      {log.lead.company && (
-                        <div style={{ fontSize: 12, color: '#666' }}>{log.lead.company}</div>
-                      )}
-                      {isBlocked && (
-                        <div style={{ fontSize: 11, color: '#856404', marginTop: 4 }}>
-                          ZABLOKOWANY: {log.lead.blockedReason || 'Nieznany powód'}
-                        </div>
+                      {lead ? (
+                        <>
+                          <div style={{ fontWeight: 'bold' }}>{lead.email}</div>
+                          {(lead.firstName || lead.lastName) && (
+                            <div style={{ fontSize: 12, color: '#666' }}>
+                              {lead.firstName} {lead.lastName}
+                            </div>
+                          )}
+                          {lead.company && (
+                            <div style={{ fontSize: 12, color: '#666' }}>{lead.company}</div>
+                          )}
+                          {isBlocked && (
+                            <div style={{ fontSize: 11, color: '#856404', marginTop: 4 }}>
+                              ZABLOKOWANY: {lead.blockedReason || 'Nieznany powód'}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ color: '#999' }}>Brak danych</span>
                       )}
                     </td>
                     <td style={{ padding: 12 }}>

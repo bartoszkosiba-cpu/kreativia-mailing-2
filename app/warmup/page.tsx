@@ -59,10 +59,20 @@ interface Mailbox {
   dailyStats?: Record<number, { sent: number; failed: number; total: number }>;
 }
 
+interface WarmupDayConfig {
+  day: number;
+  dailyLimit: number;
+  campaignLimit: number;
+}
+
 export default function WarmupDashboard() {
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [schedule, setSchedule] = useState<WarmupDayConfig[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [isCustom, setIsCustom] = useState(false);
 
   useEffect(() => {
     fetchMailboxes();
@@ -106,6 +116,83 @@ export default function WarmupDashboard() {
       }
     } catch (err) {
       alert('Błąd podczas wykonywania akcji');
+    }
+  };
+
+  const fetchSchedule = async () => {
+    try {
+      setScheduleLoading(true);
+      const response = await fetch('/api/warmup/schedule');
+      const data = await response.json();
+      
+      if (data.success) {
+        setSchedule(data.data);
+        setIsCustom(data.isCustom);
+      }
+    } catch (err) {
+      alert('Błąd pobierania harmonogramu');
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const handleScheduleChange = (dayIndex: number, field: 'dailyLimit' | 'campaignLimit', value: number) => {
+    const newSchedule = [...schedule];
+    newSchedule[dayIndex][field] = Math.max(0, value);
+    setSchedule(newSchedule);
+  };
+
+  const saveSchedule = async () => {
+    try {
+      setScheduleLoading(true);
+      const response = await fetch('/api/warmup/schedule', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ schedule }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('Harmonogram zapisany pomyślnie!');
+        setIsCustom(true);
+        setShowScheduleModal(false);
+      } else {
+        alert(`Błąd: ${data.error}`);
+      }
+    } catch (err) {
+      alert('Błąd zapisywania harmonogramu');
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const restoreDefault = async () => {
+    if (!confirm('Przywrócić domyślny harmonogram? Wszystkie zmiany zostaną utracone.')) {
+      return;
+    }
+
+    try {
+      setScheduleLoading(true);
+      const response = await fetch('/api/warmup/schedule', {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSchedule(data.data);
+        setIsCustom(false);
+        alert('Przywrócono domyślny harmonogram');
+      } else {
+        alert(`Błąd: ${data.error}`);
+      }
+    } catch (err) {
+      alert('Błąd przywracania harmonogramu');
+    } finally {
+      setScheduleLoading(false);
     }
   };
 
@@ -201,6 +288,16 @@ export default function WarmupDashboard() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+          <button
+            onClick={() => {
+              setShowScheduleModal(true);
+              fetchSchedule();
+            }}
+            className="btn"
+            style={{ backgroundColor: 'var(--primary)', color: 'white' }}
+          >
+            Ustawienia harmonogramu
+          </button>
           <Link
             href="/warmup/dns-setup"
             className="btn btn-success"
@@ -402,6 +499,159 @@ export default function WarmupDashboard() {
           >
             Dodaj pierwszą skrzynkę
           </Link>
+        </div>
+      )}
+
+      {/* Modal z ustawieniami harmonogramu */}
+      {showScheduleModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 'var(--spacing-xl)'
+          }}
+          onClick={() => setShowScheduleModal(false)}
+        >
+          <div 
+            style={{
+              backgroundColor: 'white',
+              borderRadius: 'var(--radius)',
+              padding: 'var(--spacing-2xl)',
+              maxWidth: '900px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Ustawienia harmonogramu warmup</h2>
+                <p style={{ marginTop: 'var(--spacing-xs)', color: 'var(--gray-600)', fontSize: '14px' }}>
+                  Edytuj limity maili dla każdego dnia warmup (30 dni)
+                </p>
+              </div>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: 'var(--gray-500)',
+                  padding: '4px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {scheduleLoading && schedule.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 'var(--spacing-2xl)' }}>
+                <div className="loading"></div>
+                <p style={{ marginTop: 'var(--spacing-md)' }}>Ładowanie harmonogramu...</p>
+              </div>
+            ) : (
+              <>
+                {isCustom && (
+                  <div className="alert alert-info" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                    <strong>Używasz niestandardowego harmonogramu.</strong> Zmiany będą dotyczyć tylko nowych warmupów.
+                  </div>
+                )}
+
+                <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--gray-200)' }}>
+                          <th style={{ padding: 'var(--spacing-sm)', textAlign: 'left', fontWeight: '600' }}>Dzień</th>
+                          <th style={{ padding: 'var(--spacing-sm)', textAlign: 'left', fontWeight: '600' }}>Faza</th>
+                          <th style={{ padding: 'var(--spacing-sm)', textAlign: 'center', fontWeight: '600' }}>Limit warmup</th>
+                          <th style={{ padding: 'var(--spacing-sm)', textAlign: 'center', fontWeight: '600' }}>Limit kampanii</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {schedule.map((day, index) => {
+                          let phase = '';
+                          if (day.day <= 2) phase = 'SILENT (1-2)';
+                          else if (day.day <= 7) phase = 'GRADUAL (3-7)';
+                          else if (day.day <= 14) phase = 'BUILDING (8-14)';
+                          else phase = 'ACTIVE (15-30)';
+
+                          return (
+                            <tr key={day.day} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                              <td style={{ padding: 'var(--spacing-sm)', fontWeight: '600' }}>{day.day}</td>
+                              <td style={{ padding: 'var(--spacing-sm)', fontSize: '12px', color: 'var(--gray-600)' }}>{phase}</td>
+                              <td style={{ padding: 'var(--spacing-sm)', textAlign: 'center' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={day.dailyLimit}
+                                  onChange={(e) => handleScheduleChange(index, 'dailyLimit', parseInt(e.target.value) || 0)}
+                                  style={{
+                                    width: '80px',
+                                    padding: '6px',
+                                    border: '1px solid var(--gray-300)',
+                                    borderRadius: 'var(--radius)',
+                                    textAlign: 'center'
+                                  }}
+                                />
+                              </td>
+                              <td style={{ padding: 'var(--spacing-sm)', textAlign: 'center' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={day.campaignLimit}
+                                  onChange={(e) => handleScheduleChange(index, 'campaignLimit', parseInt(e.target.value) || 0)}
+                                  style={{
+                                    width: '80px',
+                                    padding: '6px',
+                                    border: '1px solid var(--gray-300)',
+                                    borderRadius: 'var(--radius)',
+                                    textAlign: 'center'
+                                  }}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 'var(--spacing-md)', justifyContent: 'flex-end' }}>
+                  {isCustom && (
+                    <button
+                      onClick={restoreDefault}
+                      className="btn"
+                      style={{ backgroundColor: 'var(--gray-200)', color: 'var(--gray-700)' }}
+                      disabled={scheduleLoading}
+                    >
+                      Przywróć domyślny
+                    </button>
+                  )}
+                  <button
+                    onClick={saveSchedule}
+                    className="btn"
+                    style={{ backgroundColor: 'var(--primary)', color: 'white' }}
+                    disabled={scheduleLoading}
+                  >
+                    {scheduleLoading ? 'Zapisywanie...' : 'Zapisz harmonogram'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

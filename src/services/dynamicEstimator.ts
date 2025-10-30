@@ -175,3 +175,4 @@ export async function updateAllCampaignEstimates(): Promise<void> {
   console.log(`[ESTIMATOR] ✅ Zaktualizowano ${updated} kampanii`);
 }
 
+

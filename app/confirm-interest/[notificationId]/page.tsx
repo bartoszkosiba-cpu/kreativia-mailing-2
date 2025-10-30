@@ -30,23 +30,9 @@ export default function ConfirmInterestPage({ params }: { params: { notification
           <h1 style={{ fontSize: "28px", color: "#28a745", marginBottom: "20px" }}>
             Dziękuję za potwierdzenie!
           </h1>
-          <p style={{ fontSize: "16px", color: "#666", marginBottom: "30px" }}>
+          <p style={{ fontSize: "16px", color: "#666" }}>
             Powodzenia z nowym kontaktem 😊
           </p>
-          <a
-            href="/inbox"
-            style={{
-              display: "inline-block",
-              padding: "12px 24px",
-              backgroundColor: "#007bff",
-              color: "white",
-              textDecoration: "none",
-              borderRadius: "5px",
-              fontWeight: "600"
-            }}
-          >
-            Wróć do inbox
-          </a>
         </div>
       </div>
     );

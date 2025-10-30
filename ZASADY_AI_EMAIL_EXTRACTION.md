@@ -109,3 +109,4 @@ Rezultat: ["anna.kowalska@firma.pl"] ✅
 **Data naprawy:** 2025-10-26  
 **Status:** ✅ Naprawione - regex teraz filtruje cytaty
 
+

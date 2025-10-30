@@ -6,20 +6,100 @@ import { getRemainingDailyLimit, incrementSentCounter, recalculateQueueForSalesp
 import { getNextAvailableMailbox, incrementMailboxCounter } from "./mailboxManager";
 
 /**
+ * Prosta funkcja hash dla deterministycznego wyboru wariantu
+ */
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Wybiera wariant A/B dla leada
+ * @returns "A" | "B"
+ */
+function selectVariant(
+  campaign: any,
+  leadId: number,
+  index: number
+): "A" | "B" {
+  // Jeśli A/B test jest wyłączony, zawsze używaj wariantu A
+  if (!campaign.abTestEnabled) {
+    return "A";
+  }
+
+  const mode = campaign.abTestMode || "hash";
+
+  switch (mode) {
+    case "alternating":
+      // ABABAB... deterministycznie
+      return index % 2 === 0 ? "A" : "B";
+    
+    case "random":
+      // Losowy wybór (może być nierównomierny dla małych próbek)
+      return Math.random() < 0.5 ? "A" : "B";
+    
+    case "hash":
+    default:
+      // Hash-based deterministic - lead zawsze dostanie ten sam wariant
+      const hashInput = `${leadId}_${campaign.id}`;
+      const hash = simpleHash(hashInput);
+      return hash % 2 === 0 ? "A" : "B";
+  }
+}
+
+/**
+ * Pobiera pola kampanii dla wybranego wariantu
+ */
+function getCampaignFieldsForVariant(campaign: any, variant: "A" | "B") {
+  if (variant === "A" || !campaign.abTestEnabled) {
+    return {
+      subject: campaign.subject,
+      text: campaign.text,
+      jobDescription: campaign.jobDescription,
+      postscript: campaign.postscript,
+      linkText: campaign.linkText,
+      linkUrl: campaign.linkUrl
+    };
+  } else {
+    // Wariant B
+    return {
+      subject: campaign.subjectB || campaign.subject, // Fallback na A jeśli B nie ustawione
+      text: campaign.textB || campaign.text,
+      jobDescription: campaign.jobDescriptionB || campaign.jobDescription,
+      postscript: campaign.postscriptB || campaign.postscript,
+      linkText: campaign.linkTextB || campaign.linkText,
+      linkUrl: campaign.linkUrlB || campaign.linkUrl
+    };
+  }
+}
+
+/**
  * Wysyła pojedynczego maila z opóźnieniem
  */
 async function sendSingleEmail(
   campaign: any,
   lead: any,
-  companySettings: any
+  companySettings: any,
+  index: number = 0 // Indeks leada (dla alternating mode)
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    // Użyj greetingForm z bazy danych lub fallback na campaign.text
-    let content = campaign.text || "";
+    // Wybierz wariant A/B
+    const variant = selectVariant(campaign, lead.id, index);
+    const campaignFields = getCampaignFieldsForVariant(campaign, variant);
     
-    if (lead.greetingForm && campaign.text) {
+    console.log(`[SENDER] Wariant ${variant} dla leada ${lead.id} (kampania ${campaign.id})`);
+    
+    // Użyj greetingForm z bazy danych lub fallback na campaign.text
+    let content = campaignFields.text || "";
+    
+    if (lead.greetingForm && campaignFields.text) {
       // Użyj istniejącej odmiany z bazy danych
-      content = lead.greetingForm + "\n\n" + campaign.text;
+      content = lead.greetingForm + "\n\n" + campaignFields.text;
     }
 
     // Pobierz dostępną skrzynkę mailową (round-robin)
@@ -54,7 +134,7 @@ async function sendSingleEmail(
     }
 
     const result = await sendCampaignEmail({
-      subject: campaign.subject || "Brak tematu",
+      subject: campaignFields.subject || "Brak tematu",
       content: content,
       leadEmail: lead.email,
       leadLanguage: lead.language || "pl",
@@ -63,10 +143,10 @@ async function sendSingleEmail(
       salesperson: campaign.virtualSalesperson,
       mailbox: mailbox || undefined, // NOWE: Przekaż mailbox
       campaign: {
-        jobDescription: campaign.jobDescription,
-        postscript: campaign.postscript,
-        linkText: campaign.linkText,
-        linkUrl: campaign.linkUrl
+        jobDescription: campaignFields.jobDescription,
+        postscript: campaignFields.postscript,
+        linkText: campaignFields.linkText,
+        linkUrl: campaignFields.linkUrl
       },
       settings: companySettings
     });
@@ -78,8 +158,9 @@ async function sendSingleEmail(
           campaignId: campaign.id,
           leadId: lead.id,
           mailboxId: mailbox?.id || null,
-          subject: campaign.subject || "Brak tematu", // NOWE: Zapisz subject
-          content: content, // NOWE: Zapisz content
+          subject: campaignFields.subject || "Brak tematu", // Zapisz subject użytego wariantu
+          content: content, // Zapisz content
+          variantLetter: variant, // Zapisz użyty wariant A/B
           status: "sent",
           messageId: result.messageId
         }
@@ -320,7 +401,7 @@ export async function processScheduledCampaign(): Promise<void> {
     }
     
     // Wyślij mail
-    const result = await sendSingleEmail(campaign, lead, companySettings);
+    const result = await sendSingleEmail(campaign, lead, companySettings, i);
     
     if (result.success) {
       successCount++;

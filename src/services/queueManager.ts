@@ -250,7 +250,7 @@ export async function canSendCampaignEmail(mailboxId: number): Promise<boolean> 
   // Jeśli skrzynka jest w warmup, użyj limitów z konfiguracji warmup
   if (mailbox.warmupStatus === 'warming') {
     const { getWarmupConfig } = await import('./warmup/config');
-    const config = getWarmupConfig(mailbox.warmupDay);
+    const config = await getWarmupConfig(mailbox.warmupDay);
     
     if (!config) {
       return false; // Brak konfiguracji dla tego dnia

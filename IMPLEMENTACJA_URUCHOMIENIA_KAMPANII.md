@@ -221,3 +221,4 @@ if (campaign.status === "IN_PROGRESS") {
 **Data implementacji:** 2025-10-26  
 **Status:** ✅ Zaimplementowane, wymaga testów
 
+

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import AIAgentButton from "./AIAgentButton";
 
 interface InboxReply {
@@ -26,11 +27,20 @@ interface InboxReply {
     lastName: string | null;
     company: string | null;
     email: string;
-  };
+  } | null;
   campaign: {
     id: number;
     name: string;
-  };
+  } | null;
+  isConfirmed?: boolean;
+  confirmedAt?: string | null;
+  confirmedBy?: string | null;
+}
+
+interface Campaign {
+  id: number;
+  name: string;
+  status: string;
 }
 
 // Funkcja konwersji zwykłego tekstu na HTML
@@ -62,24 +72,67 @@ function convertTextToHtml(text: string): string {
     .replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<a href="mailto:$1">$1</a>'); // Emaile
 }
 
-export default function InboxPage() {
+function InboxPageContent() {
+  const searchParams = useSearchParams();
   const [replies, setReplies] = useState<InboxReply[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
-  const [filter, setFilter] = useState("all");
-  const [unreadOnly, setUnreadOnly] = useState(false);
   const [selectedReply, setSelectedReply] = useState<InboxReply | null>(null);
   const [showModal, setShowModal] = useState(false);
+  
+  // Filtry
+  const [classification, setClassification] = useState("");
+  const [campaignId, setCampaignId] = useState("");
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+
+  // Inicjalizuj filtry z URL jeśli istnieją
+  useEffect(() => {
+    const urlFilter = searchParams?.get("filter");
+    if (urlFilter && ["all", "interested", "replies", "unsubscribe", "ooo", "redirect", "other"].includes(urlFilter)) {
+      if (urlFilter === "interested") {
+        setClassification("INTERESTED");
+      } else if (urlFilter === "replies") {
+        setClassification("");
+      } else {
+        setClassification(urlFilter.toUpperCase());
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
+    fetchCampaigns();
     fetchReplies();
-  }, [filter, unreadOnly]);
+  }, [classification, campaignId, status, dateFrom, dateTo, unreadOnly]);
+
+  const fetchCampaigns = async () => {
+    try {
+      const response = await fetch("/api/campaigns");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setCampaigns(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error("Błąd pobierania kampanii:", error);
+    }
+  };
 
   const fetchReplies = async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filter !== "all") params.set("filter", filter);
+      if (classification) params.set("classification", classification);
+      if (campaignId) params.set("campaignId", campaignId);
+      if (status) params.set("status", status);
+      if (search) params.set("search", search);
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
       if (unreadOnly) params.set("unreadOnly", "true");
       
       const response = await fetch(`/api/inbox?${params.toString()}`);
@@ -116,6 +169,11 @@ export default function InboxPage() {
     } finally {
       setIsFetching(false);
     }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchReplies();
   };
 
   const markAsHandled = async (replyId: number) => {
@@ -162,32 +220,46 @@ export default function InboxPage() {
   };
 
   const getClassificationColor = (classification: string | null) => {
+    if (!classification) return "#f5f5f5";
     switch (classification) {
-      case "INTERESTED": return "#28a745";
-      case "UNSUBSCRIBE": return "#dc3545";
-      case "OOO": return "#ffc107";
-      case "REDIRECT": return "#17a2b8";
-      case "BOUNCE": return "#6c757d";
-      default: return "#007bff";
+      case "INTERESTED": return "#e8f5e9";
+      case "NOT_INTERESTED": return "#ffebee";
+      case "MAYBE_LATER": return "#fff3e0";
+      case "REDIRECT": return "#e3f2fd";
+      case "OOO": return "#f3e5f5";
+      case "UNSUBSCRIBE": return "#ffebee";
+      case "BOUNCE": return "#ffebee";
+      case "OTHER": return "#f0f0f0";
+      default: return "#f5f5f5";
     }
   };
 
-  const getClassificationIcon = (classification: string | null) => {
+  const getClassificationLabel = (classification: string | null) => {
+    if (!classification) return "";
     switch (classification) {
-      case "INTERESTED": return "●";
-      case "UNSUBSCRIBE": return "■";
-      case "OOO": return "□";
-      case "REDIRECT": return "◆";
-      case "BOUNCE": return "✖";
-      case "NOT_INTERESTED": return "○";
-      case "MAYBE_LATER": return "▸";
-      default: return "○";
+      case "INTERESTED": return "Zainteresowany";
+      case "NOT_INTERESTED": return "Nie zainteresowany";
+      case "MAYBE_LATER": return "Może później";
+      case "REDIRECT": return "Przekierowanie";
+      case "OOO": return "Poza biurem";
+      case "UNSUBSCRIBE": return "Wypisanie";
+      case "BOUNCE": return "Odbity";
+      case "OTHER": return "Inne";
+      default: return classification;
     }
   };
 
   if (isLoading) {
-    return <main className="container" style={{ paddingTop: "var(--spacing-xl)" }}>Ładowanie...</main>;
+    return <div className="container" style={{ paddingTop: "var(--spacing-xl)" }}>Ładowanie...</div>;
   }
+
+  // Statystyki
+  const stats = {
+    interested: replies.filter(r => r.classification === "INTERESTED").length,
+    replies: replies.filter(r => r.classification !== "INTERESTED" && r.classification !== null).length,
+    unread: replies.filter(r => !r.isRead).length,
+    unhandled: replies.filter(r => !r.isHandled).length
+  };
 
   return (
     <div className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
@@ -200,64 +272,35 @@ export default function InboxPage() {
             Maile wymagające Twojej uwagi - zainteresowani i odpowiedzi
           </p>
         </div>
-        <Link 
-          href="/archive"
-          className="btn"
-          style={{
-            backgroundColor: "var(--gray-100)",
-            color: "var(--gray-700)",
-            textDecoration: "none",
-            border: "1px solid var(--gray-200)",
-            fontWeight: "600",
-            padding: "12px 24px"
-          }}
-        >
-          Zobacz archiwum
-        </Link>
-      </div>
-
-      {/* Kontrolki i filtry */}
-      <div className="card" style={{ marginBottom: "var(--spacing-2xl)" }}>
-        <div style={{ display: "flex", gap: "var(--spacing-md)", flexWrap: "wrap", alignItems: "center" }}>
-        <button
-          onClick={handleFetchNew}
-          disabled={isFetching}
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button
+            onClick={handleFetchNew}
+            disabled={isFetching}
             className="btn"
-          style={{
+            style={{
               backgroundColor: isFetching ? "#ccc" : "var(--primary)",
-            color: "white",
-            border: "none",
+              color: "white",
+              border: "none",
               fontWeight: "600",
               padding: "12px 24px"
-          }}
-        >
+            }}
+          >
             {isFetching ? "Pobieranie..." : "Pobierz nowe maile"}
-        </button>
-
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          style={{
-              padding: "var(--spacing-sm)",
-              border: "1px solid var(--gray-300)",
-              borderRadius: "var(--radius)",
-            fontSize: "14px"
-          }}
-        >
-            <option value="all">Wszystkie do obsługi</option>
-            <option value="interested">Tylko zainteresowani</option>
-            <option value="replies">Inne odpowiedzi</option>
-        </select>
-
-          <label style={{ display: "flex", alignItems: "center", cursor: "pointer", padding: "var(--spacing-sm)" }}>
-          <input
-            type="checkbox"
-            checked={unreadOnly}
-            onChange={(e) => setUnreadOnly(e.target.checked)}
-              style={{ marginRight: "var(--spacing-xs)" }}
-          />
-            <span style={{ fontSize: "14px" }}>Tylko nieprzeczytane</span>
-        </label>
+          </button>
+          <Link 
+            href="/archive"
+            className="btn"
+            style={{
+              backgroundColor: "var(--gray-100)",
+              color: "var(--gray-700)",
+              textDecoration: "none",
+              border: "1px solid var(--gray-200)",
+              fontWeight: "600",
+              padding: "12px 24px"
+            }}
+          >
+            Zobacz archiwum
+          </Link>
         </div>
       </div>
 
@@ -266,155 +309,350 @@ export default function InboxPage() {
         <div className="card" style={{ textAlign: "center" }}>
           <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Zainteresowani</h3>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--success)" }}>
-            {replies.filter(r => r.classification === "INTERESTED").length}
+            {stats.interested}
           </div>
         </div>
         <div className="card" style={{ textAlign: "center" }}>
           <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Odpowiedzi</h3>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--warning)" }}>
-            {replies.filter(r => r.classification !== "INTERESTED" && r.classification !== null).length}
+            {stats.replies}
           </div>
         </div>
         <div className="card" style={{ textAlign: "center" }}>
           <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Nieprzeczytane</h3>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--info)" }}>
-            {replies.filter(r => !r.isRead).length}
+            {stats.unread}
           </div>
         </div>
         <div className="card" style={{ textAlign: "center" }}>
           <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>Do obsługi</h3>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--primary)" }}>
-            {replies.filter(r => !r.isHandled).length}
+            {stats.unhandled}
           </div>
         </div>
       </div>
 
+      {/* Filtry */}
+      <div className="card" style={{ marginBottom: "var(--spacing-2xl)" }}>
+        <h2 style={{ marginBottom: "var(--spacing-lg)" }}>Filtry</h2>
+        
+        <form onSubmit={handleSearch} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--spacing-md)" }}>
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Klasyfikacja
+            </label>
+            <select
+              value={classification}
+              onChange={(e) => setClassification(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              <option value="INTERESTED">Zainteresowany</option>
+              <option value="NOT_INTERESTED">Nie zainteresowany</option>
+              <option value="MAYBE_LATER">Może później</option>
+              <option value="REDIRECT">Przekierowanie</option>
+              <option value="OOO">Poza biurem</option>
+              <option value="UNSUBSCRIBE">Wypisanie</option>
+              <option value="BOUNCE">Odbity</option>
+              <option value="OTHER">Inne</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Kampania
+            </label>
+            <select
+              value={campaignId}
+              onChange={(e) => setCampaignId(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie kampanie</option>
+              {campaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.name} ({campaign.status}) - ID: {campaign.id}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Status
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            >
+              <option value="">Wszystkie</option>
+              <option value="handled">Obsłużone</option>
+              <option value="unhandled">Nie obsłużone</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Wyszukiwanie
+            </label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Szukaj w treści, temacie, emailach..."
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Data od
+            </label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+              Data do
+            </label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <label style={{ display: "flex", alignItems: "center", cursor: "pointer", padding: "var(--spacing-sm)" }}>
+              <input
+                type="checkbox"
+                checked={unreadOnly}
+                onChange={(e) => setUnreadOnly(e.target.checked)}
+                style={{ marginRight: "var(--spacing-xs)" }}
+              />
+              <span style={{ fontSize: "14px", fontWeight: "600" }}>Tylko nieprzeczytane</span>
+            </label>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button
+              type="submit"
+              className="btn"
+              style={{
+                backgroundColor: "var(--primary)",
+                color: "white",
+                border: "none",
+                fontWeight: "600",
+                padding: "var(--spacing-sm) var(--spacing-lg)"
+              }}
+            >
+              Szukaj
+            </button>
+          </div>
+        </form>
+      </div>
+
       {/* Lista odpowiedzi */}
-      <div>
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-lg)" }}>
+          <h2 style={{ margin: 0 }}>Lista Maili ({replies.length})</h2>
+        </div>
+        
         {replies.length === 0 ? (
-          <div className="card" style={{ textAlign: "center", padding: "var(--spacing-2xl)", color: "var(--gray-600)" }}>
+          <div style={{ textAlign: "center", padding: "var(--spacing-2xl)", color: "var(--gray-600)" }}>
             <p style={{ fontSize: "1.1rem", marginBottom: "var(--spacing-sm)" }}>Brak odpowiedzi.</p>
             <p style={{ fontSize: "14px" }}>Kliknij "Pobierz nowe maile" aby sprawdzić skrzynkę.</p>
           </div>
         ) : (
-          <div className="card" style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
+              <thead>
                 <tr style={{ borderBottom: "2px solid var(--gray-200)" }}>
-                  <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "40px" }}></th>
-                  <th style={{ padding: "var(--spacing-md)", textAlign: "left" }}>Od / Do</th>
-                  <th style={{ padding: "var(--spacing-md)", textAlign: "left" }}>Temat</th>
-                  <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "150px" }}>Data</th>
-                  <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "120px" }}>Typ</th>
-                  <th style={{ padding: "var(--spacing-md)", textAlign: "left", width: "100px" }}>Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {replies
-                .sort((a, b) => {
-                  // INTERESTED zawsze na górze
-                  if (a.classification === "INTERESTED" && b.classification !== "INTERESTED") return -1;
-                  if (a.classification !== "INTERESTED" && b.classification === "INTERESTED") return 1;
-                  // Potem nieobsłużone
-                  if (!a.isHandled && b.isHandled) return -1;
-                  if (a.isHandled && !b.isHandled) return 1;
-                  // Potem nieprzeczytane
-                  if (!a.isRead && b.isRead) return -1;
-                  if (a.isRead && !b.isRead) return 1;
-                  // Ostatecznie po dacie
-                  return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
-                })
-                .map((reply) => (
-                <tr
-                  key={reply.id}
-                  style={{
-                    backgroundColor: reply.isRead ? "#fff" : "#f0f8ff",
-                    borderBottom: "1px solid var(--gray-200)",
-                    cursor: "pointer"
-                  }}
-                  onClick={() => handleRowClick(reply)}
-                >
-                  {/* Ikona */}
-                  <td style={{ padding: "var(--spacing-md)", textAlign: "center" }}>
-                    <span style={{ fontSize: "1.2rem", color: getClassificationColor(reply.classification) }}>{getClassificationIcon(reply.classification)}</span>
-                  </td>
-                  
-                  {/* Od / Do */}
-                  <td style={{ padding: "var(--spacing-md)" }}>
-                    {reply.lead ? (
-                      <div>
-                        <strong>{reply.lead.firstName || ""} {reply.lead.lastName || ""}</strong>
-                        {reply.lead.company && <div style={{ fontSize: "12px", color: "#666" }}>{reply.lead.company}</div>}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: "12px", color: "#666" }}>
-                        <div>{reply.fromEmail}</div>
-                        {reply.toEmail && <div style={{ color: "#999" }}>→ {reply.toEmail}</div>}
-                      </div>
-                    )}
-                  </td>
-                  
-                  {/* Temat */}
-                  <td style={{ padding: "var(--spacing-md)" }}>
-                    <div style={{ maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {reply.subject}
-                    </div>
-                    {reply.aiSummary && (
-                      <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: 4 }}>
-                        {reply.aiSummary.substring(0, 80)}...
-                      </div>
-                    )}
-                  </td>
-                  
-                  {/* Data */}
-                  <td style={{ padding: "var(--spacing-md)", fontSize: "12px", color: "var(--gray-600)" }}>
-                    {new Date(reply.receivedAt).toLocaleDateString("pl-PL")}
-                    <br />
-                    {new Date(reply.receivedAt).toLocaleTimeString("pl-PL")}
-                  </td>
-                  
-                  {/* Typ */}
-                  <td style={{ padding: "var(--spacing-md)", fontSize: "11px" }}>
-                    <div style={{
-                      padding: "4px 8px",
-                      backgroundColor: getClassificationColor(reply.classification),
-                      color: "white",
-                      borderRadius: "var(--radius)",
-                      textAlign: "center"
-                    }}>
-                      {reply.classification?.replace("_", " ")}
-                    </div>
-                    {reply.campaign && (
-                      <div style={{ marginTop: 4, fontSize: "10px", color: "var(--gray-600)" }}>
-                        {reply.campaign.name}
-                      </div>
-                    )}
-                  </td>
-                  
-                  {/* Akcje */}
-                  <td style={{ padding: "var(--spacing-md)" }}>
-                    {reply.lead && (
-                      <Link
-                        href={`/leads/${reply.lead.id}`}
-                        className="btn"
-                        style={{
-                          padding: "6px 12px",
-                          backgroundColor: "var(--primary)",
-                          color: "white",
-                          textDecoration: "none",
-                          borderRadius: "var(--radius)",
-                          fontSize: "11px",
-                          fontWeight: "600"
-                        }}
-                      >
-                        Lead
-                      </Link>
-                    )}
-                  </td>
+                  <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Data</th>
+                  <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Od</th>
+                  <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Temat</th>
+                  <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Klasyfikacja</th>
+                  <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Kampania</th>
+                  <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Status</th>
+                  <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Akcje</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {replies
+                  .sort((a, b) => {
+                    // INTERESTED zawsze na górze
+                    if (a.classification === "INTERESTED" && b.classification !== "INTERESTED") return -1;
+                    if (a.classification !== "INTERESTED" && b.classification === "INTERESTED") return 1;
+                    // Potem nieobsłużone
+                    if (!a.isHandled && b.isHandled) return -1;
+                    if (a.isHandled && !b.isHandled) return 1;
+                    // Potem nieprzeczytane
+                    if (!a.isRead && b.isRead) return -1;
+                    if (a.isRead && !b.isRead) return 1;
+                    // Ostatecznie po dacie
+                    return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+                  })
+                  .map((reply) => (
+                  <tr 
+                    key={reply.id} 
+                    style={{ 
+                      borderBottom: "1px solid var(--gray-100)",
+                      cursor: "pointer",
+                      backgroundColor: reply.isRead ? "#fff" : "#f0f8ff",
+                      transition: "background-color 0.2s"
+                    }}
+                    onClick={() => handleRowClick(reply)}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--gray-50)"}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = reply.isRead ? "#fff" : "#f0f8ff"}
+                  >
+                    {/* Data */}
+                    <td style={{ padding: "var(--spacing-sm)", fontSize: "12px" }}>
+                      {new Date(reply.receivedAt).toLocaleString('pl-PL')}
+                    </td>
+                    
+                    {/* Od */}
+                    <td style={{ padding: "var(--spacing-sm)", fontSize: "12px" }}>
+                      {reply.lead ? (
+                        <div>
+                          <div style={{ fontWeight: "600" }}>
+                            {reply.lead.firstName || ""} {reply.lead.lastName || ""}
+                          </div>
+                          {reply.lead.company && (
+                            <div style={{ fontSize: "11px", color: "var(--gray-600)" }}>{reply.lead.company}</div>
+                          )}
+                          <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>{reply.fromEmail}</div>
+                        </div>
+                      ) : (
+                        <div style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {reply.fromEmail}
+                        </div>
+                      )}
+                    </td>
+                    
+                    {/* Temat */}
+                    <td style={{ padding: "var(--spacing-sm)", fontSize: "12px", maxWidth: "300px" }}>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {reply.subject}
+                      </div>
+                      {reply.aiSummary && (
+                        <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: 4 }}>
+                          {reply.aiSummary.substring(0, 80)}...
+                        </div>
+                      )}
+                    </td>
+                    
+                    {/* Klasyfikacja */}
+                    <td style={{ padding: "var(--spacing-sm)" }}>
+                      {reply.classification && (
+                        <span
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "9999px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            background: getClassificationColor(reply.classification),
+                            color: "var(--gray-700)"
+                          }}
+                        >
+                          {getClassificationLabel(reply.classification)}
+                        </span>
+                      )}
+                    </td>
+                    
+                    {/* Kampania */}
+                    <td style={{ padding: "var(--spacing-sm)", fontSize: "12px" }}>
+                      {reply.campaign ? (
+                        <Link
+                          href={`/campaigns/${reply.campaign.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ color: "var(--primary)", textDecoration: "none" }}
+                        >
+                          {reply.campaign.name}
+                        </Link>
+                      ) : (
+                        <span style={{ color: "var(--gray-500)" }}>Brak</span>
+                      )}
+                    </td>
+                    
+                    {/* Status */}
+                    <td style={{ padding: "var(--spacing-sm)" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "9999px",
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            background: reply.isHandled ? "#e8f5e9" : "#fff3e0",
+                            color: "var(--gray-700)"
+                          }}
+                        >
+                          {reply.isHandled ? "Obsłużone" : "Nie obsłużone"}
+                        </span>
+                        {!reply.isRead && (
+                          <span
+                            style={{
+                              padding: "2px 6px",
+                              borderRadius: "9999px",
+                              fontSize: "10px",
+                              fontWeight: "600",
+                              background: "#e3f2fd",
+                              color: "var(--primary)"
+                            }}
+                          >
+                            Nieprzeczytane
+                          </span>
+                        )}
+                        {reply.classification === "INTERESTED" && (
+                          <span
+                            style={{
+                              padding: "2px 6px",
+                              borderRadius: "9999px",
+                              fontSize: "10px",
+                              fontWeight: "600",
+                              background: reply.isConfirmed ? "#28a745" : "#dc3545",
+                              color: "white"
+                            }}
+                          >
+                            {reply.isConfirmed ? "✓ Potwierdzone" : "✗ Nie potwierdzone"}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    
+                    {/* Akcje */}
+                    <td style={{ padding: "var(--spacing-sm)" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
+                        {reply.lead && (
+                          <Link
+                            href={`/leads/${reply.lead.id}`}
+                            className="btn"
+                            style={{
+                              padding: "6px 12px",
+                              backgroundColor: "#17a2b8",
+                              color: "white",
+                              textDecoration: "none",
+                              borderRadius: "var(--radius)",
+                              fontSize: "11px",
+                              fontWeight: "600"
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Lead
+                          </Link>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -426,11 +664,11 @@ export default function InboxPage() {
           Tutaj są <strong>tylko te maile, które wymagają Twojej uwagi</strong> - zainteresowani i odpowiedzi. 
           Pełne archiwum wszystkich maili znajdziesz w <Link href="/archive" style={{ color: "var(--primary)" }}>Archiwum</Link>.
         </p>
-        <ul style={{ fontSize: "14px", margin: 0 }}>
-          <li><strong>Zainteresowani</strong> - najważniejsze! Automatycznie forwarded, ale sprawdź czy wszystko OK</li>
-          <li><strong>Inne odpowiedzi</strong> - np. NOT_INTERESTED, MAYBE_LATER - warto sprawdzić co piszą</li>
-          <li><strong>Oznacz jako obsłużone</strong> - usuwa z listy (maile i tak zostają w archiwum)</li>
-          <li><strong>Auto-obsłużone</strong> - OOO/REDIRECT z nowymi kontaktami - już dodane do bazy</li>
+        <ul style={{ fontSize: "14px", margin: 0, paddingLeft: "20px" }}>
+          <li style={{ marginBottom: "8px" }}><strong>Zainteresowani</strong> - najważniejsze! Automatycznie forwarded, ale sprawdź czy wszystko OK</li>
+          <li style={{ marginBottom: "8px" }}><strong>Inne odpowiedzi</strong> - np. NOT_INTERESTED, MAYBE_LATER - warto sprawdzić co piszą</li>
+          <li style={{ marginBottom: "8px" }}><strong>Oznacz jako obsłużone</strong> - usuwa z listy (maile i tak zostają w archiwum)</li>
+          <li style={{ marginBottom: "8px" }}><strong>Auto-obsłużone</strong> - OOO/REDIRECT z nowymi kontaktami - już dodane do bazy</li>
         </ul>
       </div>
 
@@ -506,17 +744,41 @@ export default function InboxPage() {
                 <span style={{ 
                   padding: "2px 8px",
                   backgroundColor: getClassificationColor(selectedReply.classification),
-                  color: "white",
+                  color: "var(--gray-700)",
                   borderRadius: "4px",
-                  fontSize: "12px"
+                  fontSize: "12px",
+                  fontWeight: "600"
                 }}>
-                  {selectedReply.classification || "BRAK"}
+                  {getClassificationLabel(selectedReply.classification) || "BRAK"}
                 </span>
               </div>
               <div>
                 <strong>Kampania:</strong><br />
                 <span style={{ color: "var(--gray-700)" }}>{selectedReply.campaign?.name || "Brak"}</span>
               </div>
+              {selectedReply.classification === "INTERESTED" && (
+                <>
+                  <div>
+                    <strong>Potwierdzenie:</strong><br />
+                    <span style={{ color: selectedReply.isConfirmed ? "#28a745" : "#dc3545", fontWeight: "600" }}>
+                      {selectedReply.isConfirmed ? "✓ Potwierdzone" : "✗ Nie potwierdzone"}
+                    </span>
+                  </div>
+                  {selectedReply.isConfirmed && selectedReply.confirmedAt && (
+                    <div>
+                      <strong>Data potwierdzenia:</strong><br />
+                      <span style={{ color: "var(--gray-700)" }}>
+                        {new Date(selectedReply.confirmedAt).toLocaleString('pl-PL')}
+                      </span>
+                      {selectedReply.confirmedBy && (
+                        <div style={{ fontSize: "12px", color: "var(--gray-600)", marginTop: "4px" }}>
+                          przez: {selectedReply.confirmedBy}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Temat */}
@@ -589,7 +851,7 @@ export default function InboxPage() {
                   href={`/leads/${selectedReply.lead.id}`}
                   className="btn"
                   style={{
-                    backgroundColor: "var(--primary)",
+                    backgroundColor: "#17a2b8",
                     color: "white",
                     textDecoration: "none",
                     padding: "8px 16px",
@@ -598,6 +860,22 @@ export default function InboxPage() {
                   }}
                 >
                   Zobacz lead
+                </Link>
+              )}
+              {selectedReply.campaign && (
+                <Link
+                  href={`/campaigns/${selectedReply.campaign.id}`}
+                  className="btn"
+                  style={{
+                    backgroundColor: "var(--primary)",
+                    color: "white",
+                    textDecoration: "none",
+                    padding: "8px 16px",
+                    borderRadius: "var(--radius)",
+                    fontWeight: "600"
+                  }}
+                >
+                  Zobacz kampanię
                 </Link>
               )}
               {!selectedReply.isHandled && (
@@ -628,3 +906,10 @@ export default function InboxPage() {
   );
 }
 
+export default function InboxPage() {
+  return (
+    <Suspense fallback={<div className="container" style={{ padding: "var(--spacing-2xl)", textAlign: "center" }}>Ładowanie...</div>}>
+      <InboxPageContent />
+    </Suspense>
+  );
+}

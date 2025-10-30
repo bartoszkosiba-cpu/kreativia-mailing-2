@@ -41,7 +41,9 @@ export async function GET(
     const sentLogs = await db.sendLog.findMany({
       where: {
         campaignId: campaign.id,
-        status: "sent"
+        status: "sent",
+        // Wyklucz testowe wysyłki (bez leadId)
+        leadId: { not: null }
       },
       select: { leadId: true }
     });

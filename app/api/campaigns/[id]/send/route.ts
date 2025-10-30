@@ -77,83 +77,122 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           throw new Error('Brak leadów w kampanii po filtrowaniu');
         }
         const testLead = campaign.CampaignLead[0].lead;
-        
-        // NOWE: Pobierz dostępną skrzynkę mailową (round-robin) - TAK JAK W NORMALNEJ WYSYŁCE
+
+        // Pobierz dostępną skrzynkę mailową (round-robin) - jak w normalnej wysyłce
         let mailbox = null;
         if (campaign.virtualSalespersonId) {
           mailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId);
-          
           if (!mailbox) {
             throw new Error('Brak dostępnych skrzynek mailowych dla handlowca');
           }
-          
           console.log(`[TEST MAILBOX] Używam skrzynki: ${mailbox.email}`);
         }
-        
-        // Użyj greetingForm z bazy danych lub wygeneruj personalizację
-        let personalizedContent;
-        
-        if (testLead.greetingForm && campaign.text) {
-          // Użyj istniejącej odmiany z bazy danych
-          personalizedContent = testLead.greetingForm + "\n\n" + campaign.text;
-        } else {
-          // Fallback - wygeneruj personalizację
-          personalizedContent = await generatePersonalization(
-            testLead.firstName,
-            testLead.lastName,
-            testLead.company,
-            testLead.industry,
-            testLead.title,
-            testLead.companyCity,
-            testLead.companyCountry,
-            campaign.text,
-            testLead.language || 'pl'
-          );
+
+        // Helper: wybór pól dla wariantu
+        const getFieldsForVariant = (variant: "A" | "B") => {
+          if (!campaign.abTestEnabled || variant === "A") {
+            return {
+              subject: campaign.subject,
+              text: campaign.text,
+              jobDescription: campaign.jobDescription,
+              postscript: campaign.postscript,
+              linkText: campaign.linkText,
+              linkUrl: campaign.linkUrl
+            };
+          }
+          return {
+            subject: campaign.subjectB || campaign.subject,
+            text: campaign.textB || campaign.text,
+            jobDescription: campaign.jobDescriptionB || campaign.jobDescription,
+            postscript: campaign.postscriptB || campaign.postscript,
+            linkText: campaign.linkTextB || campaign.linkText,
+            linkUrl: campaign.linkUrlB || campaign.linkUrl
+          };
+        };
+
+        // Zdecyduj czy wysłać 1 (A) czy 2 (A i B) maile
+        const variants: ("A" | "B")[] = campaign.abTestEnabled ? ["A", "B"] : ["A"]; 
+
+        const sendResults: any[] = [];
+        for (const variant of variants) {
+          const fields = getFieldsForVariant(variant);
+
+          // Personalizacja treści
+          let personalizedContent: string;
+          if (testLead.greetingForm && fields.text) {
+            personalizedContent = testLead.greetingForm + "\n\n" + (fields.text || "");
+          } else {
+            personalizedContent = await generatePersonalization(
+              testLead.firstName,
+              testLead.lastName,
+              testLead.company,
+              testLead.industry,
+              testLead.title,
+              testLead.companyCity,
+              testLead.companyCountry,
+              fields.text || "",
+              testLead.language || 'pl'
+            );
+          }
+
+          const subjectWithTest = campaign.abTestEnabled 
+            ? `[TEST ${variant}] ${fields.subject || 'Brak tematu'}`
+            : `[TEST] ${fields.subject || 'Brak tematu'}`;
+
+          const result = await sendCampaignEmail({
+            subject: subjectWithTest,
+            content: personalizedContent,
+            leadEmail: testEmail,
+            leadName: testLead.firstName || undefined,
+            leadCompany: testLead.company || undefined,
+            leadLanguage: testLead.language || 'pl',
+            salesperson: campaign.virtualSalesperson ? {
+              name: campaign.virtualSalesperson.name,
+              email: campaign.virtualSalesperson.email,
+              phone: campaign.virtualSalesperson.phone,
+              language: campaign.virtualSalesperson.language,
+              mainMailbox: campaign.virtualSalesperson.mainMailbox ? {
+                email: campaign.virtualSalesperson.mainMailbox.email,
+                displayName: campaign.virtualSalesperson.mainMailbox.displayName || undefined
+              } : undefined
+            } : undefined,
+            mailbox: mailbox || undefined,
+            campaign: {
+              jobDescription: fields.jobDescription,
+              postscript: fields.postscript,
+              linkText: fields.linkText,
+              linkUrl: fields.linkUrl
+            },
+            settings: companySettings || undefined
+          });
+
+          // Log do SendLog (test: zapisuj adres i wariant)
+          await db.sendLog.create({
+            data: {
+              campaignId: campaignId,
+              leadId: null, // test nie wiąże twardo z leadem
+              mailboxId: mailbox?.id || null,
+              toEmail: testEmail,
+              subject: subjectWithTest,
+              content: personalizedContent,
+              variantLetter: campaign.abTestEnabled ? variant : null,
+              status: "sent",
+              messageId: result.messageId
+            }
+          });
+
+          if (mailbox) {
+            await incrementMailboxCounter(mailbox.id);
+          }
+
+          sendResults.push({ variant, messageId: result.messageId });
         }
 
-        const result = await sendCampaignEmail({
-          subject: campaign.subject,
-          content: personalizedContent,
-          leadEmail: testEmail,
-          leadName: testLead.firstName || undefined,
-          leadCompany: testLead.company || undefined,
-          leadLanguage: testLead.language || 'pl',
-          salesperson: campaign.virtualSalesperson ? {
-            name: campaign.virtualSalesperson.name,
-            email: campaign.virtualSalesperson.email,
-            phone: campaign.virtualSalesperson.phone,
-            language: campaign.virtualSalesperson.language,
-            mainMailbox: campaign.virtualSalesperson.mainMailbox ? {
-              email: campaign.virtualSalesperson.mainMailbox.email,
-              displayName: campaign.virtualSalesperson.mainMailbox.displayName || undefined
-            } : undefined
-          } : undefined,
-          mailbox: mailbox || undefined, // NOWE: Dodane mailbox z round-robin
-          campaign: {
-            jobDescription: campaign.jobDescription,
-            postscript: campaign.postscript,
-            linkText: campaign.linkText,
-            linkUrl: campaign.linkUrl
-          },
-          settings: companySettings || undefined
-        });
-
-        // NOWE: Zapisz test mail do SendLog (dla archiwum)
-        await db.sendLog.create({
-          data: {
-            campaignId: campaignId,
-            leadId: testLead.id,
-            mailboxId: mailbox?.id || null,
-            subject: campaign.subject,
-            content: personalizedContent,
-            status: "sent",
-            messageId: result.messageId
-          }
-        });
-
         return NextResponse.json({
-          message: "Test mail wysłany pomyślnie",
-          result
+          message: campaign.abTestEnabled
+            ? `Wysłano testy A/B na ${testEmail}`
+            : `Wysłano test na ${testEmail}`,
+          results: sendResults
         });
       } catch (error) {
         console.error("Błąd wysyłki testowego maila:", error);

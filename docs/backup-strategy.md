@@ -108,3 +108,4 @@ git checkout [commit-hash] -- filename
 - `prisma/dev.db` (296KB) - aktywna baza
 - Lokalizacja backupów: `backups/*.db`
 
+

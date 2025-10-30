@@ -105,7 +105,8 @@ async function sendSingleReminder(notification: any, settings: any): Promise<voi
   // Przygotuj treść przypomnienia
   const subject = `[PRZYPOMNIENIE] Nie odpowiedziałeś na zainteresowanego leada - ${lead.firstName || ''} ${lead.lastName || ''}`;
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const confirmUrl = `${baseUrl}/confirm-interest/${notification.id}`;
+  // Link do endpoint API, który obsługuje potwierdzenie
+  const confirmUrl = `${baseUrl}/api/confirm-interest/${notification.id}`;
   
   const body = `
 <!DOCTYPE html>
@@ -118,19 +119,19 @@ async function sendSingleReminder(notification: any, settings: any): Promise<voi
     .header { background: #ff9800; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
     .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 5px 5px; }
     .lead-info { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007bff; }
-    .button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+    .button { display: inline-block; background: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; font-weight: bold; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h2>⏰ Przypomnienie: Niepodpotwierdzony lead</h2>
+      <h2>Przypomnienie: Niepodpotwierdzony lead</h2>
     </div>
     <div class="content">
       <p>Ta wiadomość jest przypomnieniem o niepotwierdzonym leadzie zainteresowanym:</p>
       
       <div class="lead-info">
-        <h3>📋 DANE KONTAKTOWE:</h3>
+        <h3>DANE KONTAKTOWE:</h3>
         <p>
           <strong>Imię i nazwisko:</strong> ${lead.firstName || ''} ${lead.lastName || ''}<br>
           <strong>Firma:</strong> ${lead.company || 'N/A'}<br>
@@ -147,7 +148,7 @@ async function sendSingleReminder(notification: any, settings: any): Promise<voi
       
       <div style="text-align: center; margin: 30px 0;">
         <a href="${confirmUrl}" class="button">
-          ✅ OD PIEDZIAŁEM SIĘ TYM
+          POTWIERDZAM
         </a>
       </div>
       

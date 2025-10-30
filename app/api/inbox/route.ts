@@ -4,8 +4,14 @@ import { db } from "@/lib/db";
 /**
  * GET /api/inbox - pobierz listę odpowiedzi
  * Query params:
- * - filter: all | interested | unsubscribe | ooo | redirect | other
+ * - filter: all | interested | replies | unsubscribe | ooo | redirect | other
  * - unreadOnly: true | false
+ * - campaignId: number
+ * - classification: INTERESTED | NOT_INTERESTED | MAYBE_LATER | REDIRECT | OOO | BOUNCE | UNSUBSCRIBE | OTHER
+ * - status: all | handled | unhandled
+ * - search: string (wyszukiwanie w subject, content, fromEmail, toEmail, lead name/company)
+ * - dateFrom: YYYY-MM-DD
+ * - dateTo: YYYY-MM-DD
  */
 export async function GET(req: NextRequest) {
   try {
@@ -13,6 +19,11 @@ export async function GET(req: NextRequest) {
     const filter = searchParams.get("filter") || "all";
     const unreadOnly = searchParams.get("unreadOnly") === "true";
     const campaignId = searchParams.get("campaignId");
+    const classification = searchParams.get("classification");
+    const status = searchParams.get("status");
+    const search = searchParams.get("search");
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
     
     const where: any = {};
     
@@ -22,7 +33,9 @@ export async function GET(req: NextRequest) {
     }
     
     // Filtrowanie według klasyfikacji
-    if (filter !== "all") {
+    if (classification) {
+      where.classification = classification.toUpperCase();
+    } else if (filter !== "all") {
       if (filter === "interested") {
         where.classification = "INTERESTED";
       } else if (filter === "replies") {
@@ -40,22 +53,78 @@ export async function GET(req: NextRequest) {
       };
     }
     
+    // Filtrowanie według statusu (handled/unhandled)
+    if (status === "handled") {
+      where.isHandled = true;
+    } else if (status === "unhandled") {
+      where.isHandled = false;
+    }
+    
     if (unreadOnly) {
       where.isRead = false;
     }
+    
+    // Filtrowanie według daty
+    if (dateFrom || dateTo) {
+      where.receivedAt = {};
+      if (dateFrom) {
+        where.receivedAt.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        const endDate = new Date(dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        where.receivedAt.lte = endDate;
+      }
+    }
+    
+    // Wyszukiwanie (będzie filtrowane po pobraniu danych)
     
     const replies = await db.inboxReply.findMany({
       where,
       include: {
         lead: true,
-        campaign: true
+        campaign: true,
+        notifications: {
+          where: { status: 'CONFIRMED' },
+          select: {
+            id: true,
+            status: true,
+            confirmedAt: true,
+            salespersonEmail: true
+          },
+          take: 1 // Tylko jedno najnowsze potwierdzenie
+        }
       },
       orderBy: {
         receivedAt: "desc"
       }
     });
     
-    return NextResponse.json(replies);
+    // Dodaj informację o potwierdzeniu do każdej odpowiedzi
+    let repliesWithConfirmation = replies.map(reply => ({
+      ...reply,
+      isConfirmed: reply.notifications && reply.notifications.length > 0,
+      confirmedAt: reply.notifications?.[0]?.confirmedAt || null,
+      confirmedBy: reply.notifications?.[0]?.salespersonEmail || null
+    }));
+    
+    // Filtrowanie wyszukiwania (po pobraniu danych, bo Prisma nie obsługuje OR w contains)
+    if (search) {
+      const searchLower = search.toLowerCase();
+      repliesWithConfirmation = repliesWithConfirmation.filter(reply => {
+        const matchesSubject = reply.subject?.toLowerCase().includes(searchLower);
+        const matchesContent = reply.content?.toLowerCase().includes(searchLower);
+        const matchesFromEmail = reply.fromEmail?.toLowerCase().includes(searchLower);
+        const matchesToEmail = reply.toEmail?.toLowerCase().includes(searchLower);
+        const matchesLeadName = `${reply.lead?.firstName || ""} ${reply.lead?.lastName || ""}`.toLowerCase().includes(searchLower);
+        const matchesLeadCompany = reply.lead?.company?.toLowerCase().includes(searchLower);
+        const matchesLeadEmail = reply.lead?.email?.toLowerCase().includes(searchLower);
+        
+        return matchesSubject || matchesContent || matchesFromEmail || matchesToEmail || matchesLeadName || matchesLeadCompany || matchesLeadEmail;
+      });
+    }
+    
+    return NextResponse.json(repliesWithConfirmation);
     
   } catch (error) {
     console.error("Błąd pobierania inbox:", error);

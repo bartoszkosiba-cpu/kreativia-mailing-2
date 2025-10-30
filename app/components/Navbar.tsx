@@ -39,16 +39,15 @@ export default function Navbar() {
       label: "Archiwum"
     },
     { 
-      href: "/ai-chat", 
-      label: "AI Chat"
-    },
-    { 
       href: "/reports", 
       label: "Raporty"
     },
     { 
-      href: "/settings", 
-      label: "Ustawienia"
+      label: "Ustawienia",
+      dropdown: [
+        { href: "/settings", label: "Ustawienia ogólne" },
+        { href: "/ai-chat", label: "AI Chat" }
+      ]
     }
   ];
 

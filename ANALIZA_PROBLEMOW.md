@@ -194,3 +194,4 @@ for (let i = 0; i < leads.length; i++) {
 **Data analizy:** 2025-10-26  
 **Status:** 2 problemy do naprawy (Priorytet: WYSOKI i ŚREDNI)
 
+

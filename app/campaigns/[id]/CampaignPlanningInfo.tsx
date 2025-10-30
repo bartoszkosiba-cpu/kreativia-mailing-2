@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface PlanningInfo {
   campaign: {
@@ -46,11 +46,20 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
   const [info, setInfo] = useState<PlanningInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshMs, setRefreshMs] = useState(30000); // auto-refresh cadence with backoff
+  const intervalRef = useRef<NodeJS.Timer | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchPlanningInfo = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/campaigns/${campaignId}/planning-info`);
+      // Abort any in-flight request before starting a new one
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const response = await fetch(`/api/campaigns/${campaignId}/planning-info`, { signal: controller.signal });
       
       if (!response.ok) {
         throw new Error("Błąd pobierania informacji");
@@ -59,23 +68,54 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
       const data = await response.json();
       setInfo(data);
       setError(null);
+      // Reset backoff on success
+      if (refreshMs !== 30000) setRefreshMs(30000);
     } catch (err: any) {
       console.error("[PLANNING INFO] Błąd:", err);
+      if (err?.name === 'AbortError') {
+        // Swallow aborts (switching tabs/visibility)
+        return;
+      }
       setError(err.message || "Nie udało się pobrać informacji");
+      // Exponential backoff up to 5 min
+      setRefreshMs(prev => Math.min(prev * 2, 300000));
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
+    const start = () => {
+      if (!autoRefresh) return;
+      if (intervalRef.current) clearInterval(intervalRef.current as any);
+      intervalRef.current = setInterval(() => {
+        if (!document.hidden) {
+          fetchPlanningInfo();
+        }
+      }, refreshMs);
+    };
+
+    // initial fetch
     fetchPlanningInfo();
-    
-    if (autoRefresh) {
-      // Odśwież co 30s
-      const interval = setInterval(fetchPlanningInfo, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [campaignId, autoRefresh]);
+    start();
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (intervalRef.current) clearInterval(intervalRef.current as any);
+        // Abort in-flight request when tab goes hidden
+        if (abortRef.current) abortRef.current.abort();
+      } else {
+        start();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (intervalRef.current) clearInterval(intervalRef.current as any);
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, [campaignId, autoRefresh, refreshMs]);
 
   if (isLoading) {
     return (
@@ -91,7 +131,7 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
     return (
       <div className="card" style={{ padding: "var(--spacing-lg)" }}>
         <div style={{ textAlign: "center", color: "var(--danger)" }}>
-          ❌ {error}
+          Błąd: {error}
         </div>
       </div>
     );
@@ -106,21 +146,8 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
   return (
     <div className="card" style={{ padding: "var(--spacing-lg)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-md)" }}>
-        <h2 style={{ margin: 0, fontSize: "1.2rem" }}>📊 Planowanie wysyłki</h2>
-        <button 
-          onClick={fetchPlanningInfo}
-          style={{
-            padding: "4px 12px",
-            backgroundColor: "var(--primary)",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "0.85rem"
-          }}
-        >
-          Odśwież
-        </button>
+        <h2 style={{ margin: 0, fontSize: "1.2rem" }}>Planowanie wysyłki</h2>
+        <div style={{ fontSize: 12, color: "var(--gray-600)" }}>Auto-odświeżanie: co {Math.round(refreshMs/1000)}s</div>
       </div>
 
       {/* CZAS */}
@@ -132,7 +159,7 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
         border: `1px solid ${timeWindow.isValid ? "#bbf7d0" : "#fecaca"}`
       }}>
         <strong style={{ color: timeWindow.isValid ? "#166534" : "#991b1b" }}>
-          ⏰ Okno czasowe: {timeWindow.isValid ? "AKTYWNE" : "NIEAKTYWNE"}
+          Okno czasowe: {timeWindow.isValid ? "AKTYWNE" : "NIEAKTYWNE"}
         </strong>
         <div style={{ marginTop: "8px", fontSize: "14px" }}>
           {timeWindow.isValid ? (
@@ -159,7 +186,7 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
         marginBottom: "var(--spacing-md)",
         border: "1px solid #bfdbfe"
       }}>
-        <strong style={{ color: "#1e40af" }}>📧 Status wysyłki</strong>
+        <strong style={{ color: "#1e40af" }}>Status wysyłki</strong>
         <div style={{ marginTop: "8px", fontSize: "14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div>
             <span style={{ color: "var(--gray-600)" }}>Wysłano dzisiaj:</span>
@@ -182,7 +209,7 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
         {emails.remaining > 0 && (
           <div style={{ marginTop: "12px", padding: "8px", backgroundColor: "#dbeafe", borderRadius: "4px" }}>
             <span style={{ fontSize: "13px", color: "#1e40af" }}>
-              ⏱️ Szacunkowo wyśle dziś: <strong>{Math.min(emails.estimatedToday, emails.remaining)} maili</strong>
+              Szacunkowo wyśle dziś: <strong>{Math.min(emails.estimatedToday, emails.remaining)} maili</strong>
               {emails.estimatedToday < emails.remaining && " (nie wszystkie zmieszczą się w oknie!)"}
             </span>
           </div>
@@ -197,7 +224,7 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
         marginBottom: "var(--spacing-md)",
         border: "1px solid #fde68a"
       }}>
-        <strong style={{ color: "#92400e" }}>⚙️ Obliczony delay</strong>
+        <strong style={{ color: "#92400e" }}>Obliczony delay</strong>
         <div style={{ marginTop: "8px", fontSize: "14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
             <span style={{ color: "var(--gray-600)" }}>Bazowy:</span>
@@ -224,7 +251,7 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
           borderRadius: "6px",
           border: "1px solid #fecaca"
         }}>
-          <strong style={{ color: "#991b1b" }}>⚠️ Ostrzeżenia</strong>
+          <strong style={{ color: "#991b1b" }}>Ostrzeżenia</strong>
           <ul style={{ marginTop: "8px", marginBottom: 0, paddingLeft: "20px", fontSize: "14px", color: "#991b1b" }}>
             {warnings.isInSafetyMargin && (
               <li>Okno czasowe wygasło - używany bazowy delay</li>

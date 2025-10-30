@@ -10,9 +10,9 @@ import CampaignReport from "./CampaignReport";
 import LeadsEditor from "./LeadsEditor";
 import DeleteCampaign from "./DeleteCampaign";
 import FollowUpManager from "./FollowUpManager";
-import RefreshButton from "./RefreshButton";
 import CampaignOutbox from "./CampaignOutbox";
 import CampaignPlanningInfo from "./CampaignPlanningInfo";
+import CampaignTabs from "./CampaignTabs";
 
 export default async function CampaignDetailsPage({ params }: { params: { id: string } }) {
   const campaignId = Number(params.id);
@@ -84,7 +84,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
 
   return (
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <RefreshButton />
+      {/* Usunięto belkę ręcznego/auto odświeżania – planowanie ma własny auto-refresh */}
       
       {campaign.isFollowUp && campaign.parentCampaignId && (
         <div className="alert alert-info" style={{ marginBottom: 20 }}>
@@ -137,105 +137,47 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
           </div>
         )}
         
-        <div style={{ display: "flex", gap: "12px", marginTop: 16 }}>
-          <Link 
-            href={`/campaigns/${campaignId}/inbox`}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "var(--info)",
-              color: "white",
-              textDecoration: "none",
-              borderRadius: "6px",
-              fontWeight: "600",
-              fontSize: "14px"
-            }}
-          >
-            Inbox kampanii
-          </Link>
-          <Link 
-            href={referer}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "var(--gray-500)",
-              color: "white",
-              textDecoration: "none",
-              borderRadius: "6px",
-              fontWeight: "600",
-              fontSize: "14px"
-            }}
-          >
-            Wróć
-          </Link>
-        </div>
+        {/* Usunięto przyciski "Inbox kampanii" i "Wróć" zgodnie z prośbą */}
       </div>
 
-      <SalespersonEditor 
-        campaignId={campaignId}
-        currentSalesperson={campaign.virtualSalesperson}
-      />
-
-      <CampaignReport campaignId={campaignId} />
-
-      <LeadsEditor 
-        campaignId={campaignId}
-        currentLeads={leadsWithStatus}
-        campaignStatus={campaign.status}
-      />
-
-      <CampaignScheduler
-        campaignId={campaignId}
-        currentStatus={campaign.status}
-        scheduledAt={campaign.scheduledAt?.toISOString() || null}
-        allowedDays={campaign.allowedDays}
-        startHour={campaign.startHour}
-        startMinute={campaign.startMinute ?? 0}
-        endHour={campaign.endHour}
-        endMinute={campaign.endMinute ?? 0}
-        delayBetweenEmails={campaign.delayBetweenEmails}
-        maxEmailsPerDay={campaign.maxEmailsPerDay}
-        respectHolidays={campaign.respectHolidays}
-        targetCountries={campaign.targetCountries}
-        leadsCount={leadsWithStatus.length}
-      />
-
-      <CampaignStartButton
-        campaignId={campaignId}
-        currentStatus={campaign.status}
-        leadsCount={leadsWithStatus.length}
-        delayBetweenEmails={campaign.delayBetweenEmails}
-      />
-
-      <CampaignPlanningInfo campaignId={campaignId} />
-
-      <CampaignTextEditor 
-        campaignId={campaignId} 
-        initialSubject={campaign.subject || ""}
-        initialText={campaign.text || ""}
-        initialJobDescription={campaign.jobDescription || ""}
-        initialPostscript={campaign.postscript || ""}
-        initialLinkText={campaign.linkText || ""}
-        initialLinkUrl={campaign.linkUrl || ""}
-        leads={leadsWithStatus}
-      />
-
-      <FollowUpManager campaignId={campaignId} isFollowUp={campaign.isFollowUp} />
-
-      <CampaignOutbox campaignId={campaignId} />
-
-
-      <CampaignSender 
-        campaignId={campaignId}
-        hasSubject={!!campaign.subject}
-        hasText={!!campaign.text}
-        hasLeads={leadsWithStatus.length > 0}
-        leadsCount={leadsWithStatus.length}
-        salesperson={campaign.virtualSalesperson}
-      />
-
-      <DeleteCampaign 
+      <CampaignTabs
         campaignId={campaignId}
         campaignName={campaign.name}
+        isFollowUp={campaign.isFollowUp}
+        status={campaign.status}
+        salesperson={campaign.virtualSalesperson}
+        leads={leadsWithStatus}
+        schedule={{
+          scheduledAt: campaign.scheduledAt?.toISOString() || null,
+          allowedDays: campaign.allowedDays,
+          startHour: campaign.startHour,
+          startMinute: campaign.startMinute ?? 0,
+          endHour: campaign.endHour,
+          endMinute: campaign.endMinute ?? 0,
+          delayBetweenEmails: campaign.delayBetweenEmails,
+          maxEmailsPerDay: campaign.maxEmailsPerDay,
+          respectHolidays: campaign.respectHolidays,
+          targetCountries: campaign.targetCountries
+        }}
+        content={{
+          subject: campaign.subject || null,
+          text: campaign.text || null,
+          jobDescription: campaign.jobDescription || null,
+          postscript: campaign.postscript || null,
+          linkText: campaign.linkText || null,
+          linkUrl: campaign.linkUrl || null,
+          abTestEnabled: campaign.abTestEnabled || false,
+          abTestMode: campaign.abTestMode || "hash",
+          subjectB: campaign.subjectB || null,
+          textB: campaign.textB || null,
+          jobDescriptionB: campaign.jobDescriptionB || null,
+          postscriptB: campaign.postscriptB || null,
+          linkTextB: campaign.linkTextB || null,
+          linkUrlB: campaign.linkUrlB || null
+        }}
       />
+
+      {/* Sekcja usuwania kampanii przeniesiona do karty Raport */}
     </main>
   );
 }

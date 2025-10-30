@@ -284,3 +284,4 @@ Wszystkie akcje są logowane:
 **Data ostatniej aktualizacji:** 2025-10-26  
 **Status:** ✅ Działa, filtrowanie cytatów naprawione
 
+

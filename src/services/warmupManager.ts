@@ -30,7 +30,7 @@ export class WarmupManager {
       return false;
     }
 
-    const config = getWarmupConfig(mailbox.warmupDay);
+    const config = await getWarmupConfig(mailbox.warmupDay);
     if (!config) {
       return false;
     }
@@ -50,7 +50,7 @@ export class WarmupManager {
       return 0;
     }
 
-    const config = getWarmupConfig(mailbox.warmupDay);
+    const config = await getWarmupConfig(mailbox.warmupDay);
     return config?.dailyLimit || 0;
   }
 
@@ -84,7 +84,7 @@ export class WarmupManager {
       };
     }
 
-    const config = getWarmupConfig(mailbox.warmupDay);
+    const config = await getWarmupConfig(mailbox.warmupDay);
     const dailyLimit = config?.dailyLimit || 0;
     const progress = dailyLimit > 0 ? Math.round((mailbox.warmupTodaySent / dailyLimit) * 100) : 0;
 
@@ -140,18 +140,11 @@ export class WarmupManager {
    */
   static async startWarmup(mailboxId: number): Promise<boolean> {
     try {
-      // 1. Zaktualizuj status skrzynki
-      await db.mailbox.update({
-        where: { id: mailboxId },
-        data: {
-          warmupStatus: 'warming',
-          warmupDay: 1,
-          warmupDailyLimit: 15,
-          warmupTodaySent: 0
-        }
-      });
+      // Użyj funkcji z tracker.ts (ustawia warmupStartDate, używa konfiguracji)
+      const { startWarmup } = await import('./warmup/tracker');
+      await startWarmup(mailboxId);
 
-      // 2. OD RAZU zaplanuj maile na dzisiaj
+      // OD RAZU zaplanuj maile na dzisiaj
       const { scheduleDailyEmailsForMailbox } = await import('./warmup/scheduler');
       await scheduleDailyEmailsForMailbox(mailboxId);
       
@@ -168,15 +161,9 @@ export class WarmupManager {
    */
   static async stopWarmup(mailboxId: number): Promise<boolean> {
     try {
-      await db.mailbox.update({
-        where: { id: mailboxId },
-        data: {
-          warmupStatus: 'inactive',
-          warmupDay: 0,
-          warmupDailyLimit: 0,
-          warmupTodaySent: 0
-        }
-      });
+      // Użyj funkcji z tracker.ts (anuluje pending maile)
+      const { stopWarmup } = await import('./warmup/tracker');
+      await stopWarmup(mailboxId);
       return true;
     } catch (error) {
       console.error('Błąd zatrzymania warmup:', error);

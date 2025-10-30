@@ -9,6 +9,37 @@ interface NotificationData {
 }
 
 /**
+ * Funkcja konwersji zwykłego tekstu na HTML
+ */
+function convertTextToHtml(text: string): string {
+  if (!text) return '';
+  
+  // Sprawdź czy to prawdziwy HTML (zawiera tagi HTML)
+  const hasHtmlTags = text.includes('<html>') || 
+                     text.includes('<br>') || 
+                     text.includes('<p>') || 
+                     text.includes('<div>') ||
+                     text.includes('<body>') ||
+                     text.includes('<head>');
+  
+  // Jeśli już zawiera prawdziwy HTML, zwróć jak jest
+  if (hasHtmlTags) {
+    return text;
+  }
+  
+  // Konwertuj zwykły tekst na HTML
+  return text
+    .replace(/\r\n/g, '<br>') // Windows line breaks
+    .replace(/\n/g, '<br>') // Unix line breaks
+    .replace(/\r/g, '<br>') // Mac line breaks
+    .replace(/^> (.+)$/gm, '<blockquote style="margin: 10px 0; padding: 10px; border-left: 3px solid #ccc; background: #f9f9f9;">$1</blockquote>') // Cytaty na blockquote
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') // **tekst** na <strong>
+    .replace(/\*(.+?)\*/g, '<em>$1</em>') // *tekst* na <em>
+    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #0066cc; text-decoration: underline;">$1</a>') // Linki
+    .replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<a href="mailto:$1" style="color: #0066cc; text-decoration: underline;">$1</a>'); // Emaile
+}
+
+/**
  * Główna funkcja do wysyłki powiadomień o zainteresowanych leadach
  */
 export async function sendInterestedLeadNotification(data: NotificationData): Promise<void> {
@@ -26,6 +57,16 @@ export async function sendInterestedLeadNotification(data: NotificationData): Pr
       return;
     }
     
+    // Sprawdź czy dla tego reply już istnieje powiadomienie
+    const existingNotification = await db.interestedLeadNotification.findFirst({
+      where: { replyId: data.replyId }
+    });
+    
+    if (existingNotification) {
+      console.log(`[NOTIFIER] ⏭️ Powiadomienie dla reply ${data.replyId} już istnieje - pomijam`);
+      return;
+    }
+    
     // Pobierz ustawienia firmy
     const settings = await db.companySettings.findFirst();
     if (!settings) {
@@ -34,18 +75,20 @@ export async function sendInterestedLeadNotification(data: NotificationData): Pr
     }
     
     // Określ kto ma dostać powiadomienie
-    const recipients: string[] = [];
+    // UWAGA: Nawet jeśli handlowiec i administrator mają ten sam email,
+    // wysyłamy 2 osobne maile - jeden jako handlowiec (z przyciskiem), jeden jako administrator (bez przycisku)
+    const recipients: Array<{ email: string; role: 'salesperson' | 'owner' }> = [];
     
     // 1. Handlowiec (jeśli jest przypisany)
     if (data.salespersonEmail) {
-      recipients.push(data.salespersonEmail);
+      recipients.push({ email: data.salespersonEmail, role: 'salesperson' });
       console.log(`[NOTIFIER] Dodaję handlowca: ${data.salespersonEmail}`);
     }
     
-    // 2. Email do powiadomień (ty) - zawsze
+    // 2. Email do powiadomień (administrator) - zawsze
     if (settings.forwardEmail) {
-      recipients.push(settings.forwardEmail);
-      console.log(`[NOTIFIER] Dodaję email powiadomień: ${settings.forwardEmail}`);
+      recipients.push({ email: settings.forwardEmail, role: 'owner' });
+      console.log(`[NOTIFIER] Dodaję email administratora: ${settings.forwardEmail}`);
     }
     
     if (recipients.length === 0) {
@@ -67,28 +110,36 @@ export async function sendInterestedLeadNotification(data: NotificationData): Pr
     const isNewLead = !data.campaignId || !reply.campaign;
     const isOnlyToMe = !data.salespersonEmail && isNewLead;
     
-    // Zapisz powiadomienie do bazy NAJPIERW (żeby mieć ID)
-    const notification = await db.interestedLeadNotification.create({
-      data: {
-        replyId: data.replyId,
-        leadId: data.leadId,
-        campaignId: data.campaignId || null,
-        salespersonEmail: data.salespersonEmail || null,
-        status: "PENDING"
+    // Zapisz powiadomienie do bazy NAJPIERW (żeby mieć ID) - obsłuż race condition
+    let notification;
+    try {
+      notification = await db.interestedLeadNotification.create({
+        data: {
+          replyId: data.replyId,
+          leadId: data.leadId,
+          campaignId: data.campaignId || null,
+          salespersonEmail: data.salespersonEmail || null,
+          status: "PENDING"
+        }
+      });
+    } catch (error: any) {
+      // Jeśli powiadomienie już istnieje (race condition), pomiń wysyłkę
+      if (error.code === 'P2002' || error.message?.includes('unique') || error.message?.includes('duplicate')) {
+        console.log(`[NOTIFIER] ⏭️ Warunki wyścigu: powiadomienie dla reply ${data.replyId} już istnieje - pomijam`);
+        return; // Nie wysyłaj duplikatu
       }
-    });
+      throw error; // Jeśli to inny błąd, rzuć dalej
+    }
     
-    // Przygotuj treść emaila (z ID powiadomienia)
-    const emailContent = prepareNotificationEmail(
-      reply,
-      data.salespersonEmail ? 'salesperson' : 'owner',
-      isOnlyToMe,
-      notification.id
-    );
-    
-    // Wyślij powiadomienie do każdego odbiorcy
+    // Wyślij powiadomienie do każdego odbiorcy (dla handlowca i administratora osobno)
     for (const recipient of recipients) {
-      const isForSalesperson = recipient === data.salespersonEmail;
+      // Przygotuj treść emaila odpowiednią dla roli
+      const emailContent = prepareNotificationEmail(
+        reply,
+        recipient.role,
+        isOnlyToMe,
+        notification.id
+      );
       
       try {
         const transporter = nodemailer.createTransport({
@@ -101,11 +152,13 @@ export async function sendInterestedLeadNotification(data: NotificationData): Pr
           }
         });
         
+        const emailHtml = recipient.role === 'salesperson' ? emailContent.bodyWithButton : emailContent.body;
+        
         await transporter.sendMail({
           from: `"${reply.campaign?.virtualSalesperson?.name || 'Kreativia Mailing'}" <${mailbox.email}>`,
-          to: recipient,
+          to: recipient.email,
           subject: emailContent.subject,
-          html: isForSalesperson ? emailContent.bodyWithButton : emailContent.body,
+          html: emailHtml,
           replyTo: reply.lead.email // Odpowiedz bezpośrednio do leada
         });
         
@@ -116,9 +169,9 @@ export async function sendInterestedLeadNotification(data: NotificationData): Pr
               mailboxId: mailbox.id,
               leadId: reply.leadId,
               campaignId: reply.campaignId,
-              toEmail: recipient, // NOWE: Zapisz odbiorcę powiadomienia
+              toEmail: recipient.email, // Zapisz odbiorcę powiadomienia
               subject: emailContent.subject,
-              content: isForSalesperson ? emailContent.bodyWithButton : emailContent.body,
+              content: emailHtml,
               status: "sent"
             }
           });
@@ -128,10 +181,10 @@ export async function sendInterestedLeadNotification(data: NotificationData): Pr
           // Nie przerywamy procesu - mail został wysłany
         }
         
-        console.log(`[NOTIFIER] ✅ Powiadomienie wysłane do: ${recipient}`);
+        console.log(`[NOTIFIER] ✅ Powiadomienie wysłane do: ${recipient.email} (rola: ${recipient.role})`);
         
       } catch (error) {
-        console.error(`[NOTIFIER] ❌ Błąd wysyłki do ${recipient}:`, error);
+        console.error(`[NOTIFIER] ❌ Błąd wysyłki do ${recipient.email}:`, error);
       }
     }
     
@@ -194,7 +247,17 @@ function prepareNotificationEmail(reply: any, recipientType: 'salesperson' | 'ow
   
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   
-  const confirmUrl = `${baseUrl}/confirm-interest/${notificationId}`;
+  // Link do endpoint API, który obsługuje potwierdzenie
+  const confirmUrl = `${baseUrl}/api/confirm-interest/${notificationId}`;
+  
+  // Różne kolory dla handlowca vs administratora
+  const headerColor = recipientType === 'salesperson' ? '#007bff' : '#6c757d'; // Niebieski dla handlowca, szary dla admina
+  const borderColor = recipientType === 'salesperson' ? '#007bff' : '#6c757d'; // Niebieski dla handlowca, szary dla admina
+  const adminBadge = recipientType === 'owner' ? `
+      <div style="background: #e9ecef; padding: 12px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid ${borderColor};">
+        <p style="margin: 0; font-weight: bold; color: #495057; font-size: 14px;">POWIADOMIENIE DLA ADMINISTRATORA</p>
+      </div>
+  ` : '';
   
   let bodyBase = `
 <!DOCTYPE html>
@@ -204,10 +267,15 @@ function prepareNotificationEmail(reply: any, recipientType: 'salesperson' | 'ow
   <style>
     body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+    .header { background: ${headerColor}; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
     .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 5px 5px; }
-    .lead-info { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007bff; }
+    .lead-info { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid ${borderColor}; }
     .reply-box { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #28a745; }
+    .reply-box .email-content { font-family: Arial, sans-serif; line-height: 1.8; color: #333; white-space: pre-wrap; }
+    .reply-box .email-content p { margin: 0 0 10px 0; }
+    .reply-box .email-content br { line-height: 1.8; }
+    .reply-box .email-content blockquote { margin: 10px 0; padding: 10px; border-left: 3px solid #ccc; background: #f9f9f9; }
+    .reply-box .email-content a { color: #0066cc; text-decoration: underline; }
     .button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
     .summary { background: #fff3cd; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #ffc107; }
     .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
@@ -216,10 +284,11 @@ function prepareNotificationEmail(reply: any, recipientType: 'salesperson' | 'ow
 <body>
   <div class="container">
     <div class="header">
-      <h2>${isOnlyToMe ? '🎯 NOWY ZAINTERESOWANY LEAD' : '🎯 LEAD ZAINTERESOWANY'}</h2>
+      <h2>${isOnlyToMe ? 'NOWY ZAINTERESOWANY LEAD' : 'LEAD ZAINTERESOWANY'}</h2>
     </div>
     
     <div class="content">
+      ${adminBadge}
       ${isOnlyToMe ? `
       <div class="lead-info">
         <p><strong>Ten lead nie jest związany z żadną kampanią</strong> - wymaga Twojej szczególnej uwagi!</p>
@@ -227,7 +296,7 @@ function prepareNotificationEmail(reply: any, recipientType: 'salesperson' | 'ow
       ` : ''}
       
       <div class="lead-info">
-        <h3>📋 DANE KONTAKTOWE:</h3>
+        <h3>DANE KONTAKTOWE:</h3>
         <p>
           <strong>Imię i nazwisko:</strong> ${lead.firstName || ''} ${lead.lastName || ''}<br>
           <strong>Firma:</strong> ${lead.company || 'N/A'}<br>
@@ -240,7 +309,7 @@ function prepareNotificationEmail(reply: any, recipientType: 'salesperson' | 'ow
       
       ${campaign ? `
       <div class="lead-info">
-        <h3>📊 KAMPANIA:</h3>
+        <h3>KAMPANIA:</h3>
         <p><strong>Nazwa:</strong> ${campaign.name}<br>
         <strong>Handlowiec:</strong> ${campaign.virtualSalesperson?.name || 'N/A'}</p>
       </div>
@@ -248,16 +317,16 @@ function prepareNotificationEmail(reply: any, recipientType: 'salesperson' | 'ow
       
       ${reply.aiSummary ? `
       <div class="summary">
-        <h3>🤖 PODSUMOWANIE AI:</h3>
+        <h3>PODSUMOWANIE AI:</h3>
         <p>${reply.aiSummary}</p>
       </div>
       ` : ''}
       
       <div class="reply-box">
-        <h3>💬 ODPOWIEDŹ LEADA:</h3>
+        <h3>ODPOWIEDŹ LEADA:</h3>
         <p><strong>Temat:</strong> ${reply.subject}</p>
-        <div style="max-height: 200px; overflow-y: auto; background: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px;">
-          ${reply.content}
+        <div class="email-content" style="max-height: 200px; overflow-y: auto; background: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px;">
+          ${convertTextToHtml(reply.content || '')}
         </div>
       </div>
       
@@ -274,8 +343,8 @@ function prepareNotificationEmail(reply: any, recipientType: 'salesperson' | 'ow
   // Dodaj przycisk tylko dla handlowca
   const buttonHtml = recipientType === 'salesperson' ? `
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${confirmUrl}" class="button" style="display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0;">
-          ✅ OD PIEDZIAŁEM SIĘ TYM
+        <a href="${confirmUrl}" class="button" style="display: inline-block; background: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; font-weight: bold;">
+          POTWIERDZAM
         </a>
       </div>
       

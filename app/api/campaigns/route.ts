@@ -42,8 +42,17 @@ export async function POST(request: NextRequest) {
       linkText,
       linkUrl,
       dailyLimit = 200,
-      contentVersionId,
-      savedContentId
+      // contentVersionId, // DEPRECATED - removed
+      savedContentId,
+      // A/B Testing
+      abTestEnabled,
+      abTestMode,
+      subjectB,
+      textB,
+      jobDescriptionB,
+      postscriptB,
+      linkTextB,
+      linkUrlB
     } = body;
 
     // Walidacja
@@ -63,9 +72,18 @@ export async function POST(request: NextRequest) {
         linkText: linkText?.trim() || null,
         linkUrl: linkUrl?.trim() || null,
         dailyLimit: parseInt(dailyLimit) || 200,
-        contentVersionId: contentVersionId ? parseInt(contentVersionId) : null, // DEPRECATED
-        savedContentId: savedContentId ? parseInt(savedContentId) : null, // NOWE
-        status: "DRAFT"
+        status: "DRAFT",
+        // Relations
+        ...(savedContentId ? { savedContent: { connect: { id: parseInt(savedContentId) } } } : {}),
+        // A/B Testing
+        abTestEnabled: abTestEnabled === true || abTestEnabled === "true" ? true : false,
+        abTestMode: abTestMode ? String(abTestMode) : null,
+        subjectB: subjectB?.trim() || null,
+        textB: textB?.trim() || null,
+        jobDescriptionB: jobDescriptionB?.trim() || null,
+        postscriptB: postscriptB?.trim() || null,
+        linkTextB: linkTextB?.trim() || null,
+        linkUrlB: linkUrlB?.trim() || null
       }
     });
 

@@ -35,3 +35,4 @@ git commit -m "chore: auto-backup database $TIMESTAMP" 2>/dev/null || echo "[inf
 
 echo "[ok] Backup zakończony pomyślnie"
 
+

@@ -66,20 +66,24 @@ export async function getCampaignStats(campaignId: number): Promise<CampaignStat
   }
 
   const totalLeads = campaign.CampaignLead.length;
-  const sentLogs = campaign.sendLogs.filter(log => log.status === "sent");
-  const errorLogs = campaign.sendLogs.filter(log => log.status === "error");
+  // Wyklucz testowe logi (brak leadId lub temat testowy)
+  const isRealSend = (log: any) => log.leadId !== null && !(log.subject || "").startsWith("[TEST");
+  const sentLogs = campaign.sendLogs.filter(log => log.status === "sent" && isRealSend(log));
+  const errorLogs = campaign.sendLogs.filter(log => log.status === "error" && isRealSend(log));
   const totalSent = sentLogs.length;
   const totalErrors = errorLogs.length;
-  const totalReplies = campaign.replies.length;
+  // Odpowiedzi: wyklucz testowe (bez leadId)
+  const realReplies = campaign.replies.filter(r => r.leadId !== null);
+  const totalReplies = realReplies.length;
 
   // Klasyfikacja odpowiedzi
-  const interested = campaign.replies.filter(r => r.classification === "INTERESTED").length;
-  const notInterested = campaign.replies.filter(r => r.classification === "NOT_INTERESTED").length;
-  const unsubscribe = campaign.replies.filter(r => r.classification === "UNSUBSCRIBE").length;
-  const outOfOffice = campaign.replies.filter(r => r.classification === "OOO").length;
-  const redirect = campaign.replies.filter(r => r.classification === "REDIRECT").length;
-  const bounce = campaign.replies.filter(r => r.classification === "BOUNCE").length;
-  const other = campaign.replies.filter(r => 
+  const interested = realReplies.filter(r => r.classification === "INTERESTED").length;
+  const notInterested = realReplies.filter(r => r.classification === "NOT_INTERESTED").length;
+  const unsubscribe = realReplies.filter(r => r.classification === "UNSUBSCRIBE").length;
+  const outOfOffice = realReplies.filter(r => r.classification === "OOO").length;
+  const redirect = realReplies.filter(r => r.classification === "REDIRECT").length;
+  const bounce = realReplies.filter(r => r.classification === "BOUNCE").length;
+  const other = realReplies.filter(r => 
     !["INTERESTED", "NOT_INTERESTED", "UNSUBSCRIBE", "OOO", "REDIRECT", "BOUNCE"].includes(r.classification || "")
   ).length;
 
@@ -90,7 +94,7 @@ export async function getCampaignStats(campaignId: number): Promise<CampaignStat
 
   // Daty
   const sentDates = sentLogs.map(log => new Date(log.createdAt)).sort((a, b) => a.getTime() - b.getTime());
-  const replyDates = campaign.replies.map(r => new Date(r.receivedAt)).sort((a, b) => a.getTime() - b.getTime());
+  const replyDates = realReplies.map(r => new Date(r.receivedAt)).sort((a, b) => a.getTime() - b.getTime());
   
   const startDate = sentDates.length > 0 ? sentDates[0] : null;
   const endDate = campaign.sendingCompletedAt || (sentDates.length > 0 ? sentDates[sentDates.length - 1] : null);

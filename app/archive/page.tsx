@@ -242,6 +242,7 @@ export default function ArchivePage() {
       case "failed": return "#ffebee";
       case "handled": return "#e8f5e9";
       case "unhandled": return "#fff3e0";
+      case "confirmed": return "#28a745";
       default: return "#f5f5f5";
     }
   };
@@ -253,6 +254,7 @@ export default function ArchivePage() {
       case "failed": return "Błąd";
       case "handled": return "Obsłużony";
       case "unhandled": return "Nie obsłużony";
+      case "confirmed": return "Potwierdzony";
       default: return status;
     }
   };
@@ -601,20 +603,36 @@ export default function ArchivePage() {
                         </span>
                     </td>
                     <td style={{ padding: "var(--spacing-sm)" }}>
-                      {email.classification && (
-                        <span
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: "9999px",
-                            fontSize: "12px",
-                            fontWeight: "600",
-                            background: getClassificationColor(email.classification),
-                            color: "var(--gray-700)"
-                          }}
-                        >
-                          {getClassificationLabel(email.classification)}
-                        </span>
-                      )}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        {email.classification && (
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "9999px",
+                              fontSize: "12px",
+                              fontWeight: "600",
+                              background: getClassificationColor(email.classification),
+                              color: "var(--gray-700)"
+                            }}
+                          >
+                            {getClassificationLabel(email.classification)}
+                          </span>
+                        )}
+                        {email.classification === "NOTIFICATION" && (email as any).isConfirmed && (
+                          <span
+                            style={{
+                              padding: "2px 6px",
+                              borderRadius: "9999px",
+                              fontSize: "10px",
+                              fontWeight: "600",
+                              background: "#28a745",
+                              color: "white"
+                            }}
+                          >
+                            ✓ Potwierdzone
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: "var(--spacing-sm)" }}>
                       {email.leadId && (

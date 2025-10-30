@@ -344,7 +344,8 @@ export async function classifyReply(
   ) {
     // Próba wyciągnięcia emaili zastępców
     const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
-    let foundEmails = replyContent.match(emailRegex) || [];
+    const matchResult = replyContent.match(emailRegex);
+    let foundEmails: string[] = matchResult ? Array.from(matchResult) : [];
     
     // ❌ FILTRUJ: Usuń emaile z cytowanej wiadomości (po ">")
     foundEmails = foundEmails.filter(email => {

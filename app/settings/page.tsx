@@ -106,27 +106,36 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <h1>⚙️ Ustawienia firmowe</h1>
-
-      <div style={{ marginBottom: 20, display: "flex", gap: "12px", alignItems: "center" }}>
-        <Link href="/">← Wróć do strony głównej</Link>
-        <Link href="/settings/performance" style={{ 
-          padding: "8px 16px", 
-          backgroundColor: "#0056b3", 
-          color: "white", 
-          borderRadius: 4, 
-          textDecoration: "none" 
-        }}>
-          ⚡ Ustawienia wydajności skrzynek
+    <div className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
+      <div style={{ marginBottom: "var(--spacing-2xl)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ fontSize: "2.5rem", marginBottom: "var(--spacing-sm)" }}>
+            Ustawienia firmowe
+          </h1>
+          <p style={{ fontSize: "1.1rem", color: "var(--gray-600)" }}>
+            Konfiguracja danych firmy, logo, disclaimerów i powiadomień
+          </p>
+        </div>
+        <Link 
+          href="/settings/performance"
+          className="btn"
+          style={{
+            backgroundColor: "var(--primary)",
+            color: "white",
+            textDecoration: "none",
+            fontWeight: "600",
+            padding: "12px 24px"
+          }}
+        >
+          Ustawienia wydajności skrzynek
         </Link>
       </div>
 
-      <div style={{ backgroundColor: "#f8f9fa", padding: 20, borderRadius: 8, marginBottom: 20 }}>
+      <div className="card" style={{ marginBottom: "var(--spacing-2xl)" }}>
         
         {/* Logo firmy */}
-        <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid #ddd" }}>
-          <h3>🏢 Logo firmy</h3>
+        <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid var(--gray-200)" }}>
+          <h3 style={{ marginTop: 0 }}>Logo firmy</h3>
           <div style={{ marginBottom: 16 }}>
             <input
               type="file"
@@ -168,8 +177,8 @@ export default function SettingsPage() {
         </div>
 
         {/* Adres firmy */}
-        <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid #ddd" }}>
-          <h3>📍 Adres firmy</h3>
+        <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid var(--gray-200)" }}>
+          <h3 style={{ marginTop: 0 }}>Adres firmy</h3>
           <textarea
             value={settings.address || ""}
             onChange={(e) => setSettings({ ...settings, address: e.target.value })}
@@ -190,15 +199,15 @@ export default function SettingsPage() {
         </div>
 
         {/* Disclaimers wielojęzyczne */}
-        <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid #ddd" }}>
-          <h3>💬 Tekst "W razie braku zainteresowania..." (wielojęzyczny)</h3>
+        <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid var(--gray-200)" }}>
+          <h3 style={{ marginTop: 0 }}>Tekst "W razie braku zainteresowania..." (wielojęzyczny)</h3>
           <p style={{ fontSize: "13px", color: "#666", marginBottom: 16 }}>
             Odpowiedni tekst zostanie automatycznie wybrany na podstawie języka odbiorcy.
           </p>
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontWeight: "bold", marginBottom: 4 }}>
-              🇵🇱 Polski:
+              Polski:
             </label>
             <input
               type="text"
@@ -217,7 +226,7 @@ export default function SettingsPage() {
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontWeight: "bold", marginBottom: 4 }}>
-              🇬🇧 English:
+              English:
             </label>
             <input
               type="text"
@@ -236,7 +245,7 @@ export default function SettingsPage() {
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontWeight: "bold", marginBottom: 4 }}>
-              🇩🇪 Deutsch:
+              Deutsch:
             </label>
             <input
               type="text"
@@ -255,7 +264,7 @@ export default function SettingsPage() {
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontWeight: "bold", marginBottom: 4 }}>
-              🇫🇷 Français:
+              Français:
             </label>
             <input
               type="text"
@@ -274,8 +283,8 @@ export default function SettingsPage() {
         </div>
 
         {/* Stopka prawna */}
-        <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid #ddd" }}>
-          <h3>⚖️ Stopka prawna</h3>
+        <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid var(--gray-200)" }}>
+          <h3 style={{ marginTop: 0 }}>Stopka prawna</h3>
           <textarea
             value={settings.legalFooter || ""}
             onChange={(e) => setSettings({ ...settings, legalFooter: e.target.value })}
@@ -293,7 +302,7 @@ export default function SettingsPage() {
 
         {/* Forward Email */}
         <div style={{ marginBottom: 24 }}>
-          <h3>📧 Email do powiadomień</h3>
+          <h3 style={{ marginTop: 0 }}>Email do powiadomień</h3>
           <input
             type="email"
             value={settings.forwardEmail || ""}
@@ -320,238 +329,31 @@ export default function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={isSaving}
+            className="btn"
             style={{
-              padding: "12px 24px",
-              backgroundColor: isSaving ? "#ccc" : "#28a745",
+              backgroundColor: isSaving ? "#ccc" : "var(--success)",
               color: "white",
               border: "none",
-              borderRadius: 4,
-              cursor: isSaving ? "not-allowed" : "pointer",
-              fontSize: "16px",
-              fontWeight: "bold"
+              fontWeight: "600",
+              padding: "12px 24px"
             }}
           >
-            {isSaving ? "Zapisuję..." : "💾 Zapisz ustawienia"}
+            {isSaving ? "Zapisuję..." : "Zapisz ustawienia"}
           </button>
         </div>
       </div>
 
       {/* Informacje */}
-      <div style={{ backgroundColor: "#e8f4fd", padding: 16, borderRadius: 8 }}>
-        <h3>ℹ️ Jak to działa?</h3>
-        <ul>
-          <li><strong>Logo</strong> - będzie wbudowane w każdy email (między PS. a adresem firmy)</li>
-          <li><strong>Adres firmy</strong> - wyświetlany w stopce każdego maila</li>
-          <li><strong>Disclaimer wielojęzyczny</strong> - automatycznie dopasowywany do języka odbiorcy</li>
-          <li><strong>Stopka prawna</strong> - zawsze na końcu maila</li>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Jak to działa?</h3>
+        <ul style={{ margin: 0, paddingLeft: "20px" }}>
+          <li style={{ marginBottom: "8px" }}><strong>Logo</strong> - będzie wbudowane w każdy email (między PS. a adresem firmy)</li>
+          <li style={{ marginBottom: "8px" }}><strong>Adres firmy</strong> - wyświetlany w stopce każdego maila</li>
+          <li style={{ marginBottom: "8px" }}><strong>Disclaimer wielojęzyczny</strong> - automatycznie dopasowywany do języka odbiorcy</li>
+          <li style={{ marginBottom: "8px" }}><strong>Stopka prawna</strong> - zawsze na końcu maila</li>
         </ul>
       </div>
-
-      {/* Danger Zone - Reset Database */}
-      <ResetDatabase />
-    </main>
-  );
-}
-
-// Komponent Reset Database
-function ResetDatabase() {
-  const [isResetting, setIsResetting] = useState(false);
-  const [confirmationCode, setConfirmationCode] = useState("");
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  const handleReset = async () => {
-    if (confirmationCode !== "RESET") {
-      alert("Błąd: Musisz wpisać 'RESET' aby potwierdzić!");
-      return;
-    }
-
-    const finalConfirm = confirm(
-      "⚠️ OSTATNIE OSTRZEŻENIE!\n\n" +
-      "Czy NA PEWNO chcesz usunąć:\n" +
-      "- Wszystkie kampanie\n" +
-      "- Wszystkie leady\n" +
-      "- Cały inbox\n" +
-      "- Wszystkie logi wysyłek\n\n" +
-      "TEJ AKCJI NIE MOŻNA COFNĄĆ!\n\n" +
-      "Kliknij OK aby kontynuować lub Anuluj aby przerwać."
-    );
-
-    if (!finalConfirm) {
-      return;
-    }
-
-    setIsResetting(true);
-
-    try {
-      const response = await fetch("/api/admin/reset-database", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmationCode })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(
-          `✅ Baza danych zresetowana pomyślnie!\n\n` +
-          `📧 Serwer IMAP:\n` +
-          `- Oznaczono ${data.stats.markedEmailsOnServer} maili jako przeczytane\n\n` +
-          `Usunięto z bazy:\n` +
-          `- ${data.stats.deletedCampaigns} kampanii\n` +
-          `- ${data.stats.deletedLeads} leadów\n` +
-          `- ${data.stats.deletedReplies} odpowiedzi z inbox\n` +
-          `- ${data.stats.deletedSendLogs} logów wysyłek\n` +
-          `- ${data.stats.deletedCampaignLeads} powiązań leadów z kampaniami\n` +
-          `- ${data.stats.deletedLeadTags} powiązań leadów z tagami\n\n` +
-          `✅ Od teraz system będzie pobierał tylko NOWE maile!`
-        );
-        setShowConfirm(false);
-        setConfirmationCode("");
-        
-        // Odśwież stronę
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        alert(`❌ Błąd: ${error.error}`);
-      }
-    } catch (error) {
-      console.error("Błąd resetowania bazy:", error);
-      alert("❌ Wystąpił błąd podczas resetowania bazy danych");
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
-  return (
-    <div style={{ 
-      marginTop: 40, 
-      padding: 24, 
-      backgroundColor: "#fff5f5", 
-      border: "2px solid #dc3545",
-      borderRadius: 8 
-    }}>
-      <h2 style={{ color: "#dc3545", marginTop: 0 }}>⚠️ DANGER ZONE - Resetowanie bazy testowej</h2>
-      <p style={{ color: "#721c24", marginBottom: 16 }}>
-        <strong>UWAGA:</strong> Ta akcja usunie WSZYSTKIE dane z bazy (kampanie, leady, inbox, logi).
-        Użyj tylko do testów! Ta akcja jest <strong>NIEODWRACALNA</strong>.
-      </p>
-
-      {!showConfirm ? (
-        <button
-          onClick={() => setShowConfirm(true)}
-          style={{
-            padding: "12px 24px",
-            backgroundColor: "#dc3545",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontSize: "16px",
-            fontWeight: "bold"
-          }}
-        >
-          Resetuj bazę danych
-        </button>
-      ) : (
-        <div style={{ 
-          padding: 20, 
-          backgroundColor: "white", 
-          border: "2px solid #dc3545",
-          borderRadius: 8 
-        }}>
-          <h3 style={{ color: "#dc3545", marginTop: 0 }}>Potwierdzenie resetowania</h3>
-          <p style={{ marginBottom: 16 }}>
-            Wpisz <code style={{ 
-              backgroundColor: "#f8d7da", 
-              padding: "2px 8px", 
-              borderRadius: 4,
-              color: "#721c24",
-              fontWeight: "bold"
-            }}>RESET</code> aby potwierdzić:
-          </p>
-          
-          <input
-            type="text"
-            value={confirmationCode}
-            onChange={(e) => setConfirmationCode(e.target.value)}
-            placeholder="Wpisz RESET"
-            style={{
-              width: "100%",
-              padding: 12,
-              border: "2px solid #dc3545",
-              borderRadius: 4,
-              fontSize: "16px",
-              marginBottom: 16,
-              fontWeight: "bold"
-            }}
-          />
-
-          <div style={{ display: "flex", gap: 12 }}>
-            <button
-              onClick={handleReset}
-              disabled={isResetting || confirmationCode !== "RESET"}
-              style={{
-                padding: "12px 24px",
-                backgroundColor: confirmationCode === "RESET" ? "#dc3545" : "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                cursor: confirmationCode === "RESET" ? "pointer" : "not-allowed",
-                fontSize: "16px",
-                fontWeight: "bold",
-                opacity: confirmationCode === "RESET" ? 1 : 0.5
-              }}
-            >
-              {isResetting ? "Resetuję..." : "✓ Potwierdź reset"}
-            </button>
-            
-            <button
-              onClick={() => {
-                setShowConfirm(false);
-                setConfirmationCode("");
-              }}
-              disabled={isResetting}
-              style={{
-                padding: "12px 24px",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: "16px",
-                fontWeight: "bold"
-              }}
-            >
-              Anuluj
-            </button>
-          </div>
-
-          <div style={{ 
-            marginTop: 16, 
-            padding: 12, 
-            backgroundColor: "#f8d7da",
-            borderRadius: 4,
-            fontSize: "13px",
-            color: "#721c24"
-          }}>
-            <strong>Co zostanie usunięte:</strong>
-            <ul style={{ marginTop: 8, marginBottom: 0 }}>
-              <li>Wszystkie kampanie (i ich powiązania)</li>
-              <li>Wszystkie leady (łącznie z "Nowy kontakt")</li>
-              <li>Cały inbox (wszystkie odpowiedzi)</li>
-              <li>Wszystkie logi wysyłek</li>
-              <li>Wszystkie powiązania leadów z tagami</li>
-            </ul>
-            <br />
-            <strong>Co zostanie zachowane:</strong>
-            <ul style={{ marginTop: 8, marginBottom: 0 }}>
-              <li>Wirtualni handlowcy</li>
-              <li>Tagi</li>
-              <li>Ustawienia firmy</li>
-              <li>Święta (cache)</li>
-            </ul>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+

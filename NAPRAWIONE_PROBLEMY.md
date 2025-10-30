@@ -142,3 +142,4 @@ for (let i = 0; i < leads.length; i++) {
 **Data naprawy:** 2025-10-26  
 **Status:** ✅ Wszystkie problemy naprawione
 
+

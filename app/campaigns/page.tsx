@@ -18,7 +18,9 @@ async function getCampaignProgress(campaignId: number) {
   const sent = await db.sendLog.count({
     where: {
       campaignId,
-      status: "sent"
+      status: "sent",
+      // Wyklucz testowe wysyłki (bez leadId)
+      leadId: { not: null }
     }
   });
   

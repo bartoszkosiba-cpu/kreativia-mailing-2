@@ -64,12 +64,15 @@ export async function GET(request: NextRequest) {
       whereConditions.industry = { contains: industry };
     }
 
-    if (tagId) {
-      whereConditions.LeadTag = {
-        some: {
-          tagId: parseInt(tagId)
-        }
-      };
+    if (tagId && tagId !== '') {
+      const parsedTagId = parseInt(tagId);
+      if (!isNaN(parsedTagId)) {
+        whereConditions.LeadTag = {
+          some: {
+            tagId: parsedTagId
+          }
+        };
+      }
     }
 
     if (withoutGreetings) {

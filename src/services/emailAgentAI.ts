@@ -352,7 +352,14 @@ export class EmailAgentAI {
   ): Promise<void> {
     const reply = await db.inboxReply.findUnique({
       where: { id: replyId },
-      include: { lead: true, campaign: true }
+      include: { 
+        lead: true, 
+        campaign: { 
+          include: { 
+            virtualSalesperson: true 
+          } 
+        } 
+      }
     });
 
     if (!reply || !reply.lead) return;

@@ -52,7 +52,7 @@ export default function HomePage() {
       {/* Header */}
       <div style={{ marginBottom: "var(--spacing-2xl)" }}>
         <h1 style={{ fontSize: "2.5rem", marginBottom: "var(--spacing-sm)" }}>
-          Witaj w Kreativia Mailing! 👋
+          Witaj w Kreativia Mailing!
         </h1>
         <p style={{ fontSize: "1.1rem", color: "var(--gray-600)" }}>
           Profesjonalny system do zarządzania kampaniami email B2B
@@ -62,7 +62,7 @@ export default function HomePage() {
       {/* Status crona */}
       {cronStatus && (
         <div className={cronStatus.running ? "alert alert-success" : "alert alert-error"} style={{ marginBottom: "var(--spacing-xl)" }}>
-          <strong>🤖 Automatyzacja:</strong>{" "}
+          <strong>Automatyzacja:</strong>{" "}
           {cronStatus.running ? (
             <>✓ Działa ({cronStatus.interval} - email, kampanie, święta, raporty)</>
           ) : (
@@ -74,10 +74,10 @@ export default function HomePage() {
       {/* Quick Stats */}
       {stats && (
         <div className="grid grid-4" style={{ marginBottom: "var(--spacing-2xl)" }}>
-          <StatCard icon="📊" label="Aktywne kampanie" value={stats.activeCampaigns} color="var(--primary)" />
-          <StatCard icon="👥" label="Leady w bazie" value={stats.totalLeads} color="var(--info)" />
-          <StatCard icon="📧" label="Wysłane dzisiaj" value={stats.sentToday} color="var(--success)" />
-          <StatCard icon="💬" label="Odpowiedzi dzisiaj" value={stats.repliesToday} color="var(--warning)" />
+          <StatCard icon="" label="Aktywne kampanie" value={stats.activeCampaigns} color="var(--primary)" />
+          <StatCard icon="" label="Leady w bazie" value={stats.totalLeads} color="var(--info)" />
+          <StatCard icon="" label="Wysłane dzisiaj" value={stats.sentToday} color="var(--success)" />
+          <StatCard icon="" label="Odpowiedzi dzisiaj" value={stats.repliesToday} color="var(--warning)" />
         </div>
       )}
 
@@ -90,21 +90,21 @@ export default function HomePage() {
       <div className="grid grid-3" style={{ marginBottom: "var(--spacing-2xl)" }}>
         <ActionCard
           href="/campaigns/new"
-          icon="➕"
+          icon=""
           title="Nowa kampania"
           description="Utwórz i zaplanuj nową kampanię email"
           color="var(--success)"
         />
         <ActionCard
           href="/queue"
-          icon="📋"
+          icon=""
           title="Kolejka wysyłek"
           description="Zobacz harmonogram i zaplanowane kampanie"
           color="var(--primary)"
         />
         <ActionCard
           href="/inbox"
-          icon="📬"
+          icon=""
           title="Skrzynka odbiorcza"
           description="Odpowiedzi i automatyczna klasyfikacja AI"
           color="var(--warning)"
@@ -114,7 +114,7 @@ export default function HomePage() {
       {/* Live View - Aktywne kampanie */}
       {stats && stats.activeCampaignsList && stats.activeCampaignsList.length > 0 && (
         <div className="card" style={{ marginBottom: "var(--spacing-2xl)" }}>
-          <h2 style={{ marginBottom: "var(--spacing-lg)" }}>🔴 Live - Aktywne kampanie</h2>
+          <h2 style={{ marginBottom: "var(--spacing-lg)" }}>Live - Aktywne kampanie</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)" }}>
             {stats.activeCampaignsList.map((campaign) => {
               const total = campaign._count.CampaignLead;
@@ -146,15 +146,12 @@ export default function HomePage() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-sm)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)" }}>
-                      <span style={{ fontSize: "1.2rem" }}>
-                        {campaign.status === "IN_PROGRESS" ? "🟡" : "🔵"}
-                      </span>
                       <strong style={{ fontSize: "1.1rem" }}>{campaign.name}</strong>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-md)" }}>
                       {campaign.virtualSalesperson && (
                         <span style={{ fontSize: "0.9rem", color: "var(--gray-600)" }}>
-                          👤 {campaign.virtualSalesperson.name}
+                          {campaign.virtualSalesperson.name}
                         </span>
                       )}
                       <span style={{ 
@@ -194,9 +191,9 @@ export default function HomePage() {
                   
                   {campaign.scheduledAt && (
                     <div style={{ marginTop: "var(--spacing-xs)", fontSize: "0.85rem", color: "var(--gray-500)" }}>
-                      📅 {new Date(campaign.scheduledAt).toLocaleString('pl-PL')}
+                      {new Date(campaign.scheduledAt).toLocaleString('pl-PL')}
                       {campaign.sendingStartedAt && (
-                        <> • ▶️ Rozpoczęto: {new Date(campaign.sendingStartedAt).toLocaleString('pl-PL')}</>
+                        <> • Rozpoczęto: {new Date(campaign.sendingStartedAt).toLocaleString('pl-PL')}</>
                       )}
                     </div>
                   )}
@@ -214,17 +211,17 @@ export default function HomePage() {
 
       {/* Main Navigation */}
       <div className="card">
-        <h2>🧭 Nawigacja</h2>
+        <h2>Nawigacja</h2>
         <div className="grid grid-3">
-          <NavLink href="/campaigns" icon="📊" label="Kampanie" desc="Zarządzaj kampaniami" />
-          <NavLink href="/queue" icon="📋" label="Kolejka" desc="Harmonogram wysyłek" />
-          <NavLink href="/reports" icon="📈" label="Raporty" desc="Statystyki i analizy" />
-          <NavLink href="/inbox" icon="📬" label="Inbox" desc="Odpowiedzi email" />
-          <NavLink href="/leads" icon="👥" label="Leady" desc="Baza kontaktów" />
-          <NavLink href="/salespeople" icon="👤" label="Handlowcy" desc="Wirtualni handlowcy" />
-          <NavLink href="/tags" icon="🏷️" label="Tagi" desc="Zarządzanie tagami" />
+          <NavLink href="/campaigns" icon="" label="Kampanie" desc="Zarządzaj kampaniami" />
+          <NavLink href="/queue" icon="" label="Kolejka" desc="Harmonogram wysyłek" />
+          <NavLink href="/reports" icon="" label="Raporty" desc="Statystyki i analizy" />
+          <NavLink href="/inbox" icon="" label="Inbox" desc="Odpowiedzi email" />
+          <NavLink href="/leads" icon="" label="Leady" desc="Baza kontaktów" />
+          <NavLink href="/salespeople" icon="" label="Handlowcy" desc="Wirtualni handlowcy" />
+          <NavLink href="/tags" icon="" label="Tagi" desc="Zarządzanie tagami" />
           <NavLink href="/import" icon="" label="Import" desc="Import CSV" />
-          <NavLink href="/settings" icon="⚙️" label="Ustawienia" desc="Konfiguracja" />
+          <NavLink href="/settings" icon="" label="Ustawienia" desc="Konfiguracja" />
         </div>
       </div>
     </div>
@@ -238,7 +235,7 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
       borderTop: `4px solid ${color}`,
       padding: "var(--spacing-lg)"
     }}>
-      <div style={{ fontSize: "2rem", marginBottom: "var(--spacing-sm)" }}>{icon}</div>
+      {icon && <div style={{ fontSize: "2rem", marginBottom: "var(--spacing-sm)" }}>{icon}</div>}
       <div style={{ fontSize: "2rem", fontWeight: "700", color, marginBottom: "var(--spacing-xs)" }}>
         {value}
       </div>
@@ -270,7 +267,7 @@ function ActionCard({ href, icon, title, description, color }: {
         e.currentTarget.style.transform = "translateY(0)";
         e.currentTarget.style.boxShadow = "var(--shadow)";
       }}>
-        <div style={{ fontSize: "2rem", marginBottom: "var(--spacing-sm)" }}>{icon}</div>
+        {icon && <div style={{ fontSize: "2rem", marginBottom: "var(--spacing-sm)" }}>{icon}</div>}
         <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>{title}</h3>
         <p style={{ fontSize: "0.875rem", color: "var(--gray-600)", margin: 0 }}>{description}</p>
       </div>
@@ -297,7 +294,7 @@ function NavLink({ href, icon, label, desc }: { href: string; icon: string; labe
         e.currentTarget.style.borderColor = "var(--gray-200)";
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", marginBottom: "var(--spacing-xs)" }}>
-          <span style={{ fontSize: "1.25rem" }}>{icon}</span>
+          {icon && <span style={{ fontSize: "1.25rem" }}>{icon}</span>}
           <span style={{ fontWeight: "600", color: "var(--gray-900)" }}>{label}</span>
         </div>
         <div style={{ fontSize: "0.75rem", color: "var(--gray-600)" }}>{desc}</div>

@@ -101,12 +101,24 @@ model Campaign {
   estimatedStartDate DateTime? // Szacowana data rozpoczęcia (kalkulowana)
   estimatedEndDate   DateTime? // Szacowana data zakończenia (kalkulowana)
 
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  leads        Lead[]
-  sendLogs     SendLog[]
-  CampaignLead CampaignLead[]
-  replies      InboxReply[]
+  // A/B Testing
+  abTestEnabled Boolean @default(false) // Czy A/B test jest włączony
+  abTestMode    String? // "alternating" | "random" | "hash" - metoda rozdziału wariantów
+
+  // Wariant B (wariant A używa istniejących pól: subject, text, jobDescription, postscript, linkText, linkUrl)
+  subjectB        String? // Temat maila - wariant B
+  textB           String? // Tekst kampanii - wariant B
+  jobDescriptionB String? // Opis stanowiska - wariant B
+  postscriptB     String? // PS. na końcu - wariant B
+  linkTextB       String? // Tekst linku - wariant B
+  linkUrlB        String? // URL linku - wariant B
+
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  leads         Lead[]
+  sendLogs      SendLog[]
+  CampaignLead  CampaignLead[]
+  replies       InboxReply[]
   notifications InterestedLeadNotification[]
 }
 
@@ -155,27 +167,28 @@ model Lead {
   replies       InboxReply[]
   statusHistory LeadStatusHistory[]
   notifications InterestedLeadNotification[]
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @default(now()) @updatedAt
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @default(now()) @updatedAt
 }
 
 model SendLog {
-  id         Int       @id @default(autoincrement())
-  campaignId Int? // Opcjonalne - maile testowe/warmup nie mają kampanii
-  leadId     Int? // Opcjonalne - maile testowe/warmup nie mają leada
-  mailboxId  Int? // NOWE: Z której skrzynki wysłano
-  toEmail    String? // NOWE: Do kogo wysłano mail (dla powiadomień)
-  messageId  String?
-  threadId   String?
-  subject    String? // NOWE: Temat wysłanego maila
-  content    String? // NOWE: Treść wysłanego maila
-  status     String    @default("queued")
-  error      String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  campaign   Campaign? @relation(fields: [campaignId], references: [id])
-  lead       Lead?     @relation(fields: [leadId], references: [id])
-  mailbox    Mailbox?  @relation(fields: [mailboxId], references: [id])
+  id            Int       @id @default(autoincrement())
+  campaignId    Int? // Opcjonalne - maile testowe/warmup nie mają kampanii
+  leadId        Int? // Opcjonalne - maile testowe/warmup nie mają leada
+  mailboxId     Int? // NOWE: Z której skrzynki wysłano
+  toEmail       String? // NOWE: Do kogo wysłano mail (dla powiadomień)
+  messageId     String?
+  threadId      String?
+  subject       String? // NOWE: Temat wysłanego maila
+  content       String? // NOWE: Treść wysłanego maila
+  variantLetter String? // "A" | "B" - który wariant A/B został użyty (null = wariant A lub brak testu)
+  status        String    @default("queued")
+  error         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  campaign      Campaign? @relation(fields: [campaignId], references: [id])
+  lead          Lead?     @relation(fields: [leadId], references: [id])
+  mailbox       Mailbox?  @relation(fields: [mailboxId], references: [id])
 
   // Zapobiega wysłaniu tego samego maila wiele razy do tego samego leada (race condition)
   @@index([campaignId, leadId, status])
@@ -216,8 +229,8 @@ model InboxReply {
 
   createdAt DateTime @default(now())
 
-  lead     Lead?     @relation(fields: [leadId], references: [id])
-  campaign Campaign? @relation(fields: [campaignId], references: [id])
+  lead          Lead?                        @relation(fields: [leadId], references: [id])
+  campaign      Campaign?                    @relation(fields: [campaignId], references: [id])
   notifications InterestedLeadNotification[]
 }
 
@@ -260,8 +273,8 @@ model LeadTag {
 }
 
 model CompanySettings {
-  id           Int      @id @default(autoincrement())
-  companyName  String   @default("Kreativia")
+  id           Int     @id @default(autoincrement())
+  companyName  String  @default("Kreativia")
   address      String? // Adres firmy (np. "**Showroom & Office & Production:**\nul. Bukowska 16\n62-081 Wysogotowo, PL")
   logoBase64   String? // Logo jako base64
   disclaimerPl String? // "W razie braku zainteresowania..." - Polski
@@ -270,16 +283,17 @@ model CompanySettings {
   disclaimerFr String? // "En cas d'absence d'intérêt..." - Français
   legalFooter  String? // Stopka prawna
   forwardEmail String? // Email do powiadomień (forwarding zainteresowanych)
-  
+
   // Ustawienia wydajności skrzynek (warmup & kampanie)
   warmupPerformanceSettings String? // JSON: [{week:1, warmup:15, campaign:10}, ...]
-  
+  warmupSchedule            String? // JSON: WarmupDayConfig[] - custom harmonogram warmup (30 dni)
+
   // Ustawienia przypomnień dla zainteresowanych
   reminderIntervalDays Int @default(3) // Ile dni między przypomnieniami
   maxReminderCount     Int @default(2) // Ile razy przypomnieć
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Holiday {
@@ -729,24 +743,24 @@ model LeadStatusHistory {
 }
 
 model InterestedLeadNotification {
-  id                Int       @id @default(autoincrement())
-  replyId           Int
-  reply             InboxReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
-  leadId            Int
-  lead              Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  campaignId        Int?
-  campaign          Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  
-  salespersonEmail  String? // Email handlowca (może być null jeśli nie z kampanii)
-  notifiedAt        DateTime  @default(now())
-  confirmedAt       DateTime? // Kiedy handlowiec kliknął potwierdzenie
-  reminderCount     Int       @default(0) // Ile razy wysłano przypomnienie
-  lastReminderAt    DateTime? // Data ostatniego przypomnienia
-  status            String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
+  id         Int        @id @default(autoincrement())
+  replyId    Int
+  reply      InboxReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  leadId     Int
+  lead       Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaignId Int?
+  campaign   Campaign?  @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  salespersonEmail String? // Email handlowca (może być null jeśli nie z kampanii)
+  notifiedAt       DateTime  @default(now())
+  confirmedAt      DateTime? // Kiedy handlowiec kliknął potwierdzenie
+  reminderCount    Int       @default(0) // Ile razy wysłano przypomnienie
+  lastReminderAt   DateTime? // Data ostatniego przypomnienia
+  status           String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([leadId])
   @@index([replyId])
   @@index([status])

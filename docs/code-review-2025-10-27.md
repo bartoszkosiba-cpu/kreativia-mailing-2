@@ -50,3 +50,4 @@ Znaleziono emoji w następujących plikach:
 2. Usunąć emoji z kodu
 3. Przetestować aplikację po zmianach
 
+

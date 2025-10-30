@@ -30,7 +30,16 @@ export default function NewCampaignPage() {
     linkUrl: "",
     dailyLimit: 200,
     contentVersionId: null as number | null, // DEPRECATED
-    savedContentId: null as number | null // NOWE
+    savedContentId: null as number | null, // NOWE
+    // A/B Testing
+    abTestEnabled: false,
+    abTestMode: "hash",
+    subjectB: "",
+    textB: "",
+    jobDescriptionB: "",
+    postscriptB: "",
+    linkTextB: "",
+    linkUrlB: ""
   });
   const router = useRouter();
 
@@ -438,6 +447,177 @@ export default function NewCampaignPage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* A/B Testing Section */}
+          <div style={{ 
+            padding: "24px", 
+            border: "2px solid #ff9800", 
+            borderRadius: "8px",
+            backgroundColor: "#fff3e0"
+          }}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "flex", alignItems: "center", cursor: "pointer", fontWeight: "bold", fontSize: "16px" }}>
+                <input
+                  type="checkbox"
+                  checked={formData.abTestEnabled}
+                  onChange={(e) => setFormData({...formData, abTestEnabled: e.target.checked})}
+                  style={{ marginRight: 8, width: 18, height: 18, cursor: "pointer" }}
+                />
+                Włącz test A/B
+              </label>
+              <p style={{ fontSize: "12px", color: "#666", marginTop: 8, marginLeft: 26 }}>
+                Testuj dwa warianty treści kampanii i porównaj ich skuteczność
+              </p>
+            </div>
+
+            {formData.abTestEnabled && (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
+                    Metoda rozdziału wariantów:
+                  </label>
+                  <select
+                    value={formData.abTestMode}
+                    onChange={(e) => setFormData({...formData, abTestMode: e.target.value})}
+                    style={{
+                      width: "100%",
+                      padding: 8,
+                      border: "1px solid #ccc",
+                      borderRadius: 4,
+                      fontSize: "14px"
+                    }}
+                  >
+                    <option value="hash">Hash-based (zalecane)</option>
+                    <option value="alternating">Alternating (A-B-A-B...)</option>
+                    <option value="random">Random (losowy)</option>
+                  </select>
+                  <p style={{ fontSize: "11px", color: "#666", marginTop: 4 }}>
+                    Hash-based: Lead zawsze dostanie ten sam wariant. Alternating: po kolei A-B-A-B. Random: losowy wybór.
+                  </p>
+                </div>
+
+                <div style={{ marginTop: 24, paddingTop: 20, borderTop: "2px solid #ff9800" }}>
+                  <h4 style={{ margin: "0 0 16px 0", fontSize: "16px", color: "#ff6f00" }}>
+                    Wariant B (Wariant A używa powyższych pól)
+                  </h4>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
+                      Temat maila (Wariant B):
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.subjectB}
+                      onChange={(e) => setFormData({...formData, subjectB: e.target.value})}
+                      style={{
+                        width: "100%",
+                        padding: 12,
+                        border: "1px solid #ccc",
+                        borderRadius: 4,
+                        fontSize: "16px"
+                      }}
+                      placeholder="np. Inna wersja tematu"
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
+                      Treść maila (Wariant B):
+                    </label>
+                    <textarea
+                      value={formData.textB}
+                      onChange={(e) => setFormData({...formData, textB: e.target.value})}
+                      rows={8}
+                      style={{
+                        width: "100%",
+                        padding: 12,
+                        border: "1px solid #ccc",
+                        borderRadius: 4,
+                        fontSize: "14px",
+                        resize: "vertical"
+                      }}
+                      placeholder="Wklej tutaj alternatywną wersję treści kampanii"
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
+                      Opis stanowiska (Wariant B):
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.jobDescriptionB}
+                      onChange={(e) => setFormData({...formData, jobDescriptionB: e.target.value})}
+                      style={{
+                        width: "100%",
+                        padding: 12,
+                        border: "1px solid #ccc",
+                        borderRadius: 4,
+                        fontSize: "16px"
+                      }}
+                      placeholder="Alternatywny opis stanowiska (opcjonalnie)"
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
+                      PS. (Wariant B):
+                    </label>
+                    <textarea
+                      value={formData.postscriptB}
+                      onChange={(e) => setFormData({...formData, postscriptB: e.target.value})}
+                      rows={3}
+                      style={{
+                        width: "100%",
+                        padding: 12,
+                        border: "1px solid #ccc",
+                        borderRadius: 4,
+                        fontSize: "14px",
+                        resize: "vertical"
+                      }}
+                      placeholder="Alternatywny postscript (opcjonalnie)"
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
+                      Tekst linku (Wariant B):
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.linkTextB}
+                      onChange={(e) => setFormData({...formData, linkTextB: e.target.value})}
+                      style={{
+                        width: "100%",
+                        padding: 12,
+                        border: "1px solid #ccc",
+                        borderRadius: 4,
+                        fontSize: "16px",
+                        marginBottom: 8
+                      }}
+                      placeholder="Alternatywny tekst linku (opcjonalnie)"
+                    />
+                    <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
+                      URL docelowy (Wariant B, opcjonalny):
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.linkUrlB}
+                      onChange={(e) => setFormData({...formData, linkUrlB: e.target.value})}
+                      style={{
+                        width: "100%",
+                        padding: 12,
+                        border: "1px solid #ccc",
+                        borderRadius: 4,
+                        fontSize: "16px"
+                      }}
+                      placeholder="Alternatywny URL (opcjonalnie)"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

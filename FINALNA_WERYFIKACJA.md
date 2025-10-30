@@ -128,3 +128,4 @@ if (currentCampaign?.status === "PAUSED") {
 
 **Data naprawy:** 2025-10-26
 
+

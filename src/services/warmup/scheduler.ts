@@ -57,8 +57,8 @@ function generateRandomScheduleTimes(count: number, targetDate: Date): Date[] {
 /**
  * Wybiera losowy szablon maila
  */
-function getRandomTemplate(type: 'internal' | 'seed') {
-  const templates = WARMUP_TEMPLATES[type];
+function getRandomTemplate() {
+  const templates = WARMUP_TEMPLATES.internal;
   return templates[Math.floor(Math.random() * templates.length)];
 }
 
@@ -109,15 +109,15 @@ export async function scheduleDailyEmailsForMailbox(
     }
     
     // Pobierz konfigurację dla aktualnego dnia warmup
-    const config = getWarmupConfig(mailbox.warmupDay);
+    const config = await getWarmupConfig(mailbox.warmupDay);
     if (!config) {
       console.error(`[WARMUP SCHEDULER] ❌ Brak konfiguracji dla dnia ${mailbox.warmupDay}`);
       return 0;
     }
     
     console.log(`[WARMUP SCHEDULER]   → Dzień warmup: ${mailbox.warmupDay}`);
-    console.log(`[WARMUP SCHEDULER]   → Limit dzienny: ${config.dailyLimit} maili`);
-    console.log(`[WARMUP SCHEDULER]   → Internal: ${config.internalPercent}%, Seed: ${config.seedPercent}%`);
+    console.log(`[WARMUP SCHEDULER]   → Limit dzienny: ${config.dailyLimit} maili warmup`);
+    console.log(`[WARMUP SCHEDULER]   → Limit kampanii: ${config.campaignLimit} maili dziennie`);
     
     // Usuń stare zaplanowane maile na ten dzień (jeśli istnieją)
     const startOfDay = setHours(setMinutes(targetDate, 0), 0);
@@ -172,14 +172,14 @@ export async function scheduleDailyEmailsForMailbox(
     for (let i = 0; i < scheduledTimes.length; i++) {
       const scheduledAt = scheduledTimes[i];
       
-      // USTALENIE: Warmup TYLKO między naszymi skrzynkami (internal)
+      // Warmup TYLKO między naszymi skrzynkami (internal)
       const emailType = 'internal';
       
       // Wybierz losową skrzynkę (internal)
       const toEmail = internalEmails[Math.floor(Math.random() * internalEmails.length)];
       
       // Wygeneruj treść
-      const template = getRandomTemplate(emailType);
+      const template = getRandomTemplate();
       const { subject, body } = generateEmailContent(template, senderName);
       
       queueItems.push({

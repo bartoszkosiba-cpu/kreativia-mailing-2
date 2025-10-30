@@ -145,7 +145,9 @@ export default function LeadsPage() {
       if (selectedLanguage) params.append("language", selectedLanguage);
       if (selectedCountry) params.append("country", selectedCountry);
       if (selectedStatus) params.append("status", selectedStatus);
-      if (selectedTag) params.append("tagId", selectedTag);
+      if (selectedTag && selectedTag !== "") {
+        params.append("tagId", selectedTag.toString());
+      }
       if (selectedIndustry) params.append("industry", selectedIndustry);
 
       const response = await fetch(`/api/leads?${params.toString()}`);
@@ -389,8 +391,12 @@ export default function LeadsPage() {
           status: progress.status
         });
 
-        // Jeśli proces się zakończył, odśwież dane
+        // Jeśli proces się zakończył, odśwież dane i wyczyść interval
         if (progress.status === 'completed') {
+          if ((window as any).greetingProgressInterval) {
+            clearInterval((window as any).greetingProgressInterval);
+            delete (window as any).greetingProgressInterval;
+          }
           fetchLeads();
           setTimeout(() => setGreetingProgress(null), 3000); // Ukryj modal po 3 sekundach
         }
@@ -400,32 +406,77 @@ export default function LeadsPage() {
     }
   };
 
-  // Funkcja do wysyłania powiadomień dla leadów bez powitań
+  // Funkcja do wysyłania powiadomień dla leadów bez powitań (tylko wyfiltrowane)
   const handleSendNotifications = async () => {
     if (stats.greetings.without === 0) {
-      alert("Wszystkie leady już mają powitania!");
+      alert("Wszystkie wyfiltrowane leady już mają powitania!");
       return;
     }
 
-    if (!confirm(`Wygeneruj powitania dla ${stats.greetings.without} leadów bez powitań?`)) {
+    // Skonstruuj parametry URL z aktualnymi filtrami
+    const params = new URLSearchParams();
+    params.append("withoutGreetings", "true");
+    params.append("limit", "1000"); // Duży limit żeby pobrać wszystkie wyfiltrowane
+    
+    if (search) params.append("search", search);
+    if (selectedLanguage) params.append("language", selectedLanguage);
+    if (selectedCountry) params.append("country", selectedCountry);
+    if (selectedStatus) params.append("status", selectedStatus);
+    if (selectedTag && selectedTag !== "") params.append("tagId", selectedTag.toString());
+    if (selectedIndustry) params.append("industry", selectedIndustry);
+
+    // Najpierw sprawdź ile jest leadów bez powitań spełniających filtry
+    const checkResponse = await fetch(`/api/leads?${params.toString()}`);
+    if (!checkResponse.ok) {
+      alert("Błąd podczas sprawdzania leadów");
       return;
     }
+    
+    const checkData = await checkResponse.json();
+    const leadsWithoutGreetings = checkData.leads || [];
+    
+    if (leadsWithoutGreetings.length === 0) {
+      alert("Brak leadów bez powitań spełniających aktualne filtry!");
+      return;
+    }
+
+    const filterInfo = [];
+    if (search) filterInfo.push(`wyszukiwanie: "${search}"`);
+    if (selectedLanguage) filterInfo.push(`język: ${selectedLanguage}`);
+    if (selectedCountry) filterInfo.push(`kraj: ${selectedCountry}`);
+    if (selectedStatus) filterInfo.push(`status: ${selectedStatus}`);
+    if (selectedTag && selectedTag !== "") {
+      const tagName = tags.find(t => String(t.id) === selectedTag)?.name || `ID: ${selectedTag}`;
+      filterInfo.push(`tag: ${tagName}`);
+    }
+    if (selectedIndustry) filterInfo.push(`branża: ${selectedIndustry}`);
+    
+    const filterText = filterInfo.length > 0 ? ` (filtry: ${filterInfo.join(", ")})` : "";
+    
+    if (!confirm(`Wygeneruj powitania dla ${leadsWithoutGreetings.length} wyfiltrowanych leadów bez powitań${filterText}?`)) {
+      return;
+    }
+
+    // Pokaż modal z postępem od razu
+    const totalBatches = Math.ceil(leadsWithoutGreetings.length / 25);
+    setGreetingProgress({
+      isActive: true,
+      progressId: null, // Tymczasowo null, zaktualizujemy gdy otrzymamy z API
+      currentBatch: 0,
+      totalBatches: totalBatches,
+      percentage: 0,
+      processedLeads: 0,
+      totalLeads: leadsWithoutGreetings.length,
+      estimatedTime: "Rozpoczynam...",
+      status: 'processing'
+    });
 
     try {
-      // Pobierz wszystkie leady bez powitań z API
-      const leadsResponse = await fetch("/api/leads?withoutGreetings=true&limit=1000");
-      const leadsData = await leadsResponse.json();
-      
-      if (!leadsData.leads || leadsData.leads.length === 0) {
-        alert("Wszystkie leady już mają powitania!");
-        return;
-      }
-
       const response = await fetch("/api/leads/prepare-greetings-batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          leadIds: leadsData.leads.map((lead: any) => lead.id),
+          leadIds: leadsWithoutGreetings.map((lead: any) => lead.id),
           batchSize: 25,
           delayMs: 2000
         })
@@ -434,42 +485,56 @@ export default function LeadsPage() {
       if (response.ok) {
         const result = await response.json();
         
-        // Uruchom polling postępu
+        // Zaktualizuj modal z prawdziwym progressId i rozpocznij polling
         if (result.progressId) {
-          setGreetingProgress({
-            isActive: true,
+          setGreetingProgress(prev => prev ? {
+            ...prev,
             progressId: result.progressId,
-            currentBatch: 0,
-            totalBatches: Math.ceil(leadsData.leads.length / 25),
-            percentage: 0,
-            processedLeads: 0,
-            totalLeads: leadsData.leads.length,
-            estimatedTime: "Obliczanie...",
-            status: 'processing'
-          });
+            estimatedTime: "Obliczanie..."
+          } : null);
 
           // Rozpocznij polling co 2 sekundy
-          const interval = setInterval(() => {
+          const intervalId = setInterval(() => {
             checkGreetingProgress(result.progressId);
           }, 2000);
 
+          // Zapisz interval ID do późniejszego wyczyszczenia
+          (window as any).greetingProgressInterval = intervalId;
+
           // Zatrzymaj polling po 10 minutach (bezpieczeństwo)
           setTimeout(() => {
-            clearInterval(interval);
-            if (greetingProgress?.isActive) {
-              setGreetingProgress(prev => prev ? { ...prev, isActive: false } : null);
+            if ((window as any).greetingProgressInterval) {
+              clearInterval((window as any).greetingProgressInterval);
+              delete (window as any).greetingProgressInterval;
             }
+            setGreetingProgress(prev => prev ? { ...prev, isActive: false } : null);
           }, 600000);
         } else {
-          alert(`Rozpoczęto generowanie powitań dla ${leadsData.leads.length} leadów!`);
-          fetchLeads();
+          // Jeśli nie ma progressId, zakończ proces
+          setGreetingProgress({
+            isActive: false,
+            progressId: null,
+            currentBatch: totalBatches,
+            totalBatches: totalBatches,
+            percentage: 100,
+            processedLeads: leadsWithoutGreetings.length,
+            totalLeads: leadsWithoutGreetings.length,
+            estimatedTime: "Zakończono",
+            status: 'completed'
+          });
+          setTimeout(() => {
+            setGreetingProgress(null);
+            fetchLeads();
+          }, 2000);
         }
       } else {
         const error = await response.json();
+        setGreetingProgress(null);
         alert(`Błąd: ${error.error}`);
       }
     } catch (error) {
       console.error("Błąd generowania powitań:", error);
+      setGreetingProgress(null);
       alert("Błąd podczas generowania powitań");
     }
   };
@@ -728,12 +793,15 @@ export default function LeadsPage() {
             </label>
             <select
               value={selectedTag}
-              onChange={(e) => setSelectedTag(e.target.value)}
+              onChange={(e) => {
+                setSelectedTag(e.target.value);
+                setCurrentPage(1); // Resetuj stronę przy zmianie filtra
+              }}
               style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
             >
               <option value="">Wszystkie</option>
               {tags.map((tag) => (
-                <option key={tag.id} value={tag.id}>
+                <option key={tag.id} value={String(tag.id)}>
                   {tag.name}
                 </option>
               ))}
@@ -1319,13 +1387,13 @@ export default function LeadsPage() {
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
           }}>
             <h3 style={{ marginTop: 0, marginBottom: '1rem', color: '#0066cc' }}>
-              {greetingProgress.status === 'completed' ? '✅ Zakończono!' : '🔄 Generowanie powitań...'}
+              {greetingProgress.status === 'completed' ? 'Zakończono!' : greetingProgress.progressId ? 'Generowanie powitań...' : 'Rozpoczynam generowanie powitań...'}
             </h3>
             
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span>Postęp:</span>
-                <span>{greetingProgress.percentage}%</span>
+                <span>{greetingProgress.progressId ? `${greetingProgress.percentage}%` : '0%'}</span>
               </div>
               <div style={{
                 width: '100%',
@@ -1344,10 +1412,22 @@ export default function LeadsPage() {
             </div>
 
             <div style={{ marginBottom: '1rem', fontSize: '14px', color: '#666' }}>
-              <div>Batch: {greetingProgress.currentBatch} / {greetingProgress.totalBatches}</div>
-              <div>Leady: {greetingProgress.processedLeads} / {greetingProgress.totalLeads}</div>
-              {greetingProgress.estimatedTime && (
-                <div>Szacowany czas: {greetingProgress.estimatedTime}</div>
+              {greetingProgress.progressId ? (
+                <>
+                  <div>Batch: {greetingProgress.currentBatch} / {greetingProgress.totalBatches}</div>
+                  <div>Leady: {greetingProgress.processedLeads} / {greetingProgress.totalLeads}</div>
+                  {greetingProgress.estimatedTime && (
+                    <div>Szacowany czas: {greetingProgress.estimatedTime}</div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div>Przygotowuję generowanie dla {greetingProgress.totalLeads} leadów...</div>
+                  <div>Batch: {greetingProgress.currentBatch} / {greetingProgress.totalBatches}</div>
+                  <div style={{ marginTop: '0.5rem', fontStyle: 'italic', color: '#888' }}>
+                    Proszę czekać, proces właśnie się rozpoczyna...
+                  </div>
+                </>
               )}
             </div>
 
