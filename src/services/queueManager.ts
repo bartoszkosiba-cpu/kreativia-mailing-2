@@ -247,23 +247,58 @@ export async function canSendCampaignEmail(mailboxId: number): Promise<boolean> 
     return false;
   }
 
-  // Jeśli skrzynka jest w warmup, użyj limitów z konfiguracji warmup
+  // PRZYPADEK 3: Skrzynka w warmup - użyj limitów z /settings/performance
   if (mailbox.warmupStatus === 'warming') {
-    const { getWarmupConfig } = await import('./warmup/config');
-    const config = await getWarmupConfig(mailbox.warmupDay);
-    
-    if (!config) {
-      return false; // Brak konfiguracji dla tego dnia
-    }
+    // Pobierz tydzień na podstawie dnia warmup
+    const getWeekFromDay = (day: number): number => {
+      if (day <= 0) return 1;
+      if (day <= 7) return 1;
+      if (day <= 14) return 2;
+      if (day <= 21) return 3;
+      if (day <= 28) return 4;
+      return 5;
+    };
+
+    // Pobierz limity z ustawień wydajności
+    const getPerformanceLimits = async (week: number): Promise<{ warmup: number; campaign: number }> => {
+      try {
+        const settings = await db.companySettings.findFirst();
+        
+        if (!settings || !settings.warmupPerformanceSettings) {
+          return { warmup: 15, campaign: 10 };
+        }
+        
+        const weeks: Array<{ week: number; warmup: number; campaign: number }> = JSON.parse(settings.warmupPerformanceSettings);
+        const weekData = weeks.find(w => w.week === week);
+        
+        if (!weekData) {
+          return weeks[0] || { warmup: 15, campaign: 10 };
+        }
+        
+        return { warmup: weekData.warmup, campaign: weekData.campaign };
+      } catch (error) {
+        console.error('[QUEUE] Błąd pobierania ustawień wydajności:', error);
+        return { warmup: 15, campaign: 10 };
+      }
+    };
+
+    const week = getWeekFromDay(mailbox.warmupDay || 0);
+    const performanceLimits = await getPerformanceLimits(week);
     
     // Sprawdź czy nie przekroczono limitu kampanii dla skrzynek w warmup
     // currentDailySent zawiera WSZYSTKIE maile (warmup + kampanie)
     // campaignEmailsSent = currentDailySent - warmupTodaySent
     const campaignEmailsSent = Math.max(0, mailbox.currentDailySent - mailbox.warmupTodaySent);
-    return campaignEmailsSent < config.campaignLimit;
+    return campaignEmailsSent < performanceLimits.campaign;
   }
 
-  // Dla skrzynek nie w warmup, użyj normalnego limitu
+  // PRZYPADEK 1: Nowa skrzynka, nie w warmup - STAŁE 10 maili dziennie
+  if (mailbox.warmupStatus === 'inactive' || mailbox.warmupStatus === 'ready_to_warmup') {
+    const NEW_MAILBOX_LIMIT = 10;
+    return mailbox.currentDailySent < NEW_MAILBOX_LIMIT;
+  }
+
+  // PRZYPADEK 2 i 4: Gotowa skrzynka (nie w warmup) - użyj limitu ze skrzynki
   const canSend = mailbox.currentDailySent < mailbox.dailyEmailLimit;
   return canSend;
 }

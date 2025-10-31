@@ -398,7 +398,7 @@ export default function LeadsPage() {
             delete (window as any).greetingProgressInterval;
           }
           fetchLeads();
-          setTimeout(() => setGreetingProgress(null), 3000); // Ukryj modal po 3 sekundach
+          // Panel pozostaje widoczny - użytkownik zamknie go ręcznie przyciskiem "Zamknij"
         }
       }
     } catch (error) {
@@ -646,45 +646,6 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* Panel akcji zbiorczych */}
-      {showBulkActions && (
-        <div className="card" style={{ marginBottom: "var(--spacing-lg)", border: "2px solid var(--warning)" }}>
-          <h3 style={{ color: "var(--warning)", marginBottom: "var(--spacing-md)" }}>
-            🔧 Zarządzanie zaznaczonymi leadami ({selectedLeadIds.length})
-          </h3>
-          <div className="flex gap-md">
-            <button 
-              onClick={() => handleGenerateGreetingsForSelected()}
-              className="btn btn-success"
-              disabled={isLoading}
-            >
-              Generuj powitania
-            </button>
-            <button 
-              onClick={() => setShowTagManager(true)}
-              className="btn btn-primary"
-            >
-              🏷️ Zarządzaj tagami
-            </button>
-            <button 
-              onClick={handleBulkDelete}
-              className="btn btn-danger"
-            >
-              Usuń zaznaczone
-            </button>
-            <button 
-              onClick={() => {
-                setShowBulkActions(false);
-                setSelectedLeadIds([]);
-              }}
-              className="btn btn-secondary"
-            >
-              ❌ Anuluj
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Removed progress banner - keeping it simple */}
 
       {/* Statystyki */}
@@ -851,8 +812,8 @@ export default function LeadsPage() {
       {/* Panel zarządzania tagami */}
       {showTagManager && (
         <div className="card" style={{ marginBottom: "var(--spacing-lg)", border: "2px solid var(--primary)" }}>
-          <h3 style={{ color: "var(--primary)", marginBottom: "var(--spacing-md)" }}>
-            🏷️ Zarządzanie tagami dla {selectedLeadIds.length} leadów
+          <h3 style={{ color: "var(--primary)", marginBottom: "var(--spacing-md)", marginTop: 0 }}>
+            Zarządzanie tagami dla {selectedLeadIds.length} leadów
           </h3>
           <TagManager 
             selectedLeadIds={selectedLeadIds}
@@ -867,29 +828,6 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Panel usuwania */}
-      {showDeleteOptions && (
-        <div className="card" style={{ marginBottom: "var(--spacing-lg)", border: "2px solid var(--danger)" }}>
-          <h3 style={{ color: "var(--danger)", marginBottom: "var(--spacing-md)" }}>Opcje usuwania leadów</h3>
-          <div className="flex gap-md">
-            <button 
-              onClick={() => handleDelete("all")}
-              className="btn btn-danger"
-            >
-              🚨 Usuń WSZYSTKICH leadów ({leads.length})
-            </button>
-            <button 
-              onClick={() => setShowDeleteOptions(false)}
-              className="btn btn-secondary"
-            >
-              ❌ Anuluj
-            </button>
-          </div>
-          <p style={{ color: "var(--gray-600)", marginTop: "var(--spacing-sm)", fontSize: "0.9em" }}>
-            ⚠️ Uwaga: Ta operacja jest nieodwracalna!
-          </p>
-        </div>
-      )}
 
       {/* Formularz dodawania */}
       {showForm && (
@@ -1042,6 +980,45 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* Panel akcji zbiorczych - wyświetla się tuż przed przyciskami */}
+      {showBulkActions && selectedLeadIds.length > 0 && (
+        <div className="card" style={{ marginBottom: "var(--spacing-lg)", border: "2px solid var(--warning)", backgroundColor: "#fffbf0" }}>
+          <h3 style={{ color: "var(--warning)", marginBottom: "var(--spacing-md)", marginTop: 0 }}>
+            Zarządzanie zaznaczonymi leadami ({selectedLeadIds.length})
+          </h3>
+          <div className="flex gap-md" style={{ flexWrap: "wrap" }}>
+            <button 
+              onClick={() => handleGenerateGreetingsForSelected()}
+              className="btn btn-success"
+              disabled={isLoading}
+            >
+              Generuj powitania
+            </button>
+            <button 
+              onClick={() => setShowTagManager(true)}
+              className="btn btn-primary"
+            >
+              Zarządzaj tagami
+            </button>
+            <button 
+              onClick={handleBulkDelete}
+              className="btn btn-danger"
+            >
+              Usuń zaznaczone
+            </button>
+            <button 
+              onClick={() => {
+                setShowBulkActions(false);
+                setSelectedLeadIds([]);
+              }}
+              className="btn btn-secondary"
+            >
+              Anuluj
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Przyciski akcji - przeniesione nad tabelę */}
       <div style={{ marginBottom: "var(--spacing-lg)" }}>
         <div className="flex gap-sm" style={{ justifyContent: "flex-start", flexWrap: "wrap" }}>
@@ -1058,10 +1035,13 @@ export default function LeadsPage() {
           </button>
           {selectedLeadIds.length > 0 && (
             <button
-              onClick={() => setShowBulkActions(!showBulkActions)}
+              onClick={() => {
+                console.log('[LEADS] Toggle bulk actions, current:', showBulkActions, 'selected:', selectedLeadIds.length);
+                setShowBulkActions(!showBulkActions);
+              }}
               className="btn btn-warning"
             >
-              🔧 Zarządzaj zaznaczonymi ({selectedLeadIds.length})
+              {showBulkActions ? '❌ Zamknij zarządzanie' : '🔧 Zarządzaj zaznaczonymi'} ({selectedLeadIds.length})
             </button>
           )}
           <button
@@ -1070,13 +1050,6 @@ export default function LeadsPage() {
             disabled={stats.greetings.without === 0}
           >
             Wygeneruj powitania ({stats.greetings.without})
-          </button>
-          <button 
-            onClick={() => setShowDeleteOptions(!showDeleteOptions)}
-            className="btn btn-danger"
-            disabled={leads.length === 0}
-          >
-            Usuń leady
           </button>
         </div>
       </div>
@@ -1254,32 +1227,11 @@ export default function LeadsPage() {
                     </div>
                   </td>
                   <td className="sticky-column sticky-column-right-1">
-                    <div className="flex" style={{ maxWidth: "120px", flexWrap: "wrap", gap: "10px" }}>
-                      <Link href={`/leads/${lead.id}`}>
-                        <button className="btn btn-primary" style={{ fontSize: "10px", padding: "4px 8px", minWidth: "60px" }}>
-                          Szczegóły
-                        </button>
-                      </Link>
-                      <button 
-                        onClick={() => handleDeleteSingle(lead.id, `${lead.firstName} ${lead.lastName} (${lead.email})`)}
-                        style={{ 
-                          fontSize: "10px", 
-                          padding: "4px 8px", 
-                          minWidth: "50px",
-                          backgroundColor: "#9ca3af",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          transition: "background-color 0.2s"
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#6b7280"}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#9ca3af"}
-                        title="Usuń leada"
-                      >
-                        Usuń
+                    <Link href={`/leads/${lead.id}`}>
+                      <button className="btn btn-primary" style={{ fontSize: "10px", padding: "4px 8px", minWidth: "60px" }}>
+                        Szczegóły
                       </button>
-                    </div>
+                    </Link>
                   </td>
                 </tr>
               );
@@ -1364,87 +1316,84 @@ export default function LeadsPage() {
         )}
       </div>
 
-      {/* Modal z postępem generowania powitań */}
+      {/* Panel z postępem generowania powitań - stały panel, nie blokuje interakcji */}
       {greetingProgress && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
+        <div className="card" style={{
+          marginBottom: "var(--spacing-lg)",
+          border: greetingProgress.status === 'completed' ? "2px solid #28a745" : "2px solid #007bff",
+          backgroundColor: greetingProgress.status === 'completed' ? "#f0f9f4" : "#f0f7ff"
         }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '2rem',
-            borderRadius: '8px',
-            maxWidth: '500px',
-            width: '90%',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
-          }}>
-            <h3 style={{ marginTop: 0, marginBottom: '1rem', color: '#0066cc' }}>
-              {greetingProgress.status === 'completed' ? 'Zakończono!' : greetingProgress.progressId ? 'Generowanie powitań...' : 'Rozpoczynam generowanie powitań...'}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+            <h3 style={{ marginTop: 0, marginBottom: 0, color: greetingProgress.status === 'completed' ? '#28a745' : '#007bff' }}>
+              {greetingProgress.status === 'completed' ? 'Zakończono generowanie powitań!' : greetingProgress.progressId ? 'Generowanie powitań w toku...' : 'Rozpoczynam generowanie powitań...'}
             </h3>
-            
-            <div style={{ marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span>Postęp:</span>
-                <span>{greetingProgress.progressId ? `${greetingProgress.percentage}%` : '0%'}</span>
-              </div>
-              <div style={{
-                width: '100%',
-                height: '20px',
-                backgroundColor: '#e0e0e0',
-                borderRadius: '10px',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  width: `${greetingProgress.percentage}%`,
-                  height: '100%',
-                  backgroundColor: greetingProgress.status === 'completed' ? '#28a745' : '#007bff',
-                  transition: 'width 0.3s ease'
-                }} />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '1rem', fontSize: '14px', color: '#666' }}>
-              {greetingProgress.progressId ? (
-                <>
-                  <div>Batch: {greetingProgress.currentBatch} / {greetingProgress.totalBatches}</div>
-                  <div>Leady: {greetingProgress.processedLeads} / {greetingProgress.totalLeads}</div>
-                  {greetingProgress.estimatedTime && (
-                    <div>Szacowany czas: {greetingProgress.estimatedTime}</div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div>Przygotowuję generowanie dla {greetingProgress.totalLeads} leadów...</div>
-                  <div>Batch: {greetingProgress.currentBatch} / {greetingProgress.totalBatches}</div>
-                  <div style={{ marginTop: '0.5rem', fontStyle: 'italic', color: '#888' }}>
-                    Proszę czekać, proces właśnie się rozpoczyna...
-                  </div>
-                </>
-              )}
-            </div>
-
             {greetingProgress.status === 'completed' && (
               <button
                 onClick={() => setGreetingProgress(null)}
+                className="btn btn-secondary"
                 style={{
                   padding: '0.5rem 1rem',
-                  backgroundColor: '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
+                  fontSize: '14px'
                 }}
               >
                 Zamknij
               </button>
+            )}
+          </div>
+          
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px' }}>
+              <span style={{ fontWeight: '600' }}>Postęp:</span>
+              <span style={{ fontWeight: '600' }}>{greetingProgress.progressId ? `${greetingProgress.percentage}%` : '0%'}</span>
+            </div>
+            <div style={{
+              width: '100%',
+              height: '24px',
+              backgroundColor: '#e0e0e0',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{
+                width: `${greetingProgress.percentage}%`,
+                height: '100%',
+                backgroundColor: greetingProgress.status === 'completed' ? '#28a745' : '#007bff',
+                transition: 'width 0.5s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                paddingRight: '8px',
+                color: 'white',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                {greetingProgress.percentage > 10 && `${greetingProgress.percentage}%`}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: '14px', color: '#666', lineHeight: '1.8' }}>
+            {greetingProgress.progressId ? (
+              <>
+                <div><strong>Batch:</strong> {greetingProgress.currentBatch} / {greetingProgress.totalBatches}</div>
+                <div><strong>Leady:</strong> {greetingProgress.processedLeads} / {greetingProgress.totalLeads}</div>
+                {greetingProgress.estimatedTime && (
+                  <div><strong>Szacowany czas:</strong> {greetingProgress.estimatedTime}</div>
+                )}
+                {greetingProgress.status === 'processing' && (
+                  <div style={{ marginTop: '0.5rem', fontStyle: 'italic', color: '#888', fontSize: '13px' }}>
+                    Możesz kontynuować pracę - panel zostanie automatycznie zaktualizowany
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div><strong>Przygotowuję generowanie dla {greetingProgress.totalLeads} leadów...</strong></div>
+                <div>Batch: {greetingProgress.currentBatch} / {greetingProgress.totalBatches}</div>
+                <div style={{ marginTop: '0.5rem', fontStyle: 'italic', color: '#888' }}>
+                  Proszę czekać, proces właśnie się rozpoczyna...
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1467,6 +1416,50 @@ function TagManager({
 }) {
   const [selectedTags, setSelectedTags] = useState<number[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Pobierz aktualne tagi dla zaznaczonych leadów przy otwarciu
+  useEffect(() => {
+    const fetchCurrentTags = async () => {
+      if (selectedLeadIds.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Pobierz leady z ich tagami
+        const response = await fetch(`/api/leads?leadIds=${selectedLeadIds.join(',')}`);
+        if (response.ok) {
+          const data = await response.json();
+          const leads = data.leads || [];
+          
+          // Zbierz wszystkie tagi które są przypisane do JAKIEGOKOLWIEK z zaznaczonych leadów
+          // Użyjemy Set aby uniknąć duplikatów
+          const currentTagIds = new Set<number>();
+          
+          leads.forEach((lead: Lead) => {
+            if (lead.LeadTag && lead.LeadTag.length > 0) {
+              lead.LeadTag.forEach((lt: any) => {
+                if (lt.tag && lt.tag.id) {
+                  currentTagIds.add(lt.tag.id);
+                }
+              });
+            }
+          });
+
+          // Zainicjalizuj selectedTags z aktualnymi tagami
+          setSelectedTags(Array.from(currentTagIds));
+          console.log('[TAG MANAGER] Załadowano aktualne tagi:', Array.from(currentTagIds));
+        }
+      } catch (error) {
+        console.error("Błąd pobierania aktualnych tagów:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCurrentTags();
+  }, [selectedLeadIds]);
 
   const handleTagToggle = (tagId: number) => {
     setSelectedTags(prev => 
@@ -1477,11 +1470,6 @@ function TagManager({
   };
 
   const handleApplyTags = async () => {
-    if (selectedTags.length === 0) {
-      alert("Wybierz co najmniej jeden tag");
-      return;
-    }
-
     setIsProcessing(true);
     try {
       const response = await fetch("/api/leads/bulk-tags", {
@@ -1489,20 +1477,23 @@ function TagManager({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           leadIds: selectedLeadIds,
-          tagIds: selectedTags
+          tagIds: selectedTags // Może być pusta tablica - usunie wszystkie tagi
         })
       });
 
       if (response.ok) {
-        alert(`✅ Zaktualizowano tagi dla ${selectedLeadIds.length} leadów`);
+        const message = selectedTags.length > 0 
+          ? `Zaktualizowano tagi dla ${selectedLeadIds.length} leadów`
+          : `Usunięto wszystkie tagi dla ${selectedLeadIds.length} leadów`;
+        alert(message);
         onSuccess();
       } else {
         const error = await response.json();
-        alert(`❌ Błąd: ${error.error}`);
+        alert(`Błąd: ${error.error}`);
       }
     } catch (error) {
       console.error("Błąd aktualizacji tagów:", error);
-      alert("❌ Wystąpił błąd podczas aktualizacji tagów");
+      alert("Wystąpił błąd podczas aktualizacji tagów");
     } finally {
       setIsProcessing(false);
     }
@@ -1538,22 +1529,35 @@ function TagManager({
         ))}
       </div>
 
-      <div className="flex gap-sm">
-        <button 
-          onClick={handleApplyTags}
-          disabled={isProcessing || selectedTags.length === 0}
-          className="btn btn-primary"
-        >
-          {isProcessing ? "⏳ Zapisywanie..." : "✅ Zastosuj tagi"}
-        </button>
-        <button 
-          onClick={onClose}
-          className="btn btn-secondary"
-          disabled={isProcessing}
-        >
-          ❌ Anuluj
-        </button>
-      </div>
+      {isLoading ? (
+        <div style={{ textAlign: "center", padding: "var(--spacing-lg)", color: "var(--gray-600)" }}>
+          Ładowanie aktualnych tagów...
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-sm">
+            <button 
+              onClick={handleApplyTags}
+              disabled={isProcessing}
+              className="btn btn-primary"
+            >
+              {isProcessing ? "Zapisywanie..." : "Zastosuj zmiany"}
+            </button>
+            <button 
+              onClick={onClose}
+              className="btn btn-secondary"
+              disabled={isProcessing}
+            >
+              Anuluj
+            </button>
+          </div>
+          {selectedTags.length === 0 && (
+            <p style={{ marginTop: "var(--spacing-sm)", color: "var(--warning)", fontSize: "14px" }}>
+              Uwaga: Jeśli zapiszesz bez zaznaczonych tagów, wszystkie tagi zostaną usunięte z zaznaczonych leadów.
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }

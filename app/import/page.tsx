@@ -57,7 +57,7 @@ export default function ImportPage() {
             console.log('[PROGRESS] Import zakończony - resetuję statusy');
             setIsProcessing(false);
             setImportCompleted(true);
-            setStatus(`✅ Import zakończony! Dodano: ${data.processed} leadów`);
+            setStatus(`Import zakończony! Dodano: ${data.processed} leadów`);
             return; // Wyjdź z funkcji - nie kontynuuj polling
           }
         } else if (response.status === 404) {
@@ -131,7 +131,7 @@ export default function ImportPage() {
         setSelectedTagId(newTag.id);
         setShowNewTagForm(false);
         setNewTagName("");
-        setStatus(`✅ Utworzono nowy tag: ${newTag.name}`);
+          setStatus(`Utworzono nowy tag: ${newTag.name}`);
       } else {
         const error = await response.json();
         alert(`Błąd tworzenia tagu: ${error.error}`);
@@ -147,7 +147,7 @@ export default function ImportPage() {
     
     const tryNext = (index: number) => {
       if (index >= delimiters.length) {
-        setStatus("❌ Nie udało się sparsować pliku z żadnym z delimiterów");
+        setStatus("Nie udało się sparsować pliku z żadnym z delimiterów");
         return;
       }
       
@@ -166,7 +166,7 @@ export default function ImportPage() {
           
           if (result.data && result.data.length > 0 && result.data[0] && Object.keys(result.data[0]).length > 1) {
             console.log(`[IMPORT] ✅ Delimiter "${delimiter}" zadziałał!`);
-            setStatus(`✅ Wykryto delimiter: "${delimiter}" - przetwarzanie danych...`);
+            setStatus(`Wykryto delimiter: "${delimiter}" - przetwarzanie danych...`);
             processParsedData(result.data);
           } else {
             console.log(`[IMPORT] ❌ Delimiter "${delimiter}" nie zadziałał, próbuję następny...`);
@@ -247,12 +247,12 @@ export default function ImportPage() {
 
     console.log(`[IMPORT] Przygotowano ${leads.length} leadów do importu`);
     setRows(leads);
-    setStatus(`✅ Przygotowano ${leads.length} leadów do importu`);
+          setStatus(`Przygotowano ${leads.length} leadów do importu`);
   };
 
   const onFile = (file: File) => {
     console.log(`[IMPORT] Rozpoczynam parsowanie pliku: ${file.name} (${file.size} bytes)`);
-    setStatus("⏳ Parsowanie pliku...");
+    setStatus("Parsowanie pliku...");
     setImportCompleted(false); // Resetuj stan importu
     setImportId(null); // Resetuj importId
     setProgress(null); // Resetuj postęp
@@ -273,11 +273,11 @@ export default function ImportPage() {
         console.log(`[IMPORT] Nagłówki:`, Object.keys(result.data[0] || {}));
         
         const detectedDelimiter = result.meta?.delimiter || 'nieznany';
-        setStatus(`✅ Auto-detect wykrył delimiter: "${detectedDelimiter}" - przetwarzanie danych...`);
+        setStatus(`Auto-detect wykrył delimiter: "${detectedDelimiter}" - przetwarzanie danych...`);
         
         if (result.errors && result.errors.length > 0) {
           console.warn(`[IMPORT] Błędy parsowania:`, result.errors);
-          setStatus(`❌ Błędy parsowania: ${result.errors.map(e => e.message).join(', ')}`);
+          setStatus(`Błędy parsowania: ${result.errors.map(e => e.message).join(', ')}`);
           return;
         }
         
@@ -293,8 +293,8 @@ export default function ImportPage() {
       },
       error: (error: any) => {
         console.error("[IMPORT] Błąd parsowania CSV:", error);
-        setStatus(`❌ Błąd parsowania pliku: ${error.message}`);
-        alert(`❌ Błąd parsowania pliku CSV.\n\nSzczegóły: ${error.message}\n\nSprawdź konsolę (F12) aby zobaczyć więcej informacji.`);
+        setStatus(`Błąd parsowania pliku: ${error.message}`);
+        alert(`Błąd parsowania pliku CSV.\n\nSzczegóły: ${error.message}\n\nSprawdź konsolę (F12) aby zobaczyć więcej informacji.`);
       }
     });
   };
@@ -306,7 +306,7 @@ export default function ImportPage() {
     }
 
     if (!selectedTagId) {
-      alert("⚠️ Musisz wybrać tag dla importowanych leadów!");
+      alert("Musisz wybrać tag dla importowanych leadów!");
       return;
     }
 
@@ -326,7 +326,7 @@ export default function ImportPage() {
     console.log(`[FRONTEND] Tag ID:`, selectedTagId);
 
     setIsProcessing(true);
-    setStatus("⏳ Wysyłam dane do serwera...");
+        setStatus("Wysyłam dane do serwera...");
     
     try {
       const response = await fetch("/api/leads/import", {
@@ -350,25 +350,25 @@ export default function ImportPage() {
           console.log(`[FRONTEND] Serwer zwrócił importId:`, result.importId);
         } else {
           // Fallback dla starych odpowiedzi bez importId
-          const totalCount = (result.importedCount || 0) + (result.updatedCount || 0);
+          const totalCount = (result.importedCount || 0) + (result.skippedCount || 0);
           const tagName = selectedTagId ? tags.find(t => t.id === selectedTagId)?.name : "bez tagu";
-          setStatus(`✅ Zapisano ${totalCount} leadów z tagiem "${tagName}"`);
+          setStatus(`Zapisano ${totalCount} leadów z tagiem "${tagName}"`);
           setRows([]);
           setSelectedTagId(null);
-          alert(`✅ Import zakończony!\n\nDodano: ${result.importedCount}\nZaktualizowano: ${result.updatedCount}\nPominięto: ${result.skippedCount}`);
+          alert(`Import zakończony!\n\nDodano nowych: ${result.importedCount}\nIstniejące (otrzymały tag): ${result.skippedCount}`);
           setIsProcessing(false);
         }
       } else {
         const error = await response.json();
         console.error(`[FRONTEND] Błąd importu:`, error);
-        setStatus(`❌ Błąd importu`);
-        alert(`❌ Błąd importu:\n\n${error.error}\n\n${error.details || ''}`);
+        setStatus(`Błąd importu`);
+        alert(`Błąd importu:\n\n${error.error}\n\n${error.details || ''}`);
         setIsProcessing(false);
       }
     } catch (error) {
       console.error("[FRONTEND] Wyjątek podczas importu:", error);
-      setStatus(`❌ Błąd połączenia`);
-      alert("❌ Błąd zapisywania leadów - sprawdź konsolę (F12)");
+      setStatus(`Błąd połączenia`);
+      alert("Błąd zapisywania leadów - sprawdź konsolę (F12)");
       setIsProcessing(false);
     }
   };
@@ -379,41 +379,47 @@ export default function ImportPage() {
 
   return (
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <h1>Import leadów do bazy</h1>
-      
-      <div style={{ marginBottom: 20 }}>
-        <Link href="/">← Wróć do strony głównej</Link>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "var(--spacing-xl)" }}>
+        <div>
+          <h1>Import leadów</h1>
+          <p style={{ color: "var(--gray-600)", marginTop: "var(--spacing-sm)" }}>
+            Importuj leady z pliku CSV do bazy danych
+          </p>
+        </div>
+        <Link href="/" style={{ color: "var(--gray-600)", textDecoration: "none" }}>
+          ← Wróć
+        </Link>
       </div>
 
-      <div style={{ backgroundColor: "#f8f9fa", padding: 20, borderRadius: 8, marginBottom: 20 }}>
-        <h2>Import z CSV</h2>
+      <div className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
+        <h2 style={{ marginBottom: "var(--spacing-lg)" }}>Import z CSV</h2>
         
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
-            Plik CSV (kolumny: email, firstName, company, industry, companyCountry)
+        <div style={{ marginBottom: "var(--spacing-lg)" }}>
+          <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+            Plik CSV
           </label>
           <input
             type="file"
             accept=".csv,.txt,text/csv,text/plain,application/csv"
             onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+            style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
           />
-          <p style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
-            ✅ Akceptowane formaty: CSV, TXT lub dowolny plik tekstowy<br/>
-            ℹ️ Separator: przecinek (,) lub średnik (;) - wykrywany automatycznie<br/>
-            ℹ️ Kodowanie: UTF-8 (zalecane)<br/>
-            💡 <strong>Tip:</strong> Jeśli plik nie ma rozszerzenia, po prostu wybierz "Wszystkie pliki" w oknie wyboru
+          <p style={{ fontSize: "14px", color: "var(--gray-600)", marginTop: "var(--spacing-sm)", lineHeight: "1.6" }}>
+            Akceptowane formaty: CSV, TXT lub dowolny plik tekstowy<br/>
+            Separator: przecinek (,) lub średnik (;) - wykrywany automatycznie<br/>
+            Kodowanie: UTF-8 (zalecane)<br/>
+            <strong>Wymagane kolumny:</strong> email, firstName (lub imię), company (lub firma), industry (lub branża), companyCountry (lub kraj)
           </p>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
-            Tag dla leadów <span style={{ color: "#dc3545" }}>*</span>
+        <div style={{ marginBottom: "var(--spacing-lg)" }}>
+          <label style={{ display: "block", marginBottom: "var(--spacing-xs)", fontWeight: "600" }}>
+            Tag dla leadów <span style={{ color: "var(--danger)" }}>*</span>
           </label>
           <select
             value={selectedTagId || ""}
             onChange={(e) => setSelectedTagId(e.target.value ? Number(e.target.value) : null)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+            style={{ width: "100%", padding: "var(--spacing-sm)", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)", marginBottom: "var(--spacing-sm)" }}
           >
             <option value="">-- Wybierz tag --</option>
             {tags.map(tag => (
@@ -423,31 +429,25 @@ export default function ImportPage() {
             ))}
           </select>
           
-          <div style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              onClick={() => setShowNewTagForm(!showNewTagForm)}
-              style={{
-                padding: "6px 12px",
-                backgroundColor: "#d81e42",
-                color: "white",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer",
-                fontSize: 12
-              }}
-            >
-              + Dodaj nowy tag
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowNewTagForm(!showNewTagForm)}
+            className="btn"
+            style={{
+              backgroundColor: "#d81e42",
+              color: "white",
+              fontSize: "14px",
+              padding: "8px 16px"
+            }}
+          >
+            Dodaj nowy tag
+          </button>
 
           {showNewTagForm && (
-            <div style={{ 
-              marginTop: 8, 
-              padding: 12, 
-              backgroundColor: "#f8f9fa", 
-              border: "1px solid #c4c5c1", 
-              borderRadius: 4 
+            <div className="card" style={{ 
+              marginTop: "var(--spacing-md)", 
+              padding: "var(--spacing-md)",
+              backgroundColor: "var(--gray-50)"
             }}>
               <input
                 type="text"
@@ -456,26 +456,18 @@ export default function ImportPage() {
                 onChange={(e) => setNewTagName(e.target.value)}
                 style={{ 
                   width: "100%", 
-                  padding: 8, 
-                  border: "1px solid #ccc", 
-                  borderRadius: 4,
-                  marginBottom: 8
+                  padding: "var(--spacing-sm)", 
+                  border: "1px solid var(--gray-300)", 
+                  borderRadius: "var(--radius)",
+                  marginBottom: "var(--spacing-sm)"
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && createNewTag()}
               />
-              <div>
+              <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
                 <button
                   onClick={createNewTag}
-                  style={{
-                    padding: "6px 12px",
-                    backgroundColor: "#28a745",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    fontSize: 12,
-                    marginRight: 8
-                  }}
+                  className="btn btn-success"
+                  style={{ fontSize: "14px" }}
                 >
                   Utwórz
                 </button>
@@ -484,15 +476,8 @@ export default function ImportPage() {
                     setShowNewTagForm(false);
                     setNewTagName("");
                   }}
-                  style={{
-                    padding: "6px 12px",
-                    backgroundColor: "#6c757d",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    fontSize: 12
-                  }}
+                  className="btn btn-secondary"
+                  style={{ fontSize: "14px" }}
                 >
                   Anuluj
                 </button>
@@ -500,20 +485,21 @@ export default function ImportPage() {
             </div>
           )}
           
-          <p style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-            <span style={{ color: "#dc3545" }}>*</span> Wymagane: oznacz importowane leady tagiem
+          <p style={{ fontSize: "14px", color: "var(--gray-600)", marginTop: "var(--spacing-sm)" }}>
+            <span style={{ color: "var(--danger)" }}>*</span> Wymagane: oznacz importowane leady tagiem
           </p>
         </div>
 
         {status && (
-          <div style={{ 
-            padding: 12, 
-            backgroundColor: status.includes("Błąd") ? "#f8d7da" : "#d4edda", 
-            color: status.includes("Błąd") ? "#721c24" : "#155724",
-            borderRadius: 4,
-            marginBottom: 16
+          <div className="card" style={{ 
+            padding: "var(--spacing-md)", 
+            backgroundColor: status.includes("Błąd") || status.includes("❌") ? "#fff5f5" : "#f0f9f4", 
+            border: `1px solid ${status.includes("Błąd") || status.includes("❌") ? "var(--danger)" : "var(--success)"}`,
+            marginBottom: "var(--spacing-lg)",
+            color: status.includes("Błąd") || status.includes("❌") ? "var(--danger)" : "var(--success)",
+            fontWeight: "500"
           }}>
-            {status}
+            {status.replace(/[✅❌⏳💡ℹ️⚠️]/g, '').trim()}
           </div>
         )}
 
@@ -521,32 +507,30 @@ export default function ImportPage() {
           <button
             onClick={handleSave}
             disabled={rows.length === 0 || isProcessing || !selectedTagId}
+            className="btn"
             style={{
-              padding: "12px 24px",
-              backgroundColor: (rows.length === 0 || isProcessing || !selectedTagId) ? "#ccc" : "#d81e42",
+              backgroundColor: (rows.length === 0 || isProcessing || !selectedTagId) ? "var(--gray-400)" : "#d81e42",
               color: "white",
-              border: "none",
-              borderRadius: 4,
-              cursor: (rows.length === 0 || isProcessing || !selectedTagId) ? "not-allowed" : "pointer",
-              fontSize: 16,
-              fontWeight: 500,
-              transition: "all 0.2s ease"
+              fontSize: "16px",
+              fontWeight: "600",
+              padding: "12px 24px",
+              cursor: (rows.length === 0 || isProcessing || !selectedTagId) ? "not-allowed" : "pointer"
             }}
           >
-            {isProcessing ? "⏳ Zapisywanie..." : `Zapisz ${rows.length} leadów`}
+            {isProcessing ? "Zapisywanie..." : `Zapisz ${rows.length} leadów`}
           </button>
         )}
         
         {rows.length > 0 && !isProcessing && (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: "var(--spacing-md)" }}>
             {!selectedTagId && (
-              <p style={{ fontSize: 12, color: "#dc3545", fontWeight: "bold" }}>
-                ⚠️ Wybierz tag aby móc zapisać leady
+              <p style={{ fontSize: "14px", color: "var(--danger)", fontWeight: "600" }}>
+                Wybierz tag aby móc zapisać leady
               </p>
             )}
             {selectedTagId && (
-              <p style={{ fontSize: 12, color: "#666" }}>
-                ℹ️ Po kliknięciu przycisku zobaczysz pasek postępu importu poniżej
+              <p style={{ fontSize: "14px", color: "var(--gray-600)" }}>
+                Po kliknięciu przycisku zobaczysz pasek postępu importu poniżej
               </p>
             )}
           </div>
@@ -554,26 +538,23 @@ export default function ImportPage() {
       </div>
 
       {/* Wskaźnik postępu importu - ZAWSZE WIDOCZNY */}
-      <div style={{ 
-        marginTop: 20, 
-        padding: 16, 
-        backgroundColor: importId ? "#f8f9fa" : "#fafafa", 
-        border: `1px solid ${importId ? "#c4c5c1" : "#e0e0e0"}`, 
-        borderRadius: 8,
-        opacity: importId ? 1 : 0.6
+      <div className="card" style={{ 
+        marginBottom: "var(--spacing-xl)",
+        opacity: importId ? 1 : 0.7
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ fontSize: 14, fontWeight: 500, color: "#111111" }}>Postęp importu:</span>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--spacing-md)" }}>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>Postęp importu</h3>
           {importId && (
-            <span style={{ fontSize: 12, color: "#666" }}>{importId}</span>
+            <span style={{ fontSize: "12px", color: "var(--gray-500)", fontFamily: "monospace" }}>{importId}</span>
           )}
         </div>
         <div style={{ 
           width: "100%", 
-          backgroundColor: "#c4c5c1", 
-          borderRadius: 4, 
-          height: 10,
-          overflow: "hidden"
+          backgroundColor: "var(--gray-200)", 
+          borderRadius: "var(--radius)", 
+          height: "24px",
+          overflow: "hidden",
+          marginBottom: "var(--spacing-md)"
         }}>
           <div 
             style={{ 
@@ -581,19 +562,28 @@ export default function ImportPage() {
               backgroundColor: "#d81e42",
               height: "100%",
               transition: "width 0.3s ease",
-              borderRadius: 4
+              borderRadius: "var(--radius)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              paddingRight: "8px",
+              color: "white",
+              fontSize: "12px",
+              fontWeight: "600"
             }}
-          ></div>
+          >
+            {progress && progress.percentage > 15 && `${progress.percentage}%`}
+          </div>
         </div>
-        <div style={{ marginTop: 12, fontSize: 14, color: importId ? "#111111" : "#666" }}>
+        <div style={{ marginBottom: "var(--spacing-sm)", fontSize: "14px", color: importId ? "var(--gray-900)" : "var(--gray-500)", fontWeight: "500" }}>
           {progress?.currentStep || (importId ? 'Inicjalizacja importu...' : 'Oczekiwanie na import...')}
         </div>
         {progress && (
-          <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
-            <div style={{ marginBottom: 4 }}>
+          <div style={{ marginTop: "var(--spacing-sm)", fontSize: "14px", color: "var(--gray-600)", lineHeight: "1.8" }}>
+            <div>
               <strong>{progress.processed}</strong> z <strong>{progress.total}</strong> leadów zaimportowanych
             </div>
-            <div style={{ marginBottom: 4 }}>
+            <div>
               Pozostało: <strong>{progress.total - progress.processed}</strong> leadów
             </div>
             <div>
@@ -602,34 +592,34 @@ export default function ImportPage() {
           </div>
         )}
         {!importId && (
-          <div style={{ marginTop: 8, fontSize: 12, color: "#999", fontStyle: "italic" }}>
+          <div style={{ marginTop: "var(--spacing-sm)", fontSize: "13px", color: "var(--gray-500)", fontStyle: "italic" }}>
             Import rozpocznie się po kliknięciu przycisku "Zapisz leady"
           </div>
         )}
       </div>
 
       {rows.length > 0 && (
-        <div style={{ backgroundColor: "#f8f9fa", padding: 20, borderRadius: 8, marginTop: 20 }}>
-          <h3>Podsumowanie importu</h3>
+        <div className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
+          <h3 style={{ marginBottom: "var(--spacing-md)" }}>Podsumowanie importu</h3>
           
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: "bold", fontSize: 18, color: "#28a745" }}>
-              ✅ Znaleziono {rows.length} leadów do importu
+          <div style={{ marginBottom: "var(--spacing-lg)" }}>
+            <div style={{ fontWeight: "600", fontSize: "18px", color: "var(--success)", marginBottom: "var(--spacing-sm)" }}>
+              Znaleziono {rows.length} leadów do importu
             </div>
-            <div style={{ color: "#666", fontSize: 14, marginTop: 8 }}>
+            <div style={{ color: "var(--gray-600)", fontSize: "14px" }}>
               Wszystkie leady będą automatycznie spersonalizowane przez AI
             </div>
           </div>
 
           <div style={{ 
-            padding: 12, 
+            padding: "var(--spacing-md)", 
             backgroundColor: "#e8f4fd", 
             border: "1px solid #bee5eb", 
-            borderRadius: 4,
-            fontSize: 14
+            borderRadius: "var(--radius)",
+            fontSize: "14px"
           }}>
-            <strong>💡 Co się stanie po zapisaniu:</strong>
-            <ul style={{ marginTop: 8, marginBottom: 0 }}>
+            <strong style={{ display: "block", marginBottom: "var(--spacing-sm)" }}>Co się stanie po zapisaniu:</strong>
+            <ul style={{ margin: 0, paddingLeft: "20px", lineHeight: "1.8" }}>
               <li>Każdy lead dostanie odpowiedni greeting w swoim języku</li>
               <li>Personalizacja będzie dostępna w szczegółach leada</li>
               <li>Możesz od razu tworzyć kampanie z tymi leadami</li>
@@ -638,11 +628,11 @@ export default function ImportPage() {
         </div>
       )}
 
-      <div style={{ backgroundColor: "#e8f4fd", padding: 16, borderRadius: 8, marginTop: 20 }}>
-        <h3>Co dalej?</h3>
-        <p>Po imporcie leadów będziesz mógł:</p>
-        <ul>
-          <li>Przeglądać leady w <Link href="/leads">globalnej bazie kontaktów</Link></li>
+      <div className="card" style={{ backgroundColor: "#e8f4fd" }}>
+        <h3 style={{ marginBottom: "var(--spacing-md)" }}>Co dalej?</h3>
+        <p style={{ marginBottom: "var(--spacing-sm)", color: "var(--gray-700)" }}>Po imporcie leadów będziesz mógł:</p>
+        <ul style={{ margin: 0, paddingLeft: "20px", lineHeight: "1.8", color: "var(--gray-700)" }}>
+          <li>Przeglądać leady w <Link href="/leads" style={{ color: "var(--primary)", textDecoration: "underline" }}>globalnej bazie kontaktów</Link></li>
           <li>Tworzyć kampanie i dodawać leady według tagów</li>
           <li>Edytować teksty kampanii</li>
           <li>Wysyłać spersonalizowane maile</li>

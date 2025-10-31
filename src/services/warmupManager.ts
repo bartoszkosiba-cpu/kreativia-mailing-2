@@ -10,7 +10,7 @@
  */
 
 import { db } from '@/lib/db';
-import { getWarmupConfig } from './warmup/config';
+// Removed import getWarmupConfig - using performanceLimits instead
 import { promisify } from 'util';
 import * as dns from 'dns';
 
@@ -30,12 +30,8 @@ export class WarmupManager {
       return false;
     }
 
-    const config = await getWarmupConfig(mailbox.warmupDay);
-    if (!config) {
-      return false;
-    }
-
-    return mailbox.warmupTodaySent < config.dailyLimit;
+    // Użyj limitu ze skrzynki (ustawionego z performanceLimits)
+    return mailbox.warmupTodaySent < mailbox.warmupDailyLimit;
   }
 
   /**
@@ -50,8 +46,8 @@ export class WarmupManager {
       return 0;
     }
 
-    const config = await getWarmupConfig(mailbox.warmupDay);
-    return config?.dailyLimit || 0;
+    // Użyj limitu ze skrzynki (ustawionego z performanceLimits)
+    return mailbox.warmupDailyLimit || 0;
   }
 
   /**
@@ -84,8 +80,8 @@ export class WarmupManager {
       };
     }
 
-    const config = await getWarmupConfig(mailbox.warmupDay);
-    const dailyLimit = config?.dailyLimit || 0;
+    // Użyj limitu ze skrzynki (ustawionego z performanceLimits)
+    const dailyLimit = mailbox.warmupDailyLimit || 0;
     const progress = dailyLimit > 0 ? Math.round((mailbox.warmupTodaySent / dailyLimit) * 100) : 0;
 
     // Pobierz statystyki emaili Z DZISIEJSZEGO DNIA WARMUP

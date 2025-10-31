@@ -326,3 +326,4 @@ Zmiana statusu: IN_PROGRESS → COMPLETED
 **Status kampanii #4:** SCHEDULED (oczekuje na cron)
 
 
+

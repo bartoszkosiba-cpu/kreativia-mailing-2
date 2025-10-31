@@ -9,7 +9,7 @@
  */
 
 import { db } from '@/lib/db';
-import { getWarmupConfig } from './config';
+// Removed import getWarmupConfig - using performanceLimits instead
 import { differenceInDays, startOfDay } from 'date-fns';
 
 /**
@@ -98,23 +98,53 @@ export async function advanceWarmupDays(): Promise<{
           completedCount++;
           
         } else {
-          // Zwiększ dzień i zaktualizuj limit
-          const newConfig = await getWarmupConfig(correctDay);
-          
-          if (newConfig) {
-            console.log(`[WARMUP TRACKER] ⬆️  Zwiększam dzień: ${mailbox.warmupDay} → ${correctDay}`);
-            console.log(`[WARMUP TRACKER]   → Nowy limit warmup: ${newConfig.dailyLimit}`);
-            
-            await db.mailbox.update({
-              where: { id: mailbox.id },
-              data: {
-                warmupDay: correctDay,
-                warmupDailyLimit: newConfig.dailyLimit
+          // Zwiększ dzień i zaktualizuj limit z /settings/performance
+          const getWeekFromDay = (day: number): number => {
+            if (day <= 0) return 1;
+            if (day <= 7) return 1;
+            if (day <= 14) return 2;
+            if (day <= 21) return 3;
+            if (day <= 28) return 4;
+            return 5;
+          };
+
+          const getPerformanceLimits = async (week: number): Promise<{ warmup: number; campaign: number }> => {
+            try {
+              const settings = await db.companySettings.findFirst();
+              
+              if (!settings || !settings.warmupPerformanceSettings) {
+                return { warmup: 15, campaign: 10 };
               }
-            });
-            
-            advancedCount++;
-          }
+              
+              const weeks: Array<{ week: number; warmup: number; campaign: number }> = JSON.parse(settings.warmupPerformanceSettings);
+              const weekData = weeks.find(w => w.week === week);
+              
+              if (!weekData) {
+                return weeks[0] || { warmup: 15, campaign: 10 };
+              }
+              
+              return { warmup: weekData.warmup, campaign: weekData.campaign };
+            } catch (error) {
+              console.error('[WARMUP TRACKER] Błąd pobierania ustawień wydajności:', error);
+              return { warmup: 15, campaign: 10 };
+            }
+          };
+
+          const week = getWeekFromDay(correctDay);
+          const performanceLimits = await getPerformanceLimits(week);
+          
+          console.log(`[WARMUP TRACKER] ⬆️  Zwiększam dzień: ${mailbox.warmupDay} → ${correctDay} (Tydzień ${week})`);
+          console.log(`[WARMUP TRACKER]   → Nowy limit warmup: ${performanceLimits.warmup}`);
+          
+          await db.mailbox.update({
+            where: { id: mailbox.id },
+            data: {
+              warmupDay: correctDay,
+              warmupDailyLimit: performanceLimits.warmup
+            }
+          });
+          
+          advancedCount++;
         }
       } else {
         console.log(`[WARMUP TRACKER] ✅ Dzień ${correctDay} - bez zmian`);
@@ -143,11 +173,30 @@ export async function startWarmup(mailboxId: number): Promise<void> {
   try {
     console.log(`[WARMUP TRACKER] 🚀 Rozpoczynam warmup dla skrzynki ${mailboxId}`);
     
-    const config = await getWarmupConfig(1); // Dzień 1
-    
-    if (!config) {
-      throw new Error('Brak konfiguracji dla dnia 1');
-    }
+    // Pobierz limity z /settings/performance dla tygodnia 1 (dni 1-7)
+    const getPerformanceLimits = async (week: number): Promise<{ warmup: number; campaign: number }> => {
+      try {
+        const settings = await db.companySettings.findFirst();
+        
+        if (!settings || !settings.warmupPerformanceSettings) {
+          return { warmup: 15, campaign: 10 };
+        }
+        
+        const weeks: Array<{ week: number; warmup: number; campaign: number }> = JSON.parse(settings.warmupPerformanceSettings);
+        const weekData = weeks.find(w => w.week === week);
+        
+        if (!weekData) {
+          return weeks[0] || { warmup: 15, campaign: 10 };
+        }
+        
+        return { warmup: weekData.warmup, campaign: weekData.campaign };
+      } catch (error) {
+        console.error('[WARMUP TRACKER] Błąd pobierania ustawień wydajności:', error);
+        return { warmup: 15, campaign: 10 };
+      }
+    };
+
+    const performanceLimits = await getPerformanceLimits(1); // Tydzień 1 dla dnia 1
     
     await db.mailbox.update({
       where: { id: mailboxId },
@@ -155,7 +204,7 @@ export async function startWarmup(mailboxId: number): Promise<void> {
         warmupStatus: 'warming',
         warmupStartDate: new Date(),
         warmupDay: 1,
-        warmupDailyLimit: config.dailyLimit,
+        warmupDailyLimit: performanceLimits.warmup,
         warmupTodaySent: 0,
         warmupCompletedAt: null,
         warmupIssues: null  // Clear any previous issues when starting warmup
@@ -163,8 +212,9 @@ export async function startWarmup(mailboxId: number): Promise<void> {
     });
     
     console.log(`[WARMUP TRACKER] ✅ Warmup rozpoczęty`);
-    console.log(`[WARMUP TRACKER]   → Dzień: 1`);
-    console.log(`[WARMUP TRACKER]   → Limit: ${config.dailyLimit}`);
+    console.log(`[WARMUP TRACKER]   → Dzień: 1 (Tydzień 1)`);
+    console.log(`[WARMUP TRACKER]   → Limit warmup: ${performanceLimits.warmup}`);
+    console.log(`[WARMUP TRACKER]   → Limit kampanii: ${performanceLimits.campaign}`);
     
   } catch (error) {
     console.error(`[WARMUP TRACKER] ❌ Błąd startu warmup:`, error);

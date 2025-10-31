@@ -197,10 +197,6 @@ export default function SalespeoplePage() {
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
       <h1>Zarządzanie wirtualnymi handlowcami</h1>
       
-      <div style={{ marginBottom: 20 }}>
-        <Link href="/">← Wróć do strony głównej</Link>
-      </div>
-
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h2>Lista handlowców ({salespeople.length})</h2>
         <button

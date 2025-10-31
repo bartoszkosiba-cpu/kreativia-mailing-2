@@ -46,6 +46,7 @@ export default function Navbar() {
       label: "Ustawienia",
       dropdown: [
         { href: "/settings", label: "Ustawienia ogólne" },
+        { href: "/tags", label: "Zarządzanie tagami" },
         { href: "/ai-chat", label: "AI Chat" }
       ]
     }

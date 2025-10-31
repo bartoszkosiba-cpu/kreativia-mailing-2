@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const industry = searchParams.get('industry') || '';
     const withoutGreetings = searchParams.get('withoutGreetings') === 'true';
     const campaignId = searchParams.get('campaignId');
+    const leadIdsParam = searchParams.get('leadIds'); // Parametr do pobierania konkretnych leadów po ID
 
     // Buduj warunki WHERE
     const whereConditions: any = {};
@@ -38,7 +39,14 @@ export async function GET(request: NextRequest) {
     // ✅ NIE filtruj zablokowanych - użytkownik może je zobaczyć w liście statusów
     // (tylko w "dodaj leady do kampanii" filtrujemy na status=AKTYWNY)
 
-    if (search) {
+    // Jeśli podano konkretne ID leadów, użyj ich zamiast innych filtrów
+    if (leadIdsParam) {
+      const leadIds = leadIdsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (leadIds.length > 0) {
+        whereConditions.id = { in: leadIds };
+        // Nie stosuj innych filtrów gdy pobieramy konkretne leady
+      }
+    } else if (search) {
       whereConditions.OR = [
         { firstName: { contains: search } },
         { lastName: { contains: search } },

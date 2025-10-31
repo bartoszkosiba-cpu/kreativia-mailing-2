@@ -266,3 +266,4 @@ GROUP BY sl.variantLetter;
 5. Testy na małej grupie leadów
 
 
+

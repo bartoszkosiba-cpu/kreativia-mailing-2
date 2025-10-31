@@ -74,10 +74,10 @@ export async function GET(request: NextRequest) {
         const direction = "outgoing";
         const source = isNotification ? "notification" : (email.campaignId ? "campaign" : "verification");
         
-        // Dla powiadomień: użyj zapisany toEmail, dla zwykłych maili: użyj email leada
+        // Dla powiadomień i testów: użyj zapisany toEmail, dla zwykłych maili: użyj email leada
         let toEmail = "Nieznany odbiorca";
-        if (isNotification && email.toEmail) {
-          // Dla powiadomień: użyj zapisany odbiorca
+        if (email.toEmail) {
+          // Dla powiadomień i maili testowych: użyj zapisany odbiorca
           toEmail = email.toEmail;
         } else {
           // Dla zwykłych maili: użyj email leada lub skrzynki

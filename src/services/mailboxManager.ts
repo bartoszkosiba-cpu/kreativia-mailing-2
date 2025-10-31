@@ -140,8 +140,8 @@ export async function getNextAvailableMailbox(
     let effectiveLimit: number;
     let currentSent: number;
     
-    if (mailbox.warmupStatus === 'warming' || mailbox.warmupStatus === 'ready_to_warmup') {
-      // W trybie warmup - użyj Math.min(3 limity)
+    // PRZYPADEK 3: W warmup - użyj limitów z /settings/performance
+    if (mailbox.warmupStatus === 'warming') {
       const week = getWeekFromDay(mailbox.warmupDay || 0);
       const performanceLimits = await getPerformanceLimits(week);
       
@@ -152,17 +152,19 @@ export async function getNextAvailableMailbox(
         performanceLimits.campaign
       );
       
-      currentSent = mailbox.warmupTodaySent;
-    } else {
-      // W normalnym trybie (bez warmup) - użyj Math.min(2 limity)
-      const week = getWeekFromDay(0); // Tydzień 1 dla skrzynek bez warmup
-      const performanceLimits = await getPerformanceLimits(week);
-      
-      effectiveLimit = Math.min(
-        mailbox.dailyEmailLimit,
-        performanceLimits.campaign
-      );
-      
+      // Licznik kampanii = wszystkie maile dzisiaj MINUS maile warmup
+      // currentDailySent zawiera WSZYSTKIE maile (warmup + kampanie)
+      currentSent = Math.max(0, mailbox.currentDailySent - mailbox.warmupTodaySent);
+    } 
+    // PRZYPADEK 1: Nowa skrzynka, nie w warmup - STAŁE 10 maili dziennie
+    else if (mailbox.warmupStatus === 'inactive' || mailbox.warmupStatus === 'ready_to_warmup') {
+      const NEW_MAILBOX_LIMIT = 10;
+      effectiveLimit = NEW_MAILBOX_LIMIT;
+      currentSent = mailbox.currentDailySent;
+    }
+    // PRZYPADEK 2 i 4: Gotowa skrzynka (nie w warmup) - użyj limitu ze skrzynki
+    else {
+      effectiveLimit = mailbox.dailyEmailLimit;
       currentSent = mailbox.currentDailySent;
     }
     
@@ -239,14 +241,11 @@ export async function incrementMailboxCounter(mailboxId: number): Promise<void> 
     lastUsedAt: new Date()
   };
   
-  // Zwiększ odpowiedni licznik w zależności od statusu warmup
-  if (mailbox.warmupStatus === 'warming' || mailbox.warmupStatus === 'ready_to_warmup') {
-    updateData.warmupTodaySent = { increment: 1 };
-    console.log(`[MAILBOX] ✓ Zwiększono licznik warmup dla skrzynki ID: ${mailboxId}`);
-  } else {
-    updateData.currentDailySent = { increment: 1 };
-    console.log(`[MAILBOX] ✓ Zwiększono licznik dla skrzynki ID: ${mailboxId}`);
-  }
+  // UWAGA: Ta funkcja jest używana dla maili KAMPANII!
+  // Maile warmup używają warmup/sender.ts który zwiększa warmupTodaySent
+  // Maile kampanii zawsze zwiększają currentDailySent (nawet dla skrzynek w warmup)
+  updateData.currentDailySent = { increment: 1 };
+  console.log(`[MAILBOX] ✓ Zwiększono licznik kampanii dla skrzynki ID: ${mailboxId}`);
   
   await db.mailbox.update({
     where: { id: mailboxId },

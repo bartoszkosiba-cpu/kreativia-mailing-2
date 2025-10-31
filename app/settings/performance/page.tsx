@@ -26,12 +26,16 @@ export default function PerformanceSettingsPage() {
 
   const fetchSettings = async () => {
     try {
+      setIsLoading(true);
       const response = await fetch("/api/settings");
       if (response.ok) {
         const data = await response.json();
         if (data.warmupPerformanceSettings) {
           const parsed = JSON.parse(data.warmupPerformanceSettings);
-          setWeeks(parsed);
+          // Sortuj według tygodnia i upewnij się że są wszystkie tygodnie
+          const sorted = parsed.sort((a: PerformanceWeek, b: PerformanceWeek) => a.week - b.week);
+          setWeeks(sorted);
+          console.log('[PERFORMANCE] Załadowano ustawienia:', sorted);
         }
       }
     } catch (error) {
@@ -44,28 +48,67 @@ export default function PerformanceSettingsPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      console.log('[PERFORMANCE] Zapisuję:', weeks);
+      
+      // Walidacja przed zapisem
+      const validWeeks = weeks.filter(w => w.week >= 1 && w.week <= 5);
+      if (validWeeks.length !== 5) {
+        alert("Błąd: Musisz mieć ustawione wszystkie 5 tygodni");
+        setIsSaving(false);
+        return;
+      }
+
       const response = await fetch("/api/settings/performance", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weeks })
+        body: JSON.stringify({ weeks: validWeeks })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+      console.log('[PERFORMANCE] Odpowiedź z API:', data);
+
+      if (response.ok && data.success) {
+        // PO ZAPISIE - użyj danych zwróconych z API (z bazy)
+        if (data.weeks && Array.isArray(data.weeks)) {
+          const sorted = data.weeks.sort((a: PerformanceWeek, b: PerformanceWeek) => a.week - b.week);
+          setWeeks(sorted);
+          console.log('[PERFORMANCE] Zaktualizowano stan z danych z API:', sorted);
+        } else {
+          // Fallback - pobierz z serwera
+          await fetchSettings();
+        }
         alert("Ustawienia wydajności zapisane pomyślnie!");
       } else {
-        alert("Błąd zapisywania ustawień");
+        alert(`Błąd zapisywania ustawień: ${data.error || 'Nieznany błąd'}`);
       }
-    } catch (error) {
-      alert("Błąd zapisywania ustawień");
+    } catch (error: any) {
+      console.error('[PERFORMANCE] Błąd zapisywania:', error);
+      alert(`Błąd zapisywania ustawień: ${error.message || 'Nieznany błąd'}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleWeekChange = (weekNum: number, field: 'warmup' | 'campaign', value: number) => {
-    setWeeks(weeks.map(w => 
-      w.week === weekNum ? { ...w, [field]: value } : w
-    ));
+  const handleWeekChange = (weekNum: number, field: 'warmup' | 'campaign', value: string) => {
+    // Jeśli pusty string, ustaw 0 (nie pozwalaj na pustą wartość)
+    const numValue = value === '' ? 0 : parseInt(value, 10);
+    
+    // Walidacja - tylko liczby całkowite >= 0
+    if (isNaN(numValue) || numValue < 0) {
+      return;
+    }
+
+    // Utwórz GŁĘBOKĄ kopię tablicy (nie mutuj istniejącej!)
+    const newWeeks = weeks.map(w => {
+      if (w.week === weekNum) {
+        return { ...w, [field]: numValue };
+      }
+      return { ...w }; // Kopiuj obiekt tygodnia
+    });
+
+    console.log('[PERFORMANCE] Zmiana:', { weekNum, field, value, numValue });
+    console.log('[PERFORMANCE] Nowy stan:', newWeeks);
+    setWeeks(newWeeks);
   };
 
   if (isLoading) {
@@ -74,88 +117,110 @@ export default function PerformanceSettingsPage() {
 
   return (
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
-      <h1>⚡ Ustawienia wydajności skrzynek</h1>
-
-      <div style={{ marginBottom: 20 }}>
-        <Link href="/settings">← Wróć do ustawień</Link>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "var(--spacing-lg)" }}>
+        <div>
+          <h1>Ustawienia wydajności warmup</h1>
+          <p style={{ color: "var(--gray-600)", marginTop: "var(--spacing-sm)" }}>
+            Limity maili dla skrzynek W WARMPIE (5 tygodni)
+          </p>
+        </div>
+        <Link href="/settings" style={{ color: "var(--gray-600)", textDecoration: "none" }}>
+          ← Wróć
+        </Link>
       </div>
 
-      <div style={{ backgroundColor: "#f8f9fa", padding: 20, borderRadius: 8, marginBottom: 20 }}>
-        
-        {weeks.map((week, index) => (
-          <div key={week.week} style={{ marginBottom: 24, paddingBottom: 24, borderBottom: index < weeks.length - 1 ? "1px solid #ddd" : "none" }}>
-            <h3>📅 Tydzień {week.week} (Dni {(week.week - 1) * 7 + 1}-{week.week * 7})</h3>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div>
-                <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
-                  Maile warmup dziennie:
-                </label>
-                <input
-                  type="number"
-                  value={week.warmup}
-                  onChange={(e) => handleWeekChange(week.week, 'warmup', parseInt(e.target.value) || 0)}
-                  min="0"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    border: "1px solid #ccc",
-                    borderRadius: 4,
-                    fontSize: "16px"
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontWeight: "bold", marginBottom: 8 }}>
-                  Maile kampanii dziennie:
-                </label>
-                <input
-                  type="number"
-                  value={week.campaign}
-                  onChange={(e) => handleWeekChange(week.week, 'campaign', parseInt(e.target.value) || 0)}
-                  min="0"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    border: "1px solid #ccc",
-                    borderRadius: 4,
-                    fontSize: "16px"
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-
-        <div>
+      <div className="card" style={{ marginBottom: "var(--spacing-xl)" }}>
+        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>Limity warmup i kampanii</h2>
           <button
             onClick={handleSave}
             disabled={isSaving}
+            className="btn"
             style={{
-              padding: "12px 24px",
               backgroundColor: isSaving ? "#ccc" : "#28a745",
               color: "white",
               border: "none",
-              borderRadius: 4,
+              padding: "10px 20px",
+              borderRadius: "4px",
               cursor: isSaving ? "not-allowed" : "pointer",
-              fontSize: "16px",
-              fontWeight: "bold"
+              fontSize: "14px",
+              fontWeight: "600"
             }}
           >
-            {isSaving ? "Zapisuję..." : "💾 Zapisz ustawienia wydajności"}
+            {isSaving ? "Zapisuję..." : "Zapisz zmiany"}
           </button>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid var(--gray-200)" }}>
+                <th style={{ padding: "var(--spacing-md)", textAlign: "left", fontWeight: "600", minWidth: "120px" }}>Tydzień</th>
+                <th style={{ padding: "var(--spacing-md)", textAlign: "left", fontWeight: "600", minWidth: "150px" }}>Dni warmup</th>
+                <th style={{ padding: "var(--spacing-md)", textAlign: "center", fontWeight: "600", minWidth: "180px" }}>Maile warmup dziennie</th>
+                <th style={{ padding: "var(--spacing-md)", textAlign: "center", fontWeight: "600", minWidth: "180px" }}>Maile kampanii dziennie</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weeks.map((week, index) => (
+                <tr key={week.week} style={{ borderBottom: index < weeks.length - 1 ? "1px solid var(--gray-100)" : "none" }}>
+                  <td style={{ padding: "var(--spacing-md)", fontWeight: "600" }}>
+                    Tydzień {week.week}
+                  </td>
+                  <td style={{ padding: "var(--spacing-md)", color: "var(--gray-600)", fontSize: "14px" }}>
+                    Dni {(week.week - 1) * 7 + 1}-{week.week * 7}
+                  </td>
+                  <td style={{ padding: "var(--spacing-md)", textAlign: "center" }}>
+                    <input
+                      type="number"
+                      value={week.warmup}
+                      onChange={(e) => handleWeekChange(week.week, 'warmup', e.target.value)}
+                      min="0"
+                      style={{
+                        width: "100px",
+                        padding: "8px 12px",
+                        border: "1px solid var(--gray-300)",
+                        borderRadius: "4px",
+                        fontSize: "14px",
+                        textAlign: "center"
+                      }}
+                    />
+                  </td>
+                  <td style={{ padding: "var(--spacing-md)", textAlign: "center" }}>
+                    <input
+                      type="number"
+                      value={week.campaign}
+                      onChange={(e) => handleWeekChange(week.week, 'campaign', e.target.value)}
+                      min="0"
+                      style={{
+                        width: "100px",
+                        padding: "8px 12px",
+                        border: "1px solid var(--gray-300)",
+                        borderRadius: "4px",
+                        fontSize: "14px",
+                        textAlign: "center"
+                      }}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div style={{ backgroundColor: "#e8f4fd", padding: 16, borderRadius: 8 }}>
-        <h3>ℹ️ Jak to działa?</h3>
-        <ul>
-          <li><strong>Maile warmup</strong> - liczba maili przeznaczona na rozgrzewanie skrzynki (między naszymi skrzynkami)</li>
-          <li><strong>Maile kampanii</strong> - liczba maili z kampanii które skrzynka może wysłać w danym tygodniu warmup</li>
-          <li><strong>Tydzień 1</strong> - użyj jeśli skrzynka NIE ma włączonego warmup</li>
-          <li><strong>Limity globalne</strong> - te same limity dla WSZYSTKICH skrzynek</li>
-          <li><strong>System wybiera najmniejszy limit</strong> - skrzynka będzie mogła wysłać tyle maili ile wynosi NAJNIŻSZY z trzech limitów (dailyEmailLimit, warmupDailyLimit, campaignLimit)</li>
+      <div style={{ backgroundColor: "#e8f4fd", padding: "var(--spacing-lg)", borderRadius: "8px" }}>
+        <h3 style={{ marginTop: 0 }}>Jak to działa?</h3>
+        <ul style={{ lineHeight: "1.8", marginBottom: 0 }}>
+          <li><strong>Maile warmup</strong> - liczba maili dziennie między naszymi skrzynkami systemowymi</li>
+          <li><strong>Maile kampanii</strong> - liczba maili z kampanii dziennie podczas warmup</li>
+          <li><strong>System automatycznie wybiera tydzień</strong> na podstawie dnia warmup (np. dzień 10 = tydzień 2)</li>
+          <li><strong>Uwaga:</strong> Te limity dotyczą TYLKO skrzynek W WARMPIE. Skrzynki nie w warmup mają:
+            <ul style={{ marginTop: "8px", marginLeft: "20px" }}>
+              <li>Nowa skrzynka: stałe <strong>10 maili dziennie</strong></li>
+              <li>Gotowa skrzynka: limit z ustawień skrzynki</li>
+            </ul>
+          </li>
         </ul>
       </div>
     </main>

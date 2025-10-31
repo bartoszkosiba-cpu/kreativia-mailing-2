@@ -222,3 +222,4 @@ if (campaign.status === "IN_PROGRESS") {
 **Status:** ✅ Zaimplementowane, wymaga testów
 
 
+

@@ -160,57 +160,11 @@ export async function POST(req: NextRequest) {
 
       let lead;
       if (existingLead) {
-        console.log(`Import: Lead ${leadData.email} już istnieje - aktualizacja`);
-        // Aktualizuj istniejący lead - tylko jeśli nowe dane nie są puste
-        const updateData: any = {};
-        
-        if (leadData.firstName && leadData.firstName.trim()) {
-          updateData.firstName = leadData.firstName.trim();
-        }
-        if (leadData.lastName && leadData.lastName.trim()) {
-          updateData.lastName = leadData.lastName.trim();
-        }
-        if (leadData.title && leadData.title.trim()) {
-          updateData.title = leadData.title.trim();
-        }
-        if (leadData.company && leadData.company.trim()) {
-          updateData.company = leadData.company.trim();
-        }
-        if (leadData.industry && leadData.industry.trim()) {
-          updateData.industry = leadData.industry.trim();
-        }
-        if (leadData.keywords && leadData.keywords.trim()) {
-          updateData.keywords = leadData.keywords.trim();
-        }
-        if (leadData.linkedinUrl && leadData.linkedinUrl.trim()) {
-          updateData.linkedinUrl = normalizeUrl(leadData.linkedinUrl);
-        }
-        if (leadData.website && leadData.website.trim()) {
-          updateData.websiteUrl = normalizeUrl(leadData.website);
-        }
-        if (leadData.companyCity && leadData.companyCity.trim()) {
-          updateData.companyCity = leadData.companyCity.trim();
-        }
-        if (leadData.companyCountry && leadData.companyCountry.trim()) {
-          updateData.companyCountry = leadData.companyCountry.trim();
-        }
-        if (language) {
-          updateData.language = language;
-        }
-
-        // Aktualizuj tylko jeśli są nowe dane
-        if (Object.keys(updateData).length > 0) {
-          console.log(`Import: Aktualizacja ${leadData.email} z danymi:`, updateData);
-          lead = await db.lead.update({
-            where: { email: leadData.email },
-            data: updateData
-          });
-          updatedCount++;
-        } else {
-          console.log(`Import: Brak nowych danych dla ${leadData.email} - pominięto`);
-          lead = existingLead;
-          skippedCount++;
-        }
+        console.log(`Import: Lead ${leadData.email} już istnieje - tylko dodaję tag`);
+        // Dla istniejącego leada - NIE aktualizuj danych, tylko dodaj tag
+        // To zapobiega zmianie danych leada który może być w aktywnej kampanii
+        lead = existingLead;
+        skippedCount++;
       } else {
         console.log(`Import: Nowy lead ${leadData.email} - dodawanie (bez odmiany imion)`);
         // Dodaj nowy lead bez odmiany imion - status NO_GREETING
@@ -254,25 +208,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log(`Import: Zakończono - dodano: ${importedCount}, zaktualizowano: ${updatedCount}, pominięto: ${skippedCount}`);
-    
-    // Finalizuj postęp
-    await updateProgress(importId, { 
-      processed: leads.length,
-      currentStep: `Zakończono! Dodano: ${importedCount}, Zaktualizowano: ${updatedCount}, Pominięto: ${skippedCount}`
-    });
-    
-    return NextResponse.json({ 
-      message: tag 
-        ? `Dodano ${importedCount} nowych leadów, zaktualizowano ${updatedCount} istniejących, pominięto ${skippedCount} bez zmian z tagiem "${tag.name}"`
-        : `Dodano ${importedCount} nowych leadów, zaktualizowano ${updatedCount} istniejących, pominięto ${skippedCount} bez zmian (bez tagu)`,
-      importedCount,
-      updatedCount,
-      skippedCount,
-      totalCount: importedCount + updatedCount + skippedCount,
-      tagName: tag?.name || null,
-      importId // Zwróć ID importu dla śledzenia postępu
-    });
+        console.log(`Import: Zakończono - dodano: ${importedCount}, pominięto (istniejące): ${skippedCount}`);
+        
+        // Finalizuj postęp
+        await updateProgress(importId, { 
+          processed: leads.length,
+          currentStep: `Zakończono! Dodano: ${importedCount} nowych leadów, pominięto: ${skippedCount} istniejących (dodano tylko tag)`
+        });
+        
+        return NextResponse.json({ 
+          message: tag 
+            ? `Dodano ${importedCount} nowych leadów z tagiem "${tag.name}". ${skippedCount} istniejących leadów otrzymało tag "${tag.name}" (dane nie zostały zmienione).`
+            : `Dodano ${importedCount} nowych leadów. ${skippedCount} istniejących leadów zostało pominiętych (bez tagu).`,
+          importedCount,
+          updatedCount: 0, // Zawsze 0 - nie aktualizujemy danych istniejących leadów
+          skippedCount,
+          totalCount: importedCount + skippedCount,
+          tagName: tag?.name || null,
+          importId // Zwróć ID importu dla śledzenia postępu
+        });
 
   } catch (error) {
     console.error("Błąd importu leadów:", error);

@@ -51,3 +51,4 @@ Znaleziono emoji w następujących plikach:
 3. Przetestować aplikację po zmianach
 
 
+

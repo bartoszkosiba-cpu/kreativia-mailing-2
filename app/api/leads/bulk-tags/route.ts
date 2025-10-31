@@ -9,7 +9,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nieprawidłowa lista ID leadów" }, { status: 400 });
     }
 
-    if (!tagIds || !Array.isArray(tagIds) || tagIds.length === 0) {
+    // tagIds może być pustą tablicą - wtedy usuwamy wszystkie tagi
+    if (!tagIds || !Array.isArray(tagIds)) {
       return NextResponse.json({ error: "Nieprawidłowa lista ID tagów" }, { status: 400 });
     }
 
@@ -23,20 +24,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nie znaleziono leadów" }, { status: 404 });
     }
 
-    // Sprawdź czy tagi istnieją
+    // Usuń wszystkie istniejące tagi dla tych leadów
+    await db.leadTag.deleteMany({
+      where: { leadId: { in: leadIds } }
+    });
+
+    // Jeśli tagIds jest puste, tylko usuwamy tagi (już usunięte powyżej)
+    if (tagIds.length === 0) {
+      return NextResponse.json({ 
+        message: `Usunięto wszystkie tagi dla ${leadIds.length} leadów`,
+        leadsCount: leadIds.length,
+        tagsCount: 0
+      });
+    }
+
+    // Sprawdź czy tagi istnieją (tylko jeśli podano jakieś tagi)
     const existingTags = await db.tag.findMany({
       where: { id: { in: tagIds } },
       select: { id: true }
     });
 
     if (existingTags.length === 0) {
-      return NextResponse.json({ error: "Nie znaleziono tagów" }, { status: 404 });
+      return NextResponse.json({ error: "Nie znaleziono żadnego z podanych tagów" }, { status: 404 });
     }
-
-    // Usuń wszystkie istniejące tagi dla tych leadów
-    await db.leadTag.deleteMany({
-      where: { leadId: { in: leadIds } }
-    });
 
     // Dodaj nowe tagi - używamy createMany bez skipDuplicates
     // ponieważ już usunęliśmy wszystkie istniejące powiązania

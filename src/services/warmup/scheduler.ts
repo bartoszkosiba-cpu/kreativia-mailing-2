@@ -8,7 +8,7 @@
  */
 
 import { db } from '@/lib/db';
-import { getWarmupConfig, WARMUP_TEMPLATES, TIMING_CONFIG } from './config';
+import { WARMUP_TEMPLATES, TIMING_CONFIG } from './config';
 import { addMinutes, addDays, setHours, setMinutes, format, startOfDay } from 'date-fns';
 
 /**
@@ -108,26 +108,54 @@ export async function scheduleDailyEmailsForMailbox(
       return 0;
     }
     
-    // Pobierz konfigurację dla aktualnego dnia warmup
-    const config = await getWarmupConfig(mailbox.warmupDay);
-    if (!config) {
-      console.error(`[WARMUP SCHEDULER] ❌ Brak konfiguracji dla dnia ${mailbox.warmupDay}`);
-      return 0;
-    }
+    // Pobierz limity z /settings/performance na podstawie tygodnia warmup
+    const getWeekFromDay = (day: number): number => {
+      if (day <= 0) return 1;
+      if (day <= 7) return 1;
+      if (day <= 14) return 2;
+      if (day <= 21) return 3;
+      if (day <= 28) return 4;
+      return 5;
+    };
+
+    const getPerformanceLimits = async (week: number): Promise<{ warmup: number; campaign: number }> => {
+      try {
+        const settings = await db.companySettings.findFirst();
+        
+        if (!settings || !settings.warmupPerformanceSettings) {
+          return { warmup: 15, campaign: 10 };
+        }
+        
+        const weeks: Array<{ week: number; warmup: number; campaign: number }> = JSON.parse(settings.warmupPerformanceSettings);
+        const weekData = weeks.find(w => w.week === week);
+        
+        if (!weekData) {
+          return weeks[0] || { warmup: 15, campaign: 10 };
+        }
+        
+        return { warmup: weekData.warmup, campaign: weekData.campaign };
+      } catch (error) {
+        console.error('[WARMUP SCHEDULER] Błąd pobierania ustawień wydajności:', error);
+        return { warmup: 15, campaign: 10 };
+      }
+    };
+
+    const week = getWeekFromDay(mailbox.warmupDay || 0);
+    const performanceLimits = await getPerformanceLimits(week);
     
-    console.log(`[WARMUP SCHEDULER]   → Dzień warmup: ${mailbox.warmupDay}`);
-    console.log(`[WARMUP SCHEDULER]   → Limit dzienny: ${config.dailyLimit} maili warmup`);
-    console.log(`[WARMUP SCHEDULER]   → Limit kampanii: ${config.campaignLimit} maili dziennie`);
+    console.log(`[WARMUP SCHEDULER]   → Dzień warmup: ${mailbox.warmupDay} (Tydzień ${week})`);
+    console.log(`[WARMUP SCHEDULER]   → Limit warmup: ${performanceLimits.warmup} maili dziennie`);
+    console.log(`[WARMUP SCHEDULER]   → Limit kampanii: ${performanceLimits.campaign} maili dziennie`);
     
     // Usuń stare zaplanowane maile na ten dzień (jeśli istnieją)
-    const startOfDay = setHours(setMinutes(targetDate, 0), 0);
+    const startOfDayDate = setHours(setMinutes(targetDate, 0), 0);
     const endOfDay = setHours(setMinutes(targetDate, 59), 23);
     
     await db.warmupQueue.deleteMany({
       where: {
         mailboxId,
         scheduledAt: {
-          gte: startOfDay,
+          gte: startOfDayDate,
           lte: endOfDay
         },
         status: 'pending'
@@ -135,7 +163,7 @@ export async function scheduleDailyEmailsForMailbox(
     });
     
     // Wygeneruj losowe godziny wysyłki
-    const scheduledTimes = generateRandomScheduleTimes(config.dailyLimit, targetDate);
+    const scheduledTimes = generateRandomScheduleTimes(performanceLimits.warmup, targetDate);
     
     if (scheduledTimes.length === 0) {
       console.error(`[WARMUP SCHEDULER] ❌ Nie udało się wygenerować godzin wysyłki`);

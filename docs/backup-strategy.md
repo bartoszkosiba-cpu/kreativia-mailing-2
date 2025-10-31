@@ -109,3 +109,4 @@ git checkout [commit-hash] -- filename
 - Lokalizacja backupów: `backups/*.db`
 
 
+

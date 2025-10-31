@@ -110,3 +110,4 @@ Rezultat: ["anna.kowalska@firma.pl"] ✅
 **Status:** ✅ Naprawione - regex teraz filtruje cytaty
 
 
+
