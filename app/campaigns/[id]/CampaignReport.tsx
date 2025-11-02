@@ -69,14 +69,12 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
           value={stats.totalSent}
           total={stats.totalLeads}
           color="#4caf50"
-          icon=""
         />
         <StatCard
           title="Odpowiedzi"
           value={stats.totalReplies}
           total={stats.totalSent}
           color="#2196f3"
-          icon=""
           subtitle={`${stats.replyRate}% wskaźnik odpowiedzi`}
         />
         <StatCard
@@ -84,14 +82,12 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
           value={stats.interested}
           total={stats.totalReplies}
           color="#ff9800"
-          icon=""
         />
         <StatCard
           title="Błędy"
           value={stats.totalErrors}
           total={stats.totalLeads}
           color="#f44336"
-          icon=""
         />
       </div>
 
@@ -207,14 +203,14 @@ function StatCard({
   value, 
   total, 
   color, 
-  icon, 
+  icon = "", 
   subtitle 
 }: { 
   title: string; 
   value: number; 
   total?: number; 
   color: string; 
-  icon: string;
+  icon?: string;
   subtitle?: string;
 }) {
   const percentage = total && total > 0 ? Math.round((value / total) * 100) : 0;
@@ -226,7 +222,7 @@ function StatCard({
       borderRadius: 8,
       border: `2px solid ${color}`
     }}>
-      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{icon}{" "}{title}</div>
+      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{icon ? `${icon} ` : ""}{title}</div>
       <div style={{ fontSize: 32, fontWeight: "bold", color }}>
         {value}
         {total && total > 0 && (

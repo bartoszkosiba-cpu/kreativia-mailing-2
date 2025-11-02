@@ -41,7 +41,13 @@ export async function GET(
       where: {
         campaignId
       },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        error: true,
+        createdAt: true,
+        subject: true,
+        toEmail: true, // NOWE: Dodaj toEmail dla maili testowych
         lead: {
           select: {
             id: true,

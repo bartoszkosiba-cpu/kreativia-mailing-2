@@ -13,6 +13,8 @@ import CampaignSender from "./CampaignSender";
 import CampaignOutbox from "./CampaignOutbox";
 import DeleteCampaign from "./DeleteCampaign";
 import CampaignInboxPage from "./inbox/page";
+import AutoReplySettings from "./AutoReplySettings";
+import CampaignAutoRepliesHistory from "./CampaignAutoRepliesHistory";
 
 type LeadLite = {
   id: number;
@@ -61,9 +63,16 @@ interface Props {
   };
 }
 
-export default function CampaignTabs(props: Props) {
+interface AutoReplySettingsProps {
+  autoReplyEnabled: boolean;
+  autoReplyContext: string | null;
+  autoReplyRules: string | null;
+  autoReplyDelayMinutes: number;
+}
+
+export default function CampaignTabs(props: Props & { autoReply?: AutoReplySettingsProps }) {
   const [active, setActive] = useState<
-    "raport" | "handlowiec" | "leady" | "harmonogram" | "tresc" | "followupy" | "wysylka" | "inbox"
+    "raport" | "handlowiec" | "leady" | "harmonogram" | "tresc" | "followupy" | "wysylka" | "inbox" | "automatyczne"
   >("raport");
 
   const TabButton = ({ id, label }: { id: typeof active; label: string }) => (
@@ -92,6 +101,7 @@ export default function CampaignTabs(props: Props) {
         <TabButton id="tresc" label="Treść kampanii" />
         <TabButton id="followupy" label="Follow-upy" />
         <TabButton id="wysylka" label="Wysyłka" />
+        <TabButton id="automatyczne" label="Automatyczne odpowiedzi" />
         <TabButton id="inbox" label="Inbox" />
       </div>
 
@@ -173,6 +183,21 @@ export default function CampaignTabs(props: Props) {
             leadsCount={props.leads.length}
             salesperson={props.salesperson}
           />
+        </>
+      )}
+
+      {active === "automatyczne" && (
+        <>
+          <AutoReplySettings
+            campaignId={props.campaignId}
+            initialSettings={{
+              autoReplyEnabled: props.autoReply?.autoReplyEnabled || false,
+              autoReplyContext: props.autoReply?.autoReplyContext || null,
+              autoReplyRules: props.autoReply?.autoReplyRules || null,
+              autoReplyDelayMinutes: props.autoReply?.autoReplyDelayMinutes || 15
+            }}
+          />
+          <CampaignAutoRepliesHistory campaignId={props.campaignId} />
         </>
       )}
 

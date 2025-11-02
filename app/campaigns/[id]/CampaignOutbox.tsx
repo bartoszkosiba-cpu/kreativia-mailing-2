@@ -14,6 +14,7 @@ interface OutboxData {
     error: string | null;
     createdAt: string;
     subject: string | null;
+    toEmail: string | null; // NOWE: Email odbiorcy (dla maili testowych)
     lead: {
       id: number;
       email: string;
@@ -23,7 +24,7 @@ interface OutboxData {
       status: string;
       isBlocked: boolean;
       blockedReason: string | null;
-    };
+    } | null; // NOWE: Może być null dla maili testowych
     mailbox: {
       id: number;
       email: string;
@@ -302,6 +303,7 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
             <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
               <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Data i godzina</th>
               <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Do kogo</th>
+              <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Temat</th>
               <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Z jakiej skrzynki</th>
               <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Status wysyłki</th>
               <th style={{ padding: 12, textAlign: 'left', fontWeight: 'bold' }}>Odpowiedź</th>
@@ -310,7 +312,7 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
           <tbody>
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#999' }}>
+                <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#999' }}>
                   Brak wysyłek w wybranym filtrze
                 </td>
               </tr>
@@ -321,13 +323,14 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
                 const isFailed = log.status === 'error';
                 const hasReply = !!log.reply;
                 const replyStatus = getReplyStatus(log.reply?.classification || null, hasReply);
+                const isTestEmail = !lead || (log.subject?.includes('[TEST]'));
                 
                 return (
                   <tr 
                     key={log.id} 
                     style={{ 
                       borderBottom: '1px solid #dee2e6',
-                      backgroundColor: isBlocked ? '#fff3cd' : (isFailed ? '#f8d7da' : 'white')
+                      backgroundColor: isBlocked ? '#fff3cd' : (isFailed ? '#f8d7da' : (isTestEmail ? '#f0f7ff' : 'white'))
                     }}
                   >
                     <td style={{ padding: 12, fontSize: 14 }}>
@@ -352,7 +355,42 @@ export default function CampaignOutbox({ campaignId }: { campaignId: number }) {
                           )}
                         </>
                       ) : (
-                        <span style={{ color: '#999' }}>Brak danych</span>
+                        <>
+                          {log.toEmail ? (
+                            <>
+                              <div style={{ fontWeight: 'bold', color: '#0066cc' }}>{log.toEmail}</div>
+                              <div style={{ fontSize: 11, color: '#666', marginTop: 2, fontStyle: 'italic' }}>
+                                Mail testowy
+                              </div>
+                            </>
+                          ) : (
+                            <span style={{ color: '#999', fontStyle: 'italic' }}>Brak danych odbiorcy</span>
+                          )}
+                        </>
+                      )}
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      {log.subject ? (
+                        <>
+                          <div style={{ fontWeight: '600', marginBottom: 4 }}>
+                            {log.subject}
+                          </div>
+                          {isTestEmail && (
+                            <div style={{ 
+                              fontSize: 11, 
+                              color: '#0066cc', 
+                              backgroundColor: '#e8f4fd',
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              display: 'inline-block',
+                              fontWeight: '600'
+                            }}>
+                              TEST
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ color: '#999' }}>Brak tematu</span>
                       )}
                     </td>
                     <td style={{ padding: 12 }}>

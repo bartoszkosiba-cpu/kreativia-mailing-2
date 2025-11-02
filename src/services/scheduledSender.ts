@@ -236,6 +236,7 @@ export async function processScheduledCampaign(): Promise<void> {
   
   // Oznacz kampanię jako "IN_PROGRESS" (ATOMIC - zapobiega race condition)
   // Tylko jeśli status = SCHEDULED (ktoś inny nie wziął już)
+  // Jeśli już jest IN_PROGRESS - kontynuuj wysyłkę (dla nowo dodanych leadów)
   const updated = await db.campaign.updateMany({
     where: { 
       id: campaign.id,
@@ -247,10 +248,24 @@ export async function processScheduledCampaign(): Promise<void> {
     }
   });
   
+  let isContinuingCampaign = false;
   if (updated.count === 0) {
-    // Ktoś inny już wziął kampanię (race condition)
-    console.log(`[SCHEDULED SENDER] ⏭️ Kampania ${campaign.name} została już wzięta przez inny proces - pomijam`);
-    return;
+    // Kampania już jest IN_PROGRESS - sprawdź czy to nie inny proces
+    const currentCampaign = await db.campaign.findUnique({
+      where: { id: campaign.id },
+      select: { status: true }
+    });
+    
+    if (currentCampaign?.status === "IN_PROGRESS") {
+      // Kontynuuj wysyłkę dla kampanii IN_PROGRESS (nowo dodani leady w kolejce)
+      console.log(`[SCHEDULED SENDER] ⏩ Kampania ${campaign.name} już w trakcie - kontynuuję wysyłkę dla leadów w kolejce`);
+      isContinuingCampaign = true;
+      // Nie przerywaj - kontynuuj dalej
+    } else {
+      // Ktoś inny już wziął kampanię lub zmienił status (race condition lub PAUSED/CANCELLED)
+      console.log(`[SCHEDULED SENDER] ⏭️ Kampania ${campaign.name} została już wzięta przez inny proces (status: ${currentCampaign?.status}) - pomijam`);
+      return;
+    }
   }
   
   console.log(`[SCHEDULED SENDER] ✓ Rozpoczynam wysyłkę kampanii ${campaign.name}`);
@@ -274,12 +289,49 @@ export async function processScheduledCampaign(): Promise<void> {
     console.log(`[SCHEDULED SENDER] ✓ Dostępna skrzynka: ${availableMailbox.email} (limit: ${availableMailbox.remainingToday})`);
   }
   
-  // Pobierz leady
-  const leads = campaign.CampaignLead.map((cl: any) => cl.lead).filter((l: any) => 
-    l && l.status !== "BLOCKED" && !l.isBlocked
-  );
+  // Pobierz leady z statusem "queued" (tylko te w kolejce do wysyłki)
+  // Dla kampanii IN_PROGRESS przetwarzaj tylko leady "queued" (nowo dodani)
+  // Dla kampanii SCHEDULED przetwarzaj wszystkie (zmień "planned" na "queued" przed wysyłką)
+  let leadsWithStatus: Array<{ lead: any; campaignLead: any }> = [];
   
-  console.log(`[SCHEDULED SENDER] Leadów do wysłania: ${leads.length}`);
+  for (const cl of campaign.CampaignLead) {
+    if (!cl.lead || cl.lead.status === "BLOCKED" || cl.lead.isBlocked) {
+      continue;
+    }
+    
+    // Dla kampanii IN_PROGRESS (kontynuacja) - tylko "queued"
+    if (isContinuingCampaign) {
+      if (cl.status === "queued") {
+        leadsWithStatus.push({ lead: cl.lead, campaignLead: cl });
+      }
+    } else {
+      // Dla kampanii SCHEDULED (nowo startująca) - wszystkie leady
+      // Zmień "planned" na "queued" jeśli jeszcze nie (dla następnego cyklu)
+      let currentStatus = cl.status;
+      if (cl.status === "planned") {
+        await db.campaignLead.update({
+          where: { id: cl.id },
+          data: { status: "queued" }
+        });
+        currentStatus = "queued"; // Zaktualizuj lokalnie
+        console.log(`[SCHEDULED SENDER] 🔄 Zmieniono status CampaignLead ${cl.id} z "planned" na "queued"`);
+      }
+      
+      if (currentStatus === "queued") {
+        leadsWithStatus.push({ lead: cl.lead, campaignLead: cl });
+      }
+    }
+  }
+  
+  // Zachowaj mapowanie lead -> CampaignLead dla aktualizacji statusu
+  const leadToCampaignLeadMap = new Map<number, any>();
+  leadsWithStatus.forEach(item => {
+    leadToCampaignLeadMap.set(item.lead.id, item.campaignLead);
+  });
+  
+  const leads = leadsWithStatus.map(item => item.lead);
+  
+  console.log(`[SCHEDULED SENDER] Leadów do wysłania: ${leads.length} ${isContinuingCampaign ? "(kontynuacja kampanii IN_PROGRESS)" : "(nowo startująca kampania)"}`);
   
   // Pobierz ustawienia firmy
   const companySettings = await db.companySettings.findFirst();
@@ -291,6 +343,7 @@ export async function processScheduledCampaign(): Promise<void> {
   
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i];
+    const campaignLead = leadToCampaignLeadMap.get(lead.id);
     
     // Sprawdź limit dzienny kampanii (PIERWSZY FILTR)
     if (successCount >= campaign.maxEmailsPerDay) {
@@ -410,6 +463,17 @@ export async function processScheduledCampaign(): Promise<void> {
       // Inkrementuj licznik handlowca
       if (campaign.virtualSalesperson) {
         await incrementSentCounter(campaign.virtualSalesperson.id, 1);
+      }
+      
+      // ✅ Zaktualizuj status CampaignLead na "sent"
+      if (campaignLead) {
+        await db.campaignLead.update({
+          where: { id: campaignLead.id },
+          data: {
+            status: "sent",
+            sentAt: new Date()
+          }
+        });
       }
       
       console.log(`[SCHEDULED SENDER] ✓ Wysłano ${i + 1}/${leads.length} do ${lead.email}`);

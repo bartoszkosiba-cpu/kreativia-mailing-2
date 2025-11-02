@@ -36,4 +36,8 @@ backups/
 *.backup
 *.bak
 
+# Uploaded materials (zachowaj katalog, ale ignoruj zawartość)
+uploads/materials/*
+!uploads/materials/.gitkeep
+
 

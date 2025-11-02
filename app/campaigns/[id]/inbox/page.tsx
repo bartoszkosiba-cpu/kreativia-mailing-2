@@ -100,7 +100,17 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
       const response = await fetch(`/api/inbox?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        setReplies(data);
+        // Filtruj powiadomienia "[LEAD ZAINTERESOWANY]" - to są maile powiadomieniowe, nie odpowiedzi leadów
+        const filteredData = Array.isArray(data) 
+          ? data.filter((reply: InboxReply) => 
+              !reply.subject?.includes('[LEAD ZAINTERESOWANY]') && 
+              !reply.subject?.includes('[NOWY LEAD]')
+            )
+          : (data.data || []).filter((reply: InboxReply) => 
+              !reply.subject?.includes('[LEAD ZAINTERESOWANY]') && 
+              !reply.subject?.includes('[NOWY LEAD]')
+            );
+        setReplies(Array.isArray(filteredData) ? filteredData : filteredData);
       } else {
         console.error("Failed to fetch replies");
       }

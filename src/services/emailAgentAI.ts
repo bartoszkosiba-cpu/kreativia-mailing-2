@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { AIRulesManager, type AIRule } from "./aiRulesManager";
 import { classifyReply } from "@/integrations/ai/client";
 import type { LeadStatus, LeadSubStatus } from "@/types/leadStatus";
+import { analyzeMaterialRequest } from "./materialResponseAI";
 
 export interface EmailClassification {
   classification: string;
@@ -15,7 +16,7 @@ export interface EmailClassification {
 }
 
 export interface EmailAction {
-  type: 'FORWARD' | 'BLOCK' | 'UNSUBSCRIBE' | 'ADD_LEAD' | 'SCHEDULE_FOLLOWUP' | 'AUTO_FOLLOWUP' | 'NOTIFY' | 'NO_ACTION';
+  type: 'FORWARD' | 'BLOCK' | 'UNSUBSCRIBE' | 'ADD_LEAD' | 'SCHEDULE_FOLLOWUP' | 'AUTO_FOLLOWUP' | 'NOTIFY' | 'NO_ACTION' | 'SEND_MATERIALS' | 'ASK_ADMIN_MATERIALS';
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   description: string;
   data?: any;
@@ -32,6 +33,12 @@ export interface EmailAnalysis {
     emails: string[];
     source: string;
     sourceDetails: string;
+  };
+  materialAnalysis?: {
+    isMaterialRequest: boolean;
+    confidence: number;
+    reasoning: string;
+    suggestedAction: "SEND" | "DONT_SEND" | "ASK_ADMIN";
   };
 }
 
@@ -157,6 +164,40 @@ export class EmailAgentAI {
 
     switch (classType) {
       case 'INTERESTED':
+        // Sprawdź czy kampania ma włączony automatyczny moduł odpowiedzi z materiałami
+        const campaign = reply.campaign;
+        if (campaign?.autoReplyEnabled && campaignId) {
+          // Sprawdź czy to prośba o materiały
+          const materialAnalysis = await this.checkMaterialRequest(reply, campaign);
+          
+          // ZMIENIONE: Zawsze wymagaj akceptacji administratora (nie wysyłaj automatycznie)
+          if (materialAnalysis.isMaterialRequest && materialAnalysis.confidence >= 0.6) {
+            // Dodaj do kolejki administratora - zawsze wymagaj akceptacji
+            return {
+              classification,
+              actions: [
+                {
+                  type: 'ASK_ADMIN_MATERIALS',
+                  priority: 'HIGH',
+                  description: `Wymaga decyzji administratora - prośba o materiały (pewność AI: ${(materialAnalysis.confidence * 100).toFixed(0)}%)`
+                },
+                {
+                  type: 'FORWARD',
+                  priority: 'HIGH',
+                  description: 'Przekaż do handlowca - lead zainteresowany'
+                }
+              ],
+              leadStatus: 'ZAINTERESOWANY',
+              leadSubStatus: 'ZAINTERESOWANY_CAMPAIGN',
+              shouldBlockCampaigns: [campaignId],
+              shouldCreateDerivativeLeads: false,
+              materialAnalysis
+            };
+          }
+          // Jeśli nie rozpoznano jako prośba o materiały - normalne forward
+        }
+        
+        // Normalny flow - forward do handlowca
         return {
           classification,
           actions: [
@@ -395,6 +436,24 @@ export class EmailAgentAI {
         await this.sendInterestedNotification(reply);
         break;
 
+      case 'SEND_MATERIALS':
+        // Automatyczna odpowiedź z materiałami
+        if (analysis.materialAnalysis) {
+          const { scheduleMaterialResponse } = await import('./materialResponseSender');
+          await scheduleMaterialResponse(replyId, analysis.materialAnalysis);
+          console.log(`[EMAIL AGENT AI] SEND_MATERIALS: Zaplanowano wysyłkę materiałów dla lead ${reply.lead.id}`);
+        }
+        break;
+
+      case 'ASK_ADMIN_MATERIALS':
+        // Kolejka decyzji administratora
+        if (analysis.materialAnalysis) {
+          const { createPendingMaterialDecision } = await import('./materialResponseSender');
+          await createPendingMaterialDecision(replyId, analysis.materialAnalysis);
+          console.log(`[EMAIL AGENT AI] ASK_ADMIN_MATERIALS: Utworzono kolejkę decyzji dla lead ${reply.lead.id}`);
+        }
+        break;
+
       case 'NO_ACTION':
         console.log(`[EMAIL AGENT AI] NO_ACTION: Brak akcji dla lead ${reply.lead.id}`);
         break;
@@ -419,6 +478,28 @@ export class EmailAgentAI {
     });
 
     console.log(`[EMAIL AGENT AI] Zaktualizowano status lead ${leadId}: ${status}/${subStatus}`);
+  }
+
+  /**
+   * Sprawdza czy odpowiedź INTERESTED zawiera prośbę o materiały
+   */
+  private static async checkMaterialRequest(
+    reply: any,
+    campaign: any
+  ) {
+    console.log(`[EMAIL AGENT AI] Sprawdzam czy to prośba o materiały dla kampanii ${campaign.id}`);
+    
+    const leadResponse = reply.content || '';
+    // Język kampanii = język handlowca lub język leada
+    const campaignLanguage = campaign.virtualSalesperson?.language || 
+                           reply.lead?.language || 
+                           'pl';
+    
+    return await analyzeMaterialRequest(
+      leadResponse,
+      campaign.autoReplyContext,
+      campaignLanguage
+    );
   }
 
   /**

@@ -74,26 +74,36 @@ export async function GET(
     endWindow.setMinutes(endWindow.getMinutes() - 60); // -1h margines
     const msRemaining = endWindow.getTime() - now.getTime();
     const minutesRemaining = Math.floor(msRemaining / 1000 / 60);
+    const secondsRemaining = Math.floor(msRemaining / 1000); // Konwertuj milisekundy na sekundy
 
     // Oblicz optymalny delay
     let optimalDelay = campaign.delayBetweenEmails;
-    let estimatedEmailsToday = remainingLeads;
     
-    // Oblicz tylko jeśli jest czas w oknie
-    if (msRemaining > 0 && remainingLeads > 0 && timeCheck.isValid) {
-      optimalDelay = Math.floor(msRemaining / Math.max(1, remainingLeads));
+    // Najpierw oblicz ile maili faktycznie można wysłać dzisiaj (z uwzględnieniem limitu dziennego)
+    let estimatedEmailsToday = Math.min(remainingLeads, campaign.maxEmailsPerDay - sentCount);
+    
+    // Oblicz tylko jeśli jest czas w oknie i maile do wysłania
+    if (secondsRemaining > 0 && estimatedEmailsToday > 0 && timeCheck.isValid) {
+      // Oblicz delay na podstawie faktycznej liczby maili które można wysłać dzisiaj
+      // Użyj sekund zamiast milisekund!
+      optimalDelay = Math.floor(secondsRemaining / Math.max(1, estimatedEmailsToday));
       
-      // Ogranicz do maksymalnego limitu dziennego
-      estimatedEmailsToday = Math.min(remainingLeads, campaign.maxEmailsPerDay - sentCount);
-    } else if (msRemaining <= 0) {
+      // Upewnij się że delay nie jest mniejszy niż bazowy (minimalne bezpieczeństwo)
+      optimalDelay = Math.max(optimalDelay, campaign.delayBetweenEmails);
+    } else if (secondsRemaining <= 0) {
       // Okno się skończyło - użyj bazowego delay
       optimalDelay = campaign.delayBetweenEmails;
+      estimatedEmailsToday = 0; // Nie można wysłać nic dzisiaj
+    } else if (!timeCheck.isValid) {
+      // Okno nieaktywne - użyj bazowego delay
+      optimalDelay = campaign.delayBetweenEmails;
+      estimatedEmailsToday = 0; // Nie można wysłać nic dzisiaj
     }
 
     // Sprawdź czy zbliżamy się do limitów
     const isApproachingDailyLimit = sentCount >= campaign.maxEmailsPerDay - 10;
-    const isApproachingTimeLimit = msRemaining <= 300000; // 5 minut
-    const isInSafetyMargin = msRemaining <= 0;
+    const isApproachingTimeLimit = secondsRemaining <= 300; // 5 minut = 300 sekund
+    const isInSafetyMargin = secondsRemaining <= 0;
 
     return NextResponse.json({
       campaign: {

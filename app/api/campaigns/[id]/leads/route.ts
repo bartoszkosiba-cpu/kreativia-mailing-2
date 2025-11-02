@@ -84,12 +84,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Kampania nie istnieje" }, { status: 404 });
     }
 
-    // Blokada edycji podczas wysyłki
-    if (campaign.status === "IN_PROGRESS") {
-      return NextResponse.json({ 
-        error: "Nie można edytować leadów podczas wysyłki kampanii" 
-      }, { status: 400 });
-    }
+    // Dla kampanii IN_PROGRESS - pozwól usuwać leady (może być potrzebne)
+    // Nie blokuj - usuwanie leadów z kampanii IN_PROGRESS jest bezpieczne
 
     // Sprawdź które leady już otrzymały mail
     const alreadySent = await db.sendLog.findMany({
@@ -166,12 +162,8 @@ export async function POST(
       return NextResponse.json({ error: "Kampania nie istnieje" }, { status: 404 });
     }
 
-    // Blokada edycji podczas wysyłki
-    if (campaign.status === "IN_PROGRESS") {
-      return NextResponse.json({ 
-        error: "Nie można edytować leadów podczas wysyłki kampanii" 
-      }, { status: 400 });
-    }
+    // Dla kampanii IN_PROGRESS - pozwól usuwać leady (może być potrzebne)
+    // Nie blokuj - usuwanie leadów z kampanii IN_PROGRESS jest bezpieczne
 
     // Sprawdź które leady już są w kampanii
     const existing = await db.campaignLead.findMany({
@@ -240,13 +232,23 @@ export async function POST(
       }
     }
 
+    // Określ status dla nowych leadów
+    // Dla kampanii IN_PROGRESS/SCHEDULED - status "queued" (gotowe do wysyłki)
+    // Dla kampanii DRAFT - status "planned" (oczekuje na start)
+    const initialStatus = (campaign.status === "IN_PROGRESS" || campaign.status === "SCHEDULED") 
+      ? "queued" 
+      : "planned";
+
     // Dodaj nowe powiązania
     const created = await db.campaignLead.createMany({
       data: newLeadIds.map(leadId => ({
         campaignId,
-        leadId
+        leadId,
+        status: initialStatus
       }))
     });
+
+    console.log(`[CAMPAIGN LEADS] Dodano ${created.count} leadów do kampanii ${campaign.name} (status: ${initialStatus})`);
 
     return NextResponse.json({ 
       message: `Dodano ${created.count} leadów do kampanii`,

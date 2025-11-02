@@ -261,6 +261,59 @@ export default function MailboxesPage() {
     }
   };
 
+  const handleReset = async (mailboxId: number, mailboxEmail: string, warmupStatus: string) => {
+    // Sprawdź czy warmup jest aktywny
+    const isWarmupActive = warmupStatus === "warming" || warmupStatus === "ready_to_warmup";
+    
+    // Przygotuj komunikat ostrzegawczy
+    let confirmMessage = `Czy na pewno chcesz zresetować skrzynkę ${mailboxEmail}?\n\n`;
+    confirmMessage += `To spowoduje:\n`;
+    confirmMessage += `- Usunięcie wszystkich maili wychodzących (SendLog)\n`;
+    confirmMessage += `- Usunięcie wszystkich maili przychodzących (InboxReply)\n`;
+    confirmMessage += `- Usunięcie historii warmup\n`;
+    confirmMessage += `- Reset liczników dziennych\n`;
+    confirmMessage += `- Zmianę daty utworzenia na teraz (system będzie pobierał tylko nowe maile)\n\n`;
+    
+    if (isWarmupActive) {
+      confirmMessage += `⚠️ UWAGA: Skrzynka jest w trakcie warmup - reset przerwie ten proces!\n\n`;
+    }
+    
+    confirmMessage += `Po resecie możesz bezpiecznie usunąć leady utworzone z OOO/REDIRECT - nie wrócą automatycznie.\n\n`;
+    confirmMessage += `Kontynuować?`;
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const response = await fetch(`/api/mailboxes/${mailboxId}/reset`, {
+        method: "POST"
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        let successMessage = `Skrzynka ${mailboxEmail} została zresetowana!\n\n`;
+        successMessage += `Usunięto:\n`;
+        successMessage += `- ${result.data.deletedCounts.sendLog} maili wychodzących\n`;
+        successMessage += `- ${result.data.deletedCounts.inboxReply} maili przychodzących\n`;
+        successMessage += `- ${result.data.deletedCounts.warmupEmail} maili warmup\n`;
+        successMessage += `- ${result.data.deletedCounts.warmupQueue} zaplanowanych maili warmup\n\n`;
+        
+        if (result.data.warnings && result.data.warnings.length > 0) {
+          successMessage += `Ostrzeżenia:\n${result.data.warnings.join('\n')}\n\n`;
+        }
+        
+        successMessage += `Możesz teraz bezpiecznie usunąć leady utworzone z OOO/REDIRECT - nie wrócą automatycznie.`;
+        
+        alert(successMessage);
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(`Błąd resetu skrzynki: ${error.error || error.details || 'Nieznany błąd'}`);
+      }
+    } catch (error: any) {
+      alert(`Błąd: ${error.message || error}`);
+    }
+  };
+
   const resetForm = () => {
     // Znajdź najwyższy używany priorytet (pomiń 999)
     const usedPriorities = mailboxes
@@ -656,7 +709,7 @@ export default function MailboxesPage() {
               </div>
 
               {/* Przyciski */}
-              <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <button 
                   type="submit" 
                   className="btn btn-primary"
@@ -685,6 +738,26 @@ export default function MailboxesPage() {
                     : (editingId ? "Zapisz zmiany" : "Dodaj skrzynkę")
                   }
                 </button>
+                {editingId && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const mailbox = mailboxes.find(m => m.id === editingId);
+                      if (mailbox) {
+                        handleReset(mailbox.id, mailbox.email, mailbox.warmupStatus);
+                      }
+                    }}
+                    className="btn"
+                    style={{
+                      backgroundColor: "#f59e0b",
+                      color: "white",
+                      border: "none"
+                    }}
+                    title="Bezpieczny reset skrzynki - usuwa maile i resetuje datę utworzenia (do celów testowych)"
+                  >
+                    Reset skrzynki
+                  </button>
+                )}
                 <button 
                   type="button" 
                   onClick={() => {

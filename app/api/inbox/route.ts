@@ -12,6 +12,10 @@ import { db } from "@/lib/db";
  * - search: string (wyszukiwanie w subject, content, fromEmail, toEmail, lead name/company)
  * - dateFrom: YYYY-MM-DD
  * - dateTo: YYYY-MM-DD
+ * - limit: number (paginacja - ile wyników na stronę, domyślnie 25)
+ * - offset: number (paginacja - offset, domyślnie 0)
+ * - sortBy: receivedAt (domyślnie receivedAt)
+ * - sortOrder: asc | desc (domyślnie desc)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -24,6 +28,10 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
+    const limit = parseInt(searchParams.get("limit") || "25");
+    const offset = parseInt(searchParams.get("offset") || "0");
+    const sortBy = searchParams.get("sortBy") || "receivedAt";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
     
     const where: any = {};
     
@@ -79,7 +87,8 @@ export async function GET(req: NextRequest) {
     
     // Wyszukiwanie (będzie filtrowane po pobraniu danych)
     
-    const replies = await db.inboxReply.findMany({
+    // Najpierw pobierz wszystkie (dla filtrowania wyszukiwania i total count)
+    const allReplies = await db.inboxReply.findMany({
       where,
       include: {
         lead: true,
@@ -96,12 +105,12 @@ export async function GET(req: NextRequest) {
         }
       },
       orderBy: {
-        receivedAt: "desc"
+        receivedAt: sortOrder === "asc" ? "asc" : "desc"
       }
     });
     
     // Dodaj informację o potwierdzeniu do każdej odpowiedzi
-    let repliesWithConfirmation = replies.map(reply => ({
+    let repliesWithConfirmation = allReplies.map(reply => ({
       ...reply,
       isConfirmed: reply.notifications && reply.notifications.length > 0,
       confirmedAt: reply.notifications?.[0]?.confirmedAt || null,
@@ -124,7 +133,26 @@ export async function GET(req: NextRequest) {
       });
     }
     
-    return NextResponse.json(repliesWithConfirmation);
+    // Sortowanie po dacie (jeśli potrzebne - już jest w orderBy, ale dla pewności sortujemy też w pamięci)
+    if (sortBy === "receivedAt") {
+      repliesWithConfirmation.sort((a, b) => {
+        const dateA = new Date(a.receivedAt).getTime();
+        const dateB = new Date(b.receivedAt).getTime();
+        return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+      });
+    }
+    
+    const total = repliesWithConfirmation.length;
+    
+    // Paginacja
+    const paginatedReplies = repliesWithConfirmation.slice(offset, offset + limit);
+    
+    return NextResponse.json({
+      data: paginatedReplies,
+      total,
+      limit,
+      offset
+    });
     
   } catch (error) {
     console.error("Błąd pobierania inbox:", error);

@@ -74,10 +74,10 @@ export default function HomePage() {
       {/* Quick Stats */}
       {stats && (
         <div className="grid grid-4" style={{ marginBottom: "var(--spacing-2xl)" }}>
-          <StatCard icon="" label="Aktywne kampanie" value={stats.activeCampaigns} color="var(--primary)" />
-          <StatCard icon="" label="Leady w bazie" value={stats.totalLeads} color="var(--info)" />
-          <StatCard icon="" label="Wysłane dzisiaj" value={stats.sentToday} color="var(--success)" />
-          <StatCard icon="" label="Odpowiedzi dzisiaj" value={stats.repliesToday} color="var(--warning)" />
+          <StatCard label="Aktywne kampanie" value={stats.activeCampaigns} color="var(--primary)" />
+          <StatCard label="Leady w bazie" value={stats.totalLeads} color="var(--info)" />
+          <StatCard label="Wysłane dzisiaj" value={stats.sentToday} color="var(--success)" />
+          <StatCard label="Odpowiedzi dzisiaj" value={stats.repliesToday} color="var(--warning)" />
         </div>
       )}
 
@@ -87,27 +87,30 @@ export default function HomePage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-3" style={{ marginBottom: "var(--spacing-2xl)" }}>
+      <div className="grid grid-4" style={{ marginBottom: "var(--spacing-2xl)" }}>
         <ActionCard
           href="/campaigns/new"
-          icon=""
           title="Nowa kampania"
           description="Utwórz i zaplanuj nową kampanię email"
           color="var(--success)"
         />
         <ActionCard
           href="/queue"
-          icon=""
           title="Kolejka wysyłek"
           description="Zobacz harmonogram i zaplanowane kampanie"
           color="var(--primary)"
         />
         <ActionCard
           href="/inbox"
-          icon=""
           title="Skrzynka odbiorcza"
           description="Odpowiedzi i automatyczna klasyfikacja AI"
           color="var(--warning)"
+        />
+        <ActionCard
+          href="/material-decisions"
+          title="Decyzje materiałów"
+          description="Kolejka decyzji administratora dla automatycznych odpowiedzi"
+          color="var(--info)"
         />
       </div>
 
@@ -213,29 +216,28 @@ export default function HomePage() {
       <div className="card">
         <h2>Nawigacja</h2>
         <div className="grid grid-3">
-          <NavLink href="/campaigns" icon="" label="Kampanie" desc="Zarządzaj kampaniami" />
-          <NavLink href="/queue" icon="" label="Kolejka" desc="Harmonogram wysyłek" />
-          <NavLink href="/reports" icon="" label="Raporty" desc="Statystyki i analizy" />
-          <NavLink href="/inbox" icon="" label="Inbox" desc="Odpowiedzi email" />
-          <NavLink href="/leads" icon="" label="Leady" desc="Baza kontaktów" />
-          <NavLink href="/salespeople" icon="" label="Handlowcy" desc="Wirtualni handlowcy" />
-          <NavLink href="/tags" icon="" label="Tagi" desc="Zarządzanie tagami" />
-          <NavLink href="/import" icon="" label="Import" desc="Import CSV" />
-          <NavLink href="/settings" icon="" label="Ustawienia" desc="Konfiguracja" />
+          <NavLink href="/campaigns" label="Kampanie" desc="Zarządzaj kampaniami" />
+          <NavLink href="/queue" label="Kolejka" desc="Harmonogram wysyłek" />
+          <NavLink href="/reports" label="Raporty" desc="Statystyki i analizy" />
+          <NavLink href="/inbox" label="Inbox" desc="Odpowiedzi email" />
+          <NavLink href="/leads" label="Leady" desc="Baza kontaktów" />
+          <NavLink href="/salespeople" label="Handlowcy" desc="Wirtualni handlowcy" />
+          <NavLink href="/tags" label="Tagi" desc="Zarządzanie tagami" />
+          <NavLink href="/import" label="Import" desc="Import CSV" />
+          <NavLink href="/settings" label="Ustawienia" desc="Konfiguracja" />
         </div>
       </div>
     </div>
   );
 }
 
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
+function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="card" style={{
       textAlign: "center",
       borderTop: `4px solid ${color}`,
       padding: "var(--spacing-lg)"
     }}>
-      {icon && <div style={{ fontSize: "2rem", marginBottom: "var(--spacing-sm)" }}>{icon}</div>}
       <div style={{ fontSize: "2rem", fontWeight: "700", color, marginBottom: "var(--spacing-xs)" }}>
         {value}
       </div>
@@ -244,9 +246,8 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
   );
 }
 
-function ActionCard({ href, icon, title, description, color }: { 
+function ActionCard({ href, title, description, color }: { 
   href: string; 
-  icon: string; 
   title: string; 
   description: string;
   color: string;
@@ -267,7 +268,6 @@ function ActionCard({ href, icon, title, description, color }: {
         e.currentTarget.style.transform = "translateY(0)";
         e.currentTarget.style.boxShadow = "var(--shadow)";
       }}>
-        {icon && <div style={{ fontSize: "2rem", marginBottom: "var(--spacing-sm)" }}>{icon}</div>}
         <h3 style={{ color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>{title}</h3>
         <p style={{ fontSize: "0.875rem", color: "var(--gray-600)", margin: 0 }}>{description}</p>
       </div>
@@ -275,7 +275,7 @@ function ActionCard({ href, icon, title, description, color }: {
   );
 }
 
-function NavLink({ href, icon, label, desc }: { href: string; icon: string; label: string; desc: string }) {
+function NavLink({ href, label, desc }: { href: string; label: string; desc: string }) {
   return (
     <Link href={href} style={{ textDecoration: "none" }}>
       <div style={{
@@ -293,14 +293,9 @@ function NavLink({ href, icon, label, desc }: { href: string; icon: string; labe
         e.currentTarget.style.background = "transparent";
         e.currentTarget.style.borderColor = "var(--gray-200)";
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", marginBottom: "var(--spacing-xs)" }}>
-          {icon && <span style={{ fontSize: "1.25rem" }}>{icon}</span>}
-          <span style={{ fontWeight: "600", color: "var(--gray-900)" }}>{label}</span>
-        </div>
+        <div style={{ fontWeight: "600", color: "var(--gray-900)", marginBottom: "var(--spacing-xs)" }}>{label}</div>
         <div style={{ fontSize: "0.75rem", color: "var(--gray-600)" }}>{desc}</div>
       </div>
     </Link>
   );
 }
-
-

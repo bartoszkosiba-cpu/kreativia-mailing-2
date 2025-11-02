@@ -196,35 +196,6 @@ export default function ArchivePage() {
     }
   };
 
-  const handleClearArchive = async () => {
-    if (!confirm('Czy na pewno chcesz wyczyścić archiwum? To usunie WSZYSTKIE maile z bazy danych.\n\nTej operacji NIE MOŻNA COFNĄĆ!')) {
-      return;
-    }
-
-    if (!confirm('OSTATNIE OSTRZEŻENIE!\n\nTo trwale usunie wszystkie maile (wysłane, odebrane i warmup).\n\nCzy naprawdę chcesz kontynuować?')) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch('/api/archive', {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert(data.message);
-        fetchArchive(); // Odśwież listę
-      } else {
-        alert(`Błąd: ${data.error}`);
-      }
-    } catch (error) {
-      alert(`Błąd podczas czyszczenia archiwum: ${error}`);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getTypeColor = (type: "sent" | "received" | "warmup") => {
     switch (type) {
@@ -316,20 +287,6 @@ export default function ArchivePage() {
             }}
           >
             {isFetching ? "Pobieranie..." : "Odśwież"}
-          </button>
-          <button
-            onClick={handleClearArchive}
-            disabled={loading}
-            className="btn"
-            style={{
-              backgroundColor: "#dc3545",
-              color: "white",
-              borderColor: "#dc3545",
-              fontWeight: "bold",
-              padding: "12px 24px"
-            }}
-          >
-            Wyczyść archiwum
           </button>
         </div>
       </div>

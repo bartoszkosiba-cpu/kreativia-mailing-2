@@ -143,6 +143,17 @@ export function startEmailCron() {
       await processScheduledCampaign();
     } catch (error: any) {
       console.error('[CRON] ✗ Błąd wysyłki kampanii:', error.message);
+    }
+    
+    // Wyślij zaplanowane odpowiedzi z materiałami
+    try {
+      const { sendScheduledMaterialResponses } = await import('./materialResponseSender');
+      const sentCount = await sendScheduledMaterialResponses();
+      if (sentCount > 0) {
+        console.log(`[CRON] ✓ Wysłano ${sentCount} odpowiedzi z materiałami`);
+      }
+    } catch (error: any) {
+      console.error('[CRON] ✗ Błąd wysyłki materiałów:', error.message);
     } finally {
       isCampaignCronTaskRunning = false;
     }

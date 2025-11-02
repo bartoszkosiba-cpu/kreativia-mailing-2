@@ -31,7 +31,8 @@ export default function Navbar() {
       dropdown: [
         { href: "/salespeople", label: "Handlowcy" },
         { href: "/warmup", label: "Warmup" },
-        { href: "/inbox", label: "Inbox" }
+        { href: "/inbox", label: "Inbox" },
+        { href: "/material-decisions", label: "Automatyczne odpowiedzi" }
       ]
     },
     { 

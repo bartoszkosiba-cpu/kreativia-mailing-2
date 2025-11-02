@@ -89,6 +89,14 @@ function InboxPageContent() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  
+  // Paginacja
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // Sortowanie
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Inicjalizuj filtry z URL jeśli istnieją
   useEffect(() => {
@@ -107,7 +115,7 @@ function InboxPageContent() {
   useEffect(() => {
     fetchCampaigns();
     fetchReplies();
-  }, [classification, campaignId, status, dateFrom, dateTo, unreadOnly]);
+  }, [classification, campaignId, status, dateFrom, dateTo, unreadOnly, currentPage, itemsPerPage, sortOrder]);
 
   const fetchCampaigns = async () => {
     try {
@@ -135,10 +143,25 @@ function InboxPageContent() {
       if (dateTo) params.set("dateTo", dateTo);
       if (unreadOnly) params.set("unreadOnly", "true");
       
+      // Paginacja
+      params.set("limit", itemsPerPage.toString());
+      params.set("offset", ((currentPage - 1) * itemsPerPage).toString());
+      
+      // Sortowanie
+      params.set("sortBy", "receivedAt");
+      params.set("sortOrder", sortOrder);
+      
       const response = await fetch(`/api/inbox?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        setReplies(data);
+        if (data.data) {
+          setReplies(data.data);
+          setTotalItems(data.total || 0);
+        } else {
+          // Fallback dla starego formatu API
+          setReplies(data);
+          setTotalItems(data.length || 0);
+        }
       }
     } catch (error) {
       console.error("Błąd pobierania odpowiedzi:", error);
@@ -173,7 +196,13 @@ function InboxPageContent() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setCurrentPage(1); // Reset to first page on new search
     fetchReplies();
+  };
+  
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === "asc" ? "desc" : "asc");
+    setCurrentPage(1); // Reset to first page when sorting
   };
 
   const markAsHandled = async (replyId: number) => {
@@ -461,7 +490,33 @@ function InboxPageContent() {
       {/* Lista odpowiedzi */}
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-lg)" }}>
-          <h2 style={{ margin: 0 }}>Lista Maili ({replies.length})</h2>
+          <div>
+            <h2 style={{ margin: 0 }}>Lista Maili</h2>
+            <div style={{ fontSize: "14px", color: "var(--gray-600)", marginTop: "4px" }}>
+              {totalItems > 0 ? (
+                <>Wyświetlanie {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalItems)} z {totalItems} maili</>
+              ) : (
+                <>Brak maili</>
+              )}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-md)" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", fontSize: "14px" }}>
+              <span>Na stronę:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(parseInt(e.target.value));
+                  setCurrentPage(1);
+                }}
+                style={{ padding: "6px 12px", border: "1px solid var(--gray-300)", borderRadius: "var(--radius)" }}
+              >
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+          </div>
         </div>
         
         {replies.length === 0 ? (
@@ -474,7 +529,19 @@ function InboxPageContent() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid var(--gray-200)" }}>
-                  <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Data</th>
+                  <th 
+                    style={{ 
+                      padding: "var(--spacing-sm)", 
+                      textAlign: "left", 
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      userSelect: "none"
+                    }}
+                    onClick={toggleSortOrder}
+                    title={`Sortuj po dacie: ${sortOrder === "desc" ? "najnowsze najpierw" : "najstarsze najpierw"}`}
+                  >
+                    Data {sortOrder === "desc" ? "↓" : "↑"}
+                  </th>
                   <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Od</th>
                   <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Temat</th>
                   <th style={{ padding: "var(--spacing-sm)", textAlign: "left", fontWeight: "600" }}>Klasyfikacja</th>
@@ -484,21 +551,7 @@ function InboxPageContent() {
                 </tr>
               </thead>
               <tbody>
-                {replies
-                  .sort((a, b) => {
-                    // INTERESTED zawsze na górze
-                    if (a.classification === "INTERESTED" && b.classification !== "INTERESTED") return -1;
-                    if (a.classification !== "INTERESTED" && b.classification === "INTERESTED") return 1;
-                    // Potem nieobsłużone
-                    if (!a.isHandled && b.isHandled) return -1;
-                    if (a.isHandled && !b.isHandled) return 1;
-                    // Potem nieprzeczytane
-                    if (!a.isRead && b.isRead) return -1;
-                    if (a.isRead && !b.isRead) return 1;
-                    // Ostatecznie po dacie
-                    return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
-                  })
-                  .map((reply) => (
+                {replies.map((reply) => (
                   <tr 
                     key={reply.id} 
                     style={{ 
@@ -653,6 +706,93 @@ function InboxPageContent() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        
+        {/* Paginacja */}
+        {totalItems > itemsPerPage && (
+          <div style={{ 
+            display: "flex", 
+            justifyContent: "space-between", 
+            alignItems: "center", 
+            marginTop: "var(--spacing-lg)",
+            paddingTop: "var(--spacing-lg)",
+            borderTop: "1px solid var(--gray-200)"
+          }}>
+            <div style={{ fontSize: "14px", color: "var(--gray-600)" }}>
+              Strona {currentPage} z {Math.ceil(totalItems / itemsPerPage)} ({totalItems} maili)
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                style={{
+                  padding: "8px 16px",
+                  border: "1px solid var(--gray-300)",
+                  borderRadius: "var(--radius)",
+                  backgroundColor: currentPage === 1 ? "var(--gray-100)" : "white",
+                  color: currentPage === 1 ? "var(--gray-400)" : "var(--gray-700)",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  fontWeight: "600"
+                }}
+              >
+                « Pierwsza
+              </button>
+              <button
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                style={{
+                  padding: "8px 16px",
+                  border: "1px solid var(--gray-300)",
+                  borderRadius: "var(--radius)",
+                  backgroundColor: currentPage === 1 ? "var(--gray-100)" : "white",
+                  color: currentPage === 1 ? "var(--gray-400)" : "var(--gray-700)",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  fontWeight: "600"
+                }}
+              >
+                ‹ Poprzednia
+              </button>
+              <div style={{ 
+                padding: "8px 16px", 
+                border: "1px solid var(--gray-300)", 
+                borderRadius: "var(--radius)",
+                backgroundColor: "white",
+                fontWeight: "600"
+              }}>
+                {currentPage} / {Math.ceil(totalItems / itemsPerPage)}
+              </div>
+              <button
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
+                style={{
+                  padding: "8px 16px",
+                  border: "1px solid var(--gray-300)",
+                  borderRadius: "var(--radius)",
+                  backgroundColor: currentPage >= Math.ceil(totalItems / itemsPerPage) ? "var(--gray-100)" : "white",
+                  color: currentPage >= Math.ceil(totalItems / itemsPerPage) ? "var(--gray-400)" : "var(--gray-700)",
+                  cursor: currentPage >= Math.ceil(totalItems / itemsPerPage) ? "not-allowed" : "pointer",
+                  fontWeight: "600"
+                }}
+              >
+                Następna ›
+              </button>
+              <button
+                onClick={() => setCurrentPage(Math.ceil(totalItems / itemsPerPage))}
+                disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
+                style={{
+                  padding: "8px 16px",
+                  border: "1px solid var(--gray-300)",
+                  borderRadius: "var(--radius)",
+                  backgroundColor: currentPage >= Math.ceil(totalItems / itemsPerPage) ? "var(--gray-100)" : "white",
+                  color: currentPage >= Math.ceil(totalItems / itemsPerPage) ? "var(--gray-400)" : "var(--gray-700)",
+                  cursor: currentPage >= Math.ceil(totalItems / itemsPerPage) ? "not-allowed" : "pointer",
+                  fontWeight: "600"
+                }}
+              >
+                Ostatnia »
+              </button>
+            </div>
           </div>
         )}
       </div>
