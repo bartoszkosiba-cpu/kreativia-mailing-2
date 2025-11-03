@@ -43,6 +43,30 @@ export async function PATCH(
     if (body.autoReplyDelayMinutes !== undefined) {
       updateData.autoReplyDelayMinutes = parseInt(body.autoReplyDelayMinutes) || 15;
     }
+    if (body.autoReplyContent !== undefined) {
+      updateData.autoReplyContent = body.autoReplyContent?.trim() || null;
+    }
+    if (body.autoReplyGuardianTemplate !== undefined) {
+      updateData.autoReplyGuardianTemplate = body.autoReplyGuardianTemplate?.trim() || null;
+    }
+    if (body.autoReplyGuardianTitle !== undefined) {
+      updateData.autoReplyGuardianTitle = body.autoReplyGuardianTitle?.trim() || null;
+    }
+    if (body.autoReplyIncludeGuardian !== undefined) {
+      // ✅ NOWE: Upewnij się że wartość jest boolean
+      const boolValue = typeof body.autoReplyIncludeGuardian === 'boolean' 
+        ? body.autoReplyIncludeGuardian 
+        : (body.autoReplyIncludeGuardian === true || body.autoReplyIncludeGuardian === 'true' || body.autoReplyIncludeGuardian === 1 || body.autoReplyIncludeGuardian === '1');
+      updateData.autoReplyIncludeGuardian = boolValue;
+      console.log(`[CAMPAIGN PATCH] autoReplyIncludeGuardian: ${JSON.stringify(body.autoReplyIncludeGuardian)} (type: ${typeof body.autoReplyIncludeGuardian}) → ${boolValue} (type: ${typeof boolValue})`);
+    }
+    if (body.autoReplyGuardianIntroText !== undefined) {
+      // ✅ NOWE: Poprawna obsługa pustego stringa - jeśli pusty lub tylko białe znaki, ustaw null
+      const trimmedText = typeof body.autoReplyGuardianIntroText === 'string' 
+        ? body.autoReplyGuardianIntroText.trim() 
+        : null;
+      updateData.autoReplyGuardianIntroText = trimmedText && trimmedText.length > 0 ? trimmedText : null;
+    }
 
     // Inne pola kampanii (jeśli są w body)
     if (body.name !== undefined) updateData.name = body.name.trim();
@@ -50,26 +74,50 @@ export async function PATCH(
     if (body.subject !== undefined) updateData.subject = body.subject?.trim() || null;
     if (body.text !== undefined) updateData.text = body.text?.trim() || null;
 
-    // Aktualizuj kampanię
-    const campaign = await db.campaign.update({
-      where: { id: campaignId },
-      data: updateData,
-      include: {
-        materials: {
-          where: { isActive: true },
-          orderBy: { order: 'asc' }
-        }
-      }
-    });
+    // Sprawdź czy są jakieś dane do aktualizacji
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: "Brak danych do aktualizacji"
+      }, { status: 400 });
+    }
 
-    return NextResponse.json({
-      success: true,
-      data: campaign
-    });
+    // Loguj dane przed aktualizacją (dla debuggingu)
+    console.log(`[CAMPAIGN PATCH] Aktualizacja kampanii ${campaignId} z danymi:`, JSON.stringify(updateData, null, 2));
+
+    // Aktualizuj kampanię
+    try {
+      const campaign = await db.campaign.update({
+        where: { id: campaignId },
+        data: updateData,
+        include: {
+          materials: {
+            where: { isActive: true },
+            orderBy: { order: 'asc' }
+          }
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: campaign
+      });
+    } catch (updateError: any) {
+      console.error("[CAMPAIGN] Błąd podczas update w Prisma:", updateError);
+      console.error("[CAMPAIGN] Szczegóły błędu Prisma:", updateError.message);
+      console.error("[CAMPAIGN] Metadane błędu:", updateError.meta);
+      throw updateError; // Rzuć dalej aby obsłużyć w głównym catch
+    }
   } catch (error: any) {
     console.error("[CAMPAIGN] Błąd aktualizacji kampanii:", error);
+    console.error("[CAMPAIGN] Szczegóły błędu:", error.message);
+    console.error("[CAMPAIGN] Stack trace:", error.stack);
     return NextResponse.json(
-      { success: false, error: "Błąd podczas aktualizacji kampanii" },
+      { 
+        success: false, 
+        error: "Błąd podczas aktualizacji kampanii",
+        details: error.message // ✅ Dodaj szczegóły błędu dla debuggingu
+      },
       { status: 500 }
     );
   }

@@ -30,7 +30,17 @@ export async function GET(
           take: 10
         },
         replies: {
-          orderBy: { receivedAt: "desc" }
+          orderBy: { receivedAt: "desc" },
+          select: {
+            id: true,
+            subject: true,
+            content: true,
+            fromEmail: true,
+            receivedAt: true,
+            isRead: true,
+            classification: true,
+            aiSummary: true
+          }
         },
         originalLead: {
           select: {

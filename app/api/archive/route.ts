@@ -144,6 +144,13 @@ export async function GET(request: NextRequest) {
         include: {
           lead: true,
           campaign: true,
+          mailbox: {
+            select: {
+              id: true,
+              email: true,
+              displayName: true
+            }
+          },
           notifications: {
             where: { status: 'CONFIRMED' },
             select: {
@@ -199,7 +206,7 @@ export async function GET(request: NextRequest) {
           type: "received",
           date: email.receivedAt,
           fromEmail: email.fromEmail,
-          toEmail: email.toEmail || "Nieznana skrzynka",
+          toEmail: email.toEmail || email.mailbox?.email || "Nieznana skrzynka",
           subject: email.subject,
           content: email.content,
           status: status,
@@ -209,8 +216,9 @@ export async function GET(request: NextRequest) {
           leadCompany: email.lead?.company,
           campaignId: email.campaignId,
           campaignName: email.campaign?.name,
-          mailboxId: null,
-          mailboxName: email.toEmail,
+          mailboxId: email.mailboxId,
+          // ✅ Użyj nazwy skrzynki z relacji mailbox (jeśli istnieje), inaczej fallback na toEmail lub "Nieznana skrzynka"
+          mailboxName: email.mailbox?.displayName || email.mailbox?.email || email.toEmail || "Nieznana skrzynka",
           salespersonName: null,
           classification: email.classification,
           sentiment: email.sentiment,

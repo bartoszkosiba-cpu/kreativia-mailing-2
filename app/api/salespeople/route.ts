@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
       name, phone, language, markets, 
       realSalespersonEmail,
       realSalespersonName,
+      realSalespersonPhone,
+      realSalespersonSignature,
       isActive 
     } = await req.json();
 
@@ -61,6 +63,8 @@ export async function POST(req: NextRequest) {
         markets: markets || null,
         realSalespersonEmail: realSalespersonEmail || null,
         realSalespersonName: realSalespersonName || null,
+        realSalespersonPhone: realSalespersonPhone || null,
+        realSalespersonSignature: realSalespersonSignature || null,
         isActive: isActive !== false
       }
     });

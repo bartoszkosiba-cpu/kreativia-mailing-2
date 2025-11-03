@@ -19,7 +19,7 @@ export interface MaterialRequestAnalysis {
 
 export interface MaterialResponseContent {
   subject: string; // Temat maila
-  content: string; // Treść maila (w języku kampanii)
+  content: string; // Treść maila (w języku kampanii) - BEZ stopki i informacji o opiekunie (dodawane później)
 }
 
 /**
@@ -68,6 +68,7 @@ export async function generateMaterialResponse(
     autoReplyContext: string | null;
     autoReplyRules: string | null;
     virtualSalespersonLanguage: string | null; // Język z handlowca
+    autoReplyContent: string | null; // Statyczna treść odpowiedzi (NOWE)
   },
   materials: Array<{
     name: string;
@@ -75,27 +76,170 @@ export async function generateMaterialResponse(
     url: string | null;
     fileName: string | null;
   }>,
-  leadOriginalResponse?: string // Opcjonalnie: treść odpowiedzi leada
+  leadOriginalResponse?: string, // Opcjonalnie: treść odpowiedzi leada
+  originalSubject?: string | null // Temat z odpowiedzi leada (dla "Re:")
 ): Promise<MaterialResponseContent> {
   
   // Język kampanii = język handlowca lub język leada
   const campaignLanguage = campaign.virtualSalespersonLanguage || lead.language || 'pl';
+  
+  // ✅ NOWA LOGIKA: Jeśli jest statyczna treść (autoReplyContent), użyj jej z personalizacją przez AI
+  if (campaign.autoReplyContent && campaign.autoReplyContent.trim()) {
+    console.log("[MATERIAL AI] Używam statycznej treści z kampanii (autoReplyContent)");
+    try {
+      // AI personalizuje statyczną treść (podstawia {firstName}, {materials}, etc.)
+      const personalizedContent = await personalizeStaticContent(
+        campaign.autoReplyContent,
+        lead,
+        materials,
+        campaignLanguage
+      );
+      
+      // Temat: użyj tematu z odpowiedzi leada, dodaj "Re:" jeśli brakuje
+      const subject = buildEmailSubject(originalSubject, campaign.name);
+      
+      return {
+        subject,
+        content: personalizedContent
+      };
+    } catch (error) {
+      console.error("[MATERIAL AI] Błąd personalizacji statycznej treści:", error);
+      // Fallback na AI generowanie
+    }
+  }
+  
+  // ✅ FALLBACK: Generuj przez AI (jak dotychczas)
   const prompt = buildResponsePrompt(lead, campaign, materials, leadOriginalResponse, campaignLanguage);
   
   try {
     const aiResponse = await generateWithAI(prompt, campaignLanguage);
     
+    // Temat: użyj tematu z odpowiedzi leada lub wygenerowanego przez AI, dodaj "Re:" jeśli brakuje
+    const subject = buildEmailSubject(originalSubject || aiResponse.subject, campaign.name);
+    
     return {
-      subject: aiResponse.subject,
+      subject,
       content: aiResponse.content
     };
   } catch (error) {
     console.error("[MATERIAL AI] Błąd generowania odpowiedzi:", error);
     
     // Fallback - szablon
-    const campaignLanguage = campaign.virtualSalespersonLanguage || lead.language || 'pl';
-    return fallbackResponse(lead, campaign, materials, campaignLanguage);
+    const subject = buildEmailSubject(originalSubject, campaign.name);
+    const fallback = fallbackResponse(lead, campaign, materials, campaignLanguage);
+    
+    return {
+      subject,
+      content: fallback.content
+    };
   }
+}
+
+/**
+ * Buduje temat emaila - dodaje "Re:" jeśli brakuje
+ */
+function buildEmailSubject(originalSubject: string | null | undefined, campaignName: string): string {
+  if (!originalSubject) {
+    // Brak tematu - użyj domyślnego z "Re:"
+    return `Re: ${campaignName}`;
+  }
+  
+  // Usuń duplikaty "Re:" na początku (np. "Re: Re: Temat" -> "Re: Temat")
+  let subject = originalSubject.trim();
+  while (subject.match(/^re:\s*/i)) {
+    subject = subject.replace(/^re:\s*/i, '');
+  }
+  
+  // Dodaj "Re:" jeśli nie ma
+  if (!subject.match(/^re:\s*/i)) {
+    subject = `Re: ${subject}`;
+  }
+  
+  return subject;
+}
+
+/**
+ * Personalizuje statyczną treść przez AI (podstawia {firstName}, {materials}, etc.)
+ */
+async function personalizeStaticContent(
+  staticContent: string,
+  lead: { firstName: string | null; lastName: string | null; greetingForm: string | null },
+  materials: Array<{ name: string; type: "LINK" | "ATTACHMENT"; url: string | null; fileName: string | null }>,
+  language: string
+): Promise<string> {
+  
+  // Prosta personalizacja - podstaw placeholder
+  let content = staticContent;
+  
+  // Podstawienie podstawowych placeholderów (bez AI)
+  const greeting = lead.greetingForm || 
+    (lead.firstName ? `Dzień dobry ${lead.firstName}` : "Dzień dobry");
+  
+  content = content.replace(/\{firstName\}/g, lead.firstName || '');
+  content = content.replace(/\{lastName\}/g, lead.lastName || '');
+  content = content.replace(/\{greeting\}/g, greeting);
+  
+  // Materiały
+  const materialsList = materials.map((m, idx) => {
+    if (m.type === "LINK") {
+      return `${idx + 1}. ${m.name}`;
+    } else {
+      return `${idx + 1}. ${m.name}`;
+    }
+  }).join('\n');
+  
+  content = content.replace(/\{materials\}/g, materialsList);
+  content = content.replace(/\{materialsList\}/g, materialsList);
+  
+  // Jeśli są jeszcze inne placeholdery, użyj AI do dalszej personalizacji
+  if (content.includes('{') && content.includes('}')) {
+    try {
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+      });
+      
+      const prompt = `Otrzymałeś szablon emaila z placeholderami. Podstaw wszystkie placeholdery i zwróć finalną treść (BEZ placeholderów). Jeśli placeholder nie jest rozpoznawalny, użyj sensownej wartości lub pomiń go.
+
+SZABLON:
+${content}
+
+LEAD:
+Imię: ${lead.firstName || 'N/A'}
+Nazwisko: ${lead.lastName || 'N/A'}
+Powitanie: ${greeting}
+
+MATERIAŁY:
+${materialsList}
+
+Zadanie: Zwróć TYLKO finalną treść emaila (bez placeholderów, bez JSON, bez dodatkowych komentarzy).`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "Jesteś ekspertem w personalizacji emaili. Zwracasz TYLKO finalną treść, bez dodatkowych komentarzy."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.3
+      });
+      
+      const aiContent = response.choices[0]?.message?.content;
+      if (aiContent) {
+        content = aiContent.trim();
+      }
+    } catch (error) {
+      console.error("[MATERIAL AI] Błąd personalizacji przez AI:", error);
+      // Zostaw content jak jest (z podstawionymi podstawowymi placeholderami)
+    }
+  }
+  
+  return content;
 }
 
 // ============================================================================

@@ -103,9 +103,28 @@ export async function POST(
     
     const leadsForFollowUp = allLeads.filter(lead => {
       // Pomijaj zablokowanych
-      if (lead.isBlocked) {
-        console.log(`[FOLLOW-UP] Pomijam ${lead.email} - zablokowany (${lead.blockedReason})`);
+      if (lead.isBlocked || lead.status === 'BLOKADA') {
+        console.log(`[FOLLOW-UP] Pomijam ${lead.email} - zablokowany (${lead.blockedReason || lead.status})`);
         return false;
+      }
+      
+      // ✅ NOWE: Pomijaj ZAINTERESOWANY z tej kampanii (dostali automatyczną odpowiedź lub forward)
+      if (lead.status === 'ZAINTERESOWANY') {
+        // Sprawdź czy kampania jest zablokowana
+        let blockedCampaignsArray: number[] = [];
+        if (lead.blockedCampaigns) {
+          try {
+            blockedCampaignsArray = JSON.parse(lead.blockedCampaigns);
+          } catch (e) {
+            console.warn(`[FOLLOW-UP] Błąd parsowania blockedCampaigns dla lead ${lead.id}:`, e);
+            blockedCampaignsArray = [];
+          }
+        }
+        
+        if (blockedCampaignsArray.includes(campaignId)) {
+          console.log(`[FOLLOW-UP] Pomijam ${lead.email} - kampania zablokowana (ZAINTERESOWANY, blockedCampaigns: ${blockedCampaignsArray.join(',')})`);
+          return false;
+        }
       }
       
       // Znajdź odpowiedź tego leada

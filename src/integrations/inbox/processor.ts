@@ -47,6 +47,17 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
     if (isInternalEmail) {
       console.log(`[PROCESSOR] 🔥 Wykryto mail WEWNĘTRZNY z ${fromEmail} - zapisuję do inbox (bez przetwarzania)`);
       
+      // ✅ Znajdź mailboxId na podstawie toEmail (dla maili wewnętrznych)
+      let mailboxId: number | null = null;
+      if (toEmail) {
+        const mailbox = await db.mailbox.findFirst({
+          where: { email: toEmail }
+        });
+        if (mailbox) {
+          mailboxId = mailbox.id;
+        }
+      }
+
       // NOWE: Zapisz mail wewnętrzny do bazy (dla pełnego inbox)
       const savedReply = await db.inboxReply.create({
         data: {
@@ -56,7 +67,8 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
           content: email.text || email.html || "",
           originalMessage: email.html || email.text || "",
           fromEmail: fromEmail,
-          toEmail: toEmail || null, // NOWE: Na którą skrzynkę przyszedł
+          toEmail: toEmail || null, // Zachowane dla kompatybilności
+          mailboxId: mailboxId, // ✅ NOWE: ID skrzynki
           receivedAt: email.date,
           classification: "INTERNAL_WARMUP", // Nowa klasyfikacja
           sentiment: null,
@@ -111,11 +123,23 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
         });
       }
       
+      // ✅ Znajdź mailboxId na podstawie toEmail (dla bounce)
+      let bounceMailboxId: number | null = null;
+      if (toEmail) {
+        const mailbox = await db.mailbox.findFirst({
+          where: { email: toEmail }
+        });
+        if (mailbox) {
+          bounceMailboxId = mailbox.id;
+        }
+      }
+
       // Zaloguj bounce w bazie (ZAWSZE - nawet bez leada, dla pełnego inbox)
       const bounceReply = await db.inboxReply.create({
         data: {
           leadId: lead?.id || null, // Może być null
           campaignId: campaignLead?.campaignId || null,
+          mailboxId: bounceMailboxId, // ✅ NOWE: ID skrzynki
           messageId: email.messageId,
           threadId: email.inReplyTo || email.messageId,
           subject: email.subject,
@@ -175,8 +199,15 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
       where: { email: fromEmail }
     });
     
-    if (existingLead?.isBlocked) {
-      console.log(`Lead ${existingLead.email} jest już zablokowany`);
+    // 5. Klasyfikuj odpowiedź przez AI (zawsze, niezależnie od tego czy lead istnieje lub jest zablokowany)
+    // WAŻNE: Klasyfikujemy PRZED sprawdzeniem blokady, żeby móc reaktywować leadów
+    console.log(`[PROCESSOR] Klasyfikuję odpowiedź przez AI...`);
+    const classification = await classifyReply(email.text || email.html || "", existingLead?.language || 'pl');
+    console.log(`[PROCESSOR] Klasyfikacja AI: ${classification.classification} (sentiment: ${classification.sentiment})`);
+    
+    // Jeśli lead jest zablokowany, ale odpowiedź to INTERESTED - pozwól na reaktywację
+    if (existingLead?.isBlocked && classification.classification !== "INTERESTED") {
+      console.log(`Lead ${existingLead.email} jest zablokowany i odpowiedź nie jest INTERESTED - pomijam`);
       return {
         replyId: 0,
         classification: "ALREADY_BLOCKED",
@@ -185,10 +216,10 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
       };
     }
     
-    // 4. Klasyfikuj odpowiedź przez AI (zawsze, niezależnie od tego czy lead istnieje)
-    console.log(`[PROCESSOR] Klasyfikuję odpowiedź przez AI...`);
-    const classification = await classifyReply(email.text || email.html || "", existingLead?.language || 'pl');
-    console.log(`[PROCESSOR] Klasyfikacja AI: ${classification.classification} (sentiment: ${classification.sentiment})`);
+    // Jeśli lead jest zablokowany, ale odpowiedź to INTERESTED - REAKTYWACJA
+    if (existingLead?.isBlocked && classification.classification === "INTERESTED") {
+      console.log(`[PROCESSOR] ⚠️  Lead ${existingLead.email} był zablokowany, ale odpowiedział INTERESTED - REAKTYWACJA`);
+    }
     
     // 5. Jeśli nie ma leada, ale odpowiedź jest zainteresowana - stwórz nowego leada
     let currentLead = existingLead;
@@ -256,16 +287,31 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
       console.log(`[PROCESSOR] ⚠️  Brak leada dla ${fromEmail} - zapisuję bez powiązania z leadem (pełny inbox)`);
     }
 
+    // ✅ Znajdź mailboxId na podstawie toEmail
+    let mailboxId: number | null = null;
+    if (toEmail) {
+      const mailbox = await db.mailbox.findFirst({
+        where: { email: toEmail }
+      });
+      if (mailbox) {
+        mailboxId = mailbox.id;
+        console.log(`[PROCESSOR] Znaleziono mailbox ID ${mailboxId} dla email ${toEmail}`);
+      } else {
+        console.log(`[PROCESSOR] ⚠️ Nie znaleziono mailbox dla email ${toEmail}`);
+      }
+    }
+
     const reply = await db.inboxReply.create({
       data: {
         leadId: currentLead?.id || null, // Może być null (dla pełnego inbox)
         campaignId: campaign?.id || null, // Może być null jeśli nie ma kampanii
+        mailboxId: mailboxId, // ✅ NOWE: ID skrzynki
         messageId: email.messageId,
         threadId: email.inReplyTo || null,
         subject: email.subject,
         content: email.text || email.html || "",
         fromEmail: fromEmail,
-        toEmail: toEmail || null, // NOWE: Na którą skrzynkę przyszedł
+        toEmail: toEmail || null, // Zachowane dla kompatybilności
         receivedAt: email.date,
         classification: classification.classification,
         sentiment: classification.sentiment,

@@ -70,34 +70,56 @@ export async function GET(
 
     // Oblicz pozostały czas w oknie
     const endWindow = new Date(now);
-    endWindow.setHours(campaign.endHour, campaign.endMinute ?? 0, 0);
-    endWindow.setMinutes(endWindow.getMinutes() - 60); // -1h margines
+    endWindow.setHours(campaign.endHour, campaign.endMinute ?? 0, 59, 999);
     const msRemaining = endWindow.getTime() - now.getTime();
     const minutesRemaining = Math.floor(msRemaining / 1000 / 60);
     const secondsRemaining = Math.floor(msRemaining / 1000); // Konwertuj milisekundy na sekundy
 
-    // Oblicz optymalny delay
-    let optimalDelay = campaign.delayBetweenEmails;
+    // ✅ PROSTA LOGIKA: Delay = delayBetweenEmails ± 20% (bez równomiernego rozkładu)
+    const baseDelay = campaign.delayBetweenEmails;
+    const randomVariation = 0.2;
+    const minDelay = Math.floor(baseDelay * (1 - randomVariation)); // 80% bazowego
+    const maxDelay = Math.floor(baseDelay * (1 + randomVariation)); // 120% bazowego
     
-    // Najpierw oblicz ile maili faktycznie można wysłać dzisiaj (z uwzględnieniem limitu dziennego)
+    // Oblicz ile maili faktycznie można wysłać dzisiaj (z uwzględnieniem limitu dziennego)
     let estimatedEmailsToday = Math.min(remainingLeads, campaign.maxEmailsPerDay - sentCount);
     
-    // Oblicz tylko jeśli jest czas w oknie i maile do wysłania
-    if (secondsRemaining > 0 && estimatedEmailsToday > 0 && timeCheck.isValid) {
-      // Oblicz delay na podstawie faktycznej liczby maili które można wysłać dzisiaj
-      // Użyj sekund zamiast milisekund!
-      optimalDelay = Math.floor(secondsRemaining / Math.max(1, estimatedEmailsToday));
+    if (secondsRemaining <= 0 || !timeCheck.isValid) {
+      estimatedEmailsToday = 0; // Nie można wysłać nic dzisiaj
+    }
+    
+    // Oblicz czas następnego maila (jeśli jest ostatni wysłany)
+    let nextEmailTime: string | null = null;
+    const lastSentLog = await db.sendLog.findFirst({
+      where: {
+        campaignId: campaign.id,
+        status: "sent",
+        leadId: { not: null }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    if (lastSentLog && timeCheck.isValid && estimatedEmailsToday > 0) {
+      const lastSentTime = new Date(lastSentLog.createdAt);
+      const timeSinceLastMail = Math.floor((now.getTime() - lastSentTime.getTime()) / 1000); // sekundy
+      const minRequiredDelay = minDelay;
       
-      // Upewnij się że delay nie jest mniejszy niż bazowy (minimalne bezpieczeństwo)
-      optimalDelay = Math.max(optimalDelay, campaign.delayBetweenEmails);
-    } else if (secondsRemaining <= 0) {
-      // Okno się skończyło - użyj bazowego delay
-      optimalDelay = campaign.delayBetweenEmails;
-      estimatedEmailsToday = 0; // Nie można wysłać nic dzisiaj
-    } else if (!timeCheck.isValid) {
-      // Okno nieaktywne - użyj bazowego delay
-      optimalDelay = campaign.delayBetweenEmails;
-      estimatedEmailsToday = 0; // Nie można wysłać nic dzisiaj
+      if (timeSinceLastMail < minRequiredDelay) {
+        // Delay jeszcze nie minął - oblicz kiedy będzie następny
+        const remainingDelay = minRequiredDelay - timeSinceLastMail;
+        const nextEmail = new Date(now.getTime() + remainingDelay * 1000);
+        nextEmailTime = nextEmail.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      } else {
+        // Delay już minął - następny mail będzie w kolejnym cron (za ~1 min)
+        const nextEmail = new Date(now.getTime() + 60 * 1000); // Cron co 1 minutę
+        nextEmailTime = nextEmail.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      }
+    } else if (!lastSentLog && timeCheck.isValid && estimatedEmailsToday > 0) {
+      // Brak wysłanych maili - następny mail będzie w kolejnym cron
+      const nextEmail = new Date(now.getTime() + 60 * 1000);
+      nextEmailTime = nextEmail.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     }
 
     // Sprawdź czy zbliżamy się do limitów
@@ -117,7 +139,7 @@ export async function GET(
         minutesRemaining,
         endHour: campaign.endHour,
         endMinute: campaign.endMinute ?? 0,
-        endWindowSafe: endWindow.toISOString()
+        endWindow: endWindow.toISOString()
       },
       emails: {
         total: leads.length,
@@ -127,11 +149,12 @@ export async function GET(
         maxPerDay: campaign.maxEmailsPerDay
       },
       delay: {
-        base: campaign.delayBetweenEmails,
-        optimal: optimalDelay,
-        min: Math.max(1, Math.floor(optimalDelay * 0.8)),
-        max: Math.floor(optimalDelay * 1.2)
+        base: baseDelay,
+        optimal: baseDelay, // Dla prostoty = bazowy (bez równomiernego rozkładu)
+        min: minDelay,
+        max: maxDelay
       },
+      nextEmailTime,
       warnings: {
         isApproachingDailyLimit,
         isApproachingTimeLimit,

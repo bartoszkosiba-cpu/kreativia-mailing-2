@@ -25,7 +25,7 @@ interface PerformanceWeek {
  * Tydzień 4 = dni 22-28
  * Tydzień 5 = dni 29-35
  */
-function getWeekFromDay(day: number): number {
+export function getWeekFromDay(day: number): number {
   if (day <= 0) return 1; // Dla skrzynek bez warmup użyj tygodnia 1
   if (day <= 7) return 1;
   if (day <= 14) return 2;
@@ -37,7 +37,7 @@ function getWeekFromDay(day: number): number {
 /**
  * Pobiera limity wydajności dla danego tygodnia
  */
-async function getPerformanceLimits(week: number): Promise<{ warmup: number; campaign: number }> {
+export async function getPerformanceLimits(week: number): Promise<{ warmup: number; campaign: number }> {
   try {
     const settings = await db.companySettings.findFirst();
     
@@ -124,13 +124,18 @@ export async function getNextAvailableMailbox(
 
   console.log(`[MAILBOX] Znaleziono ${mailboxes.length} aktywnych skrzynek`);
 
-  const today = new Date().toDateString();
+  // Pobierz datę w polskim czasie
+  const { getTodayPLString, isTodayPL } = await import('@/utils/polishTime');
+  const todayPL = getTodayPLString();
 
-  // Resetuj liczniki dla skrzynek jeśli nowy dzień
+  // Resetuj liczniki dla skrzynek jeśli nowy dzień (porównanie w polskim czasie)
   for (const mailbox of mailboxes) {
-    if (!mailbox.lastResetDate || mailbox.lastResetDate.toDateString() !== today) {
+    // Sprawdź czy lastResetDate jest dzisiaj w polskim czasie
+    const needsReset = !mailbox.lastResetDate || !isTodayPL(mailbox.lastResetDate);
+    
+    if (needsReset) {
       await resetMailboxCounter(mailbox.id, mailbox.warmupStatus);
-      console.log(`[MAILBOX] ✓ Zresetowano licznik dla ${mailbox.email}`);
+      console.log(`[MAILBOX] ✓ Zresetowano licznik dla ${mailbox.email} (lastReset: ${mailbox.lastResetDate ? mailbox.lastResetDate.toISOString() : 'brak'}, dzisiaj PL: ${todayPL})`);
     }
   }
 
@@ -203,16 +208,23 @@ export async function getNextAvailableMailbox(
  * Resetuje licznik dziennych wysyłek dla skrzynki
  */
 export async function resetMailboxCounter(mailboxId: number, warmupStatus?: string): Promise<void> {
+  // Ustaw lastResetDate na początek dzisiejszego dnia w polskim czasie
+  const { getStartOfTodayPL } = await import('@/utils/polishTime');
+  const startOfTodayPL = getStartOfTodayPL();
+  
   const updateData: any = {
-    lastResetDate: new Date()
+    lastResetDate: startOfTodayPL
   };
   
-  // Zresetuj odpowiedni licznik w zależności od statusu warmup
+  // ✅ Zresetuj odpowiednie liczniki w zależności od statusu warmup
+  // Dla skrzynek w warmup: resetuj warmupTodaySent (licznik warmup)
+  // Dla wszystkich skrzynek: resetuj currentDailySent (licznik kampanii)
+  // (Skrzynki w warmup mogą też wysyłać maile kampanii, więc resetujemy oba)
   if (warmupStatus === 'warming' || warmupStatus === 'ready_to_warmup') {
     updateData.warmupTodaySent = 0;
-  } else {
-    updateData.currentDailySent = 0;
   }
+  // Zawsze resetuj currentDailySent (niezależnie od statusu warmup)
+  updateData.currentDailySent = 0;
   
   await db.mailbox.update({
     where: { id: mailboxId },

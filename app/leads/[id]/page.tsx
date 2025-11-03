@@ -71,6 +71,8 @@ interface Lead {
   replies: Array<{
     id: number;
     subject: string;
+    content: string;
+    fromEmail: string;
     receivedAt: Date;
     isRead: boolean;
     classification: string;
@@ -86,6 +88,29 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
   const [referer, setReferer] = useState('/leads');
   const [isEditingGreeting, setIsEditingGreeting] = useState(false);
   const [greetingValue, setGreetingValue] = useState('');
+  const [expandedReplyId, setExpandedReplyId] = useState<number | null>(null);
+
+  // Funkcja do wyciągania treści z HTML (jeśli zawiera tagi HTML)
+  const extractHtmlContent = (html: string): string => {
+    if (!html) return '';
+    
+    // Sprawdź czy zawiera tagi HTML
+    if (html.includes('<html>') || html.includes('<body>')) {
+      // Wyciągnij zawartość z <body>
+      const bodyMatch = html.match(/<body[^>]*>(.*?)<\/body>/is);
+      if (bodyMatch && bodyMatch[1]) {
+        return bodyMatch[1].trim();
+      }
+      // Jeśli nie ma body, wyciągnij wszystko po <body>
+      const bodyOpenMatch = html.match(/<body[^>]*>(.*)/is);
+      if (bodyOpenMatch && bodyOpenMatch[1]) {
+        return bodyOpenMatch[1].trim();
+      }
+    }
+    
+    // Jeśli nie ma tagów HTML, zwróć jak jest
+    return html;
+  };
 
   const fetchLead = async () => {
     try {
@@ -467,43 +492,137 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
             </div>
             <div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {lead.replies.map((reply) => (
-                  <div
-                    key={reply.id}
-                    style={{
-                      padding: 12,
-                      backgroundColor: reply.isRead ? "var(--gray-50)" : "#e7f3ff",
-                      border: "1px solid var(--gray-300)",
-                      borderRadius: "var(--radius)"
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <strong>{reply.subject}</strong>
-                      <span style={{ fontSize: "12px", color: "var(--gray-500)" }}>
-                        {new Date(reply.receivedAt).toLocaleString()}
-                      </span>
+                {lead.replies.map((reply) => {
+                  const isExpanded = expandedReplyId === reply.id;
+                  
+                  return (
+                    <div
+                      key={reply.id}
+                      style={{
+                        padding: 12,
+                        backgroundColor: reply.isRead ? "var(--gray-50)" : "#e7f3ff",
+                        border: "1px solid var(--gray-300)",
+                        borderRadius: "var(--radius)",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease"
+                      }}
+                      onClick={() => setExpandedReplyId(isExpanded ? null : reply.id)}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = reply.isRead ? "var(--gray-100)" : "#d0e7ff";
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = reply.isRead ? "var(--gray-50)" : "#e7f3ff";
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <strong style={{ fontSize: "15px" }}>{reply.subject}</strong>
+                            <span style={{
+                              padding: "2px 8px",
+                              backgroundColor: reply.classification === "INTERESTED" ? "#28a745" : 
+                                             reply.classification === "UNSUBSCRIBE" ? "#dc3545" :
+                                             reply.classification === "OOO" ? "#ffc107" : 
+                                             reply.classification === "NOT_INTERESTED" ? "#dc3545" : "#007bff",
+                              color: "white",
+                              borderRadius: 12,
+                              fontSize: "11px",
+                              fontWeight: 500
+                            }}>
+                              {reply.classification}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+                            {new Date(reply.receivedAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "18px", color: "var(--gray-500)", marginLeft: 8 }}>
+                          {isExpanded ? "▼" : "▶"}
+                        </div>
+                      </div>
+                      
+                      {!isExpanded && (
+                        <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "var(--gray-700)" }}>
+                          {reply.aiSummary || "Brak podsumowania"}
+                        </p>
+                      )}
+                      
+                      {isExpanded && (
+                        <div style={{ 
+                          marginTop: 12, 
+                          padding: 16, 
+                          backgroundColor: "white", 
+                          border: "1px solid var(--gray-200)", 
+                          borderRadius: "var(--radius)",
+                          borderTop: "2px solid var(--gray-400)"
+                        }}>
+                          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--gray-200)" }}>
+                            <div style={{ fontSize: "12px", color: "var(--gray-500)", marginBottom: 4 }}>
+                              <strong>Od:</strong> {reply.fromEmail || "Brak"}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+                              <strong>Data:</strong> {new Date(reply.receivedAt).toLocaleString()}
+                            </div>
+                          </div>
+                          <div 
+                            style={{ 
+                              fontSize: "14px", 
+                              lineHeight: "1.6", 
+                              color: "var(--gray-800)",
+                              fontFamily: "Arial, sans-serif",
+                              wordBreak: "break-word"
+                            }}
+                            dangerouslySetInnerHTML={{ 
+                              __html: `
+                                <style>
+                                  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+                                  p { margin: 0 0 10px 0; }
+                                  br { line-height: 1.6; }
+                                  div { margin: 0 0 10px 0; }
+                                  strong, b { font-weight: bold; }
+                                  em, i { font-style: italic; }
+                                  ul, ol { margin: 10px 0; padding-left: 20px; }
+                                  li { margin: 5px 0; }
+                                  blockquote { margin: 10px 0; padding: 10px; border-left: 3px solid #ccc; background: #f9f9f9; }
+                                  a { color: #0066cc; text-decoration: underline; }
+                                  img { max-width: 100%; height: auto; display: block; margin: 10px 0; }
+                                  table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+                                  td, th { padding: 8px; border: 1px solid #ddd; }
+                                </style>
+                                ${extractHtmlContent(reply.content)}
+                              `
+                            }}
+                          />
+                          {reply.aiSummary && (
+                            <div style={{ 
+                              marginTop: 16, 
+                              padding: 12, 
+                              backgroundColor: "var(--gray-50)", 
+                              borderRadius: "var(--radius)",
+                              borderLeft: "3px solid #007bff"
+                            }}>
+                              <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", marginBottom: 4 }}>
+                                Podsumowanie AI:
+                              </div>
+                              <div style={{ fontSize: "13px", color: "var(--gray-700)" }}>
+                                {reply.aiSummary}
+                              </div>
+                            </div>
+                          )}
+                          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                            <Link 
+                              href={`/archive`} 
+                              style={{ fontSize: "12px", color: "#0066cc", textDecoration: "none" }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Zobacz w archiwum →
+                            </Link>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <p style={{ margin: 0, fontSize: "14px", color: "var(--gray-700)" }}>
-                      {reply.aiSummary || "Brak podsumowania"}
-                    </p>
-                    <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
-                      <span style={{
-                        padding: "2px 8px",
-                        backgroundColor: reply.classification === "INTERESTED" ? "#28a745" : 
-                                       reply.classification === "UNSUBSCRIBE" ? "#dc3545" :
-                                       reply.classification === "OOO" ? "#ffc107" : "#007bff",
-                        color: "white",
-                        borderRadius: 12,
-                        fontSize: "11px"
-                      }}>
-                        {reply.classification}
-                      </span>
-                      <Link href={`/archive`} style={{ fontSize: "12px", color: "#0066cc" }}>
-                        Zobacz w archiwum →
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

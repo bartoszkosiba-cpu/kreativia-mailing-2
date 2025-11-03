@@ -409,14 +409,16 @@ export class EmailAgentAI {
       case 'FORWARD':
         // TODO: Implementuj przekazywanie do handlowca
         console.log(`[EMAIL AGENT AI] FORWARD: Przekazuję lead ${reply.lead.id} do handlowca`);
+        // ✅ INTERESTED zawsze aktualizuje status leada (z reaktywacją jeśli był zablokowany)
+        await this.updateLeadStatus(reply.lead.id, analysis.leadStatus, analysis.leadSubStatus, reply.campaignId, analysis.shouldBlockCampaigns);
         break;
 
       case 'BLOCK':
-        await this.updateLeadStatus(reply.lead.id, analysis.leadStatus, analysis.leadSubStatus);
+        await this.updateLeadStatus(reply.lead.id, analysis.leadStatus, analysis.leadSubStatus, reply.campaignId, analysis.shouldBlockCampaigns);
         break;
 
       case 'UNSUBSCRIBE':
-        await this.updateLeadStatus(reply.lead.id, analysis.leadStatus, analysis.leadSubStatus);
+        await this.updateLeadStatus(reply.lead.id, analysis.leadStatus, analysis.leadSubStatus, reply.campaignId, analysis.shouldBlockCampaigns);
         break;
 
       case 'ADD_LEAD':
@@ -427,7 +429,7 @@ export class EmailAgentAI {
 
       case 'AUTO_FOLLOWUP':
         // AUTO_FOLLOWUP jest obsługiwany przez cron job
-        await this.updateLeadStatus(reply.lead.id, analysis.leadStatus, analysis.leadSubStatus);
+        await this.updateLeadStatus(reply.lead.id, analysis.leadStatus, analysis.leadSubStatus, reply.campaignId, analysis.shouldBlockCampaigns);
         console.log(`[EMAIL AGENT AI] AUTO_FOLLOWUP: Lead ${reply.lead.id} będzie obsłużony przez cron job`);
         break;
 
@@ -461,23 +463,87 @@ export class EmailAgentAI {
   }
 
   /**
-   * Aktualizuje status leada
+   * Aktualizuje status leada (z logiką reaktywacji)
    */
   private static async updateLeadStatus(
     leadId: number, 
     status: LeadStatus, 
-    subStatus?: LeadSubStatus
+    subStatus?: LeadSubStatus,
+    campaignId?: number | null,
+    shouldBlockCampaigns?: number[] // ✅ NOWY: Kampanie do zablokowania
   ): Promise<void> {
+    // Sprawdź obecny status leada
+    const lead = await db.lead.findUnique({
+      where: { id: leadId },
+      select: { status: true, isBlocked: true, blockedReason: true, blockedCampaigns: true }
+    });
+
+    const wasBlocked = lead?.isBlocked || lead?.status === 'BLOCKED' || lead?.status === 'BLOKADA';
+    const isInterested = status === 'ZAINTERESOWANY';
+
+    // Jeśli lead był zablokowany i teraz jest INTERESTED - to REAKTYWACJA
+    const isReactivation = wasBlocked && isInterested;
+
+    // ✅ POŁĄCZ blockedCampaigns (nowe + istniejące, bez duplikatów)
+    let blockedCampaignsArray: number[] = [];
+    if (lead?.blockedCampaigns) {
+      try {
+        blockedCampaignsArray = JSON.parse(lead.blockedCampaigns);
+      } catch (e) {
+        console.warn(`[EMAIL AGENT AI] Błąd parsowania blockedCampaigns dla lead ${leadId}:`, e);
+        blockedCampaignsArray = [];
+      }
+    }
+    
+    if (shouldBlockCampaigns && shouldBlockCampaigns.length > 0) {
+      blockedCampaignsArray = [...new Set([...blockedCampaignsArray, ...shouldBlockCampaigns])];
+    }
+
     await db.lead.update({
       where: { id: leadId },
       data: {
         status,
         subStatus,
+        blockedCampaigns: blockedCampaignsArray.length > 0 
+          ? JSON.stringify(blockedCampaignsArray) 
+          : null, // ✅ ZAPISZ blockedCampaigns
+        isBlocked: false, // Odblokuj jeśli był zablokowany
+        blockedReason: isReactivation ? null : undefined, // Wyczyść powód blokady przy reaktywacji
+        blockedAt: isReactivation ? null : undefined, // Wyczyść datę blokady przy reaktywacji
+        reactivatedAt: isReactivation ? new Date() : undefined, // Zapisz datę reaktywacji
+        lastReactivation: isReactivation ? (lead?.status || 'BLOCKED') : undefined, // Z jakiego statusu był reaktywowany
         updatedAt: new Date()
       }
     });
 
-    console.log(`[EMAIL AGENT AI] Zaktualizowano status lead ${leadId}: ${status}/${subStatus}`);
+    // ✅ REAKTYWACJA: Jeśli lead był zablokowany i teraz jest INTERESTED, dodaj go z powrotem do kampanii
+    if (isReactivation && campaignId) {
+      // Sprawdź czy lead już nie jest w kampanii
+      const existingCampaignLead = await db.campaignLead.findFirst({
+        where: {
+          leadId: leadId,
+          campaignId: campaignId
+        }
+      });
+
+      if (!existingCampaignLead) {
+        // Dodaj leada z powrotem do kampanii
+        await db.campaignLead.create({
+          data: {
+            leadId: leadId,
+            campaignId: campaignId,
+            status: 'queued' // Dodaj jako gotowy do wysyłki jeśli kampania jest aktywna
+          }
+        });
+        console.log(`[EMAIL AGENT AI] ✅ Dodano reaktywowanego lead ${leadId} z powrotem do kampanii ${campaignId}`);
+      }
+    }
+
+    if (isReactivation) {
+      console.log(`[EMAIL AGENT AI] ✅ REAKTYWACJA lead ${leadId}: ${lead?.status} → ${status}/${subStatus}`);
+    } else {
+      console.log(`[EMAIL AGENT AI] Zaktualizowano status lead ${leadId}: ${status}/${subStatus}`);
+    }
   }
 
   /**

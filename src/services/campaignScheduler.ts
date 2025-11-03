@@ -160,13 +160,9 @@ export async function getNextScheduledCampaign() {
         },
         {
           status: "IN_PROGRESS" // Kampanie wznowione (np. dla OOO leadów)
-        },
-        {
-          status: "PAUSED",
-          scheduledAt: {
-            lte: now  // Kampania PAUSED może być wznowiona jeśli scheduledAt w przeszłości
-          }
         }
+        // ❌ USUNIĘTO: PAUSED kampanie NIE SĄ automatycznie wznowione przez cron
+        // Kampania PAUSED może być wznowiona TYLKO ręcznie przez użytkownika (POST /api/campaigns/[id]/start)
       ]
     },
     orderBy: [
@@ -187,22 +183,9 @@ export async function getNextScheduledCampaign() {
           smtpPass: true,
           smtpSecure: true
         }
-      },
-      CampaignLead: {
-        where: {
-          lead: {
-            status: {
-              not: "BLOCKED" // Pomijaj zablokowane leady
-            }
-          }
-        },
-        include: {
-          lead: true
-        },
-        orderBy: {
-          priority: "asc" // Wysoki priorytet (1) najpierw!
-        }
       }
+      // ❌ USUNIĘTO: CampaignLead - nie jest potrzebny tutaj, bo w processScheduledCampaign jest osobne zapytanie
+      // Ładowanie wszystkich leadów (578+) spowalnia zapytanie i blokuje cron
     }
   });
 }

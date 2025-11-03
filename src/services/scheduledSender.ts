@@ -3,7 +3,25 @@ import { db } from "@/lib/db";
 import { sendCampaignEmail } from "@/integrations/smtp/client";
 import { getNextScheduledCampaign, isValidSendTime } from "./campaignScheduler";
 import { getRemainingDailyLimit, incrementSentCounter, recalculateQueueForSalesperson } from "./queueManager";
+
 import { getNextAvailableMailbox, incrementMailboxCounter } from "./mailboxManager";
+
+/**
+ * Zwraca domyślne powitanie w danym języku (gdy brak imienia lub błąd AI)
+ */
+function getDefaultGreetingForLanguage(language: string): string {
+  switch (language.toLowerCase()) {
+    case 'de':
+      return 'Guten Tag';
+    case 'en':
+      return 'Hello';
+    case 'fr':
+      return 'Bonjour';
+    case 'pl':
+    default:
+      return 'Dzień dobry';
+  }
+}
 
 /**
  * Prosta funkcja hash dla deterministycznego wyboru wariantu
@@ -94,12 +112,54 @@ async function sendSingleEmail(
     
     console.log(`[SENDER] Wariant ${variant} dla leada ${lead.id} (kampania ${campaign.id})`);
     
-    // Użyj greetingForm z bazy danych lub fallback na campaign.text
-    let content = campaignFields.text || "";
+    // ✅ SPRAWDŹ JĘZYK KAMPANII vs JĘZYK LEADA
+    const campaignLanguage = campaign.virtualSalesperson?.language || 'pl';
+    const leadLanguage = lead.language || 'pl';
+    const languageMismatch = campaignLanguage !== leadLanguage;
     
-    if (lead.greetingForm && campaignFields.text) {
-      // Użyj istniejącej odmiany z bazy danych
-      content = lead.greetingForm + "\n\n" + campaignFields.text;
+    let greetingForm: string | null = null;
+    
+    if (languageMismatch) {
+      // ✅ RÓŻNE JĘZYKI: Wygeneruj powitanie w języku kampanii
+      console.log(`[SENDER] ⚠️ Konflikt języków: lead=${leadLanguage}, kampania=${campaignLanguage} - generuję powitanie w języku kampanii`);
+      
+      if (lead.firstName) {
+        try {
+          const { chatgptService } = await import('@/services/chatgptService');
+          const results = await chatgptService.batchProcessNames(
+            [lead.firstName],
+            [lead.lastName || ''],
+            [campaignLanguage] // ✅ Użyj języka kampanii, nie leada
+          );
+          
+          if (results && results.length > 0 && results[0]?.greetingForm) {
+            greetingForm = results[0].greetingForm;
+            console.log(`[SENDER] ✅ Wygenerowano powitanie w języku kampanii (${campaignLanguage}): "${greetingForm}"`);
+          }
+        } catch (error: any) {
+          console.error(`[SENDER] ❌ Błąd generowania powitania w języku kampanii:`, error.message);
+          // Fallback - użyj domyślnego powitania w języku kampanii
+          greetingForm = getDefaultGreetingForLanguage(campaignLanguage);
+        }
+      } else {
+        // Brak imienia - użyj domyślnego powitania
+        greetingForm = getDefaultGreetingForLanguage(campaignLanguage);
+      }
+    } else {
+      // ✅ TAKI SAM JĘZYK: Użyj istniejącego powitania z bazy
+      greetingForm = lead.greetingForm;
+      if (greetingForm) {
+        console.log(`[SENDER] Używam powitania z bazy: "${greetingForm}" (język: ${leadLanguage})`);
+      }
+    }
+    
+    // Składaj treść emaila
+    let content = campaignFields.text || "";
+    if (greetingForm && campaignFields.text) {
+      content = greetingForm + "\n\n" + campaignFields.text;
+    } else if (!greetingForm && campaignFields.text) {
+      // Fallback jeśli nie ma powitania
+      console.warn(`[SENDER] ⚠️ Brak powitania dla lead ${lead.id} - wysyłam bez powitania`);
     }
 
     // Pobierz dostępną skrzynkę mailową (round-robin)
@@ -166,9 +226,9 @@ async function sendSingleEmail(
         }
       });
     } catch (error: any) {
-      // Jeśli już istnieje (duplikat przez race condition) - loguj i kontynuuj
+      // ✅ Unique constraint zapobiegł duplikatowi na poziomie bazy danych
       if (error.code === 'P2002') {
-        console.log(`[SENDER] ⚠️  Duplikat wysyłki do ${lead.email} - już zapisany, pomijam`);
+        console.log(`[SENDER] ⚠️  Duplikat wysyłki do ${lead.email} wykryty przez unique constraint - mail już zapisany przez inny proces, pomijam`);
         return { success: true, messageId: result.messageId };
       }
       throw error; // Rzucamy dalej inne błędy
@@ -201,22 +261,77 @@ async function sendSingleEmail(
  * Przetwarza zaplanowaną kampanię i wysyła maile z uwzględnieniem harmonogramu
  */
 export async function processScheduledCampaign(): Promise<void> {
-  console.log('[SCHEDULED SENDER] Sprawdzam zaplanowane kampanie...');
+  const processStartTime = new Date();
+  console.log(`[SCHEDULED SENDER] ⏰ Rozpoczynam processScheduledCampaign (${processStartTime.toISOString()})`);
   
+  const queryStartTime = Date.now();
   const campaign = await getNextScheduledCampaign();
+  const queryDuration = Date.now() - queryStartTime;
+  
+  if (queryDuration > 1000) {
+    console.log(`[SCHEDULED SENDER] ⚠️ getNextScheduledCampaign trwało ${queryDuration}ms (dłużej niż 1s)`);
+  }
   
   if (!campaign) {
     console.log('[SCHEDULED SENDER] Brak zaplanowanych kampanii');
     return;
   }
   
+  console.log(`[SCHEDULED SENDER] ✅ Znaleziono kampanię: ${campaign.name} (ID: ${campaign.id}, status: ${campaign.status})`);
+  
+  // ✅ SPRAWDŹ CZY KAMPANIA NIE JEST PAUSED/CANCELLED (PRZED ROZPOCZĘCIEM)
+  if (campaign.status === "PAUSED" || campaign.status === "CANCELLED") {
+    console.log(`[SCHEDULED SENDER] ⏸️  Kampania ${campaign.name} jest ${campaign.status} - pomijam`);
+    
+    // Przywróć wszystkie leady ze statusem "sending" do "queued" (recovery po crash)
+    await db.campaignLead.updateMany({
+      where: {
+        campaignId: campaign.id,
+        status: "sending"
+      },
+      data: {
+        status: "queued"
+      }
+    });
+    
+    return;
+  }
+  
   console.log(`[SCHEDULED SENDER] Znaleziono kampanię: ${campaign.name} (ID: ${campaign.id})`);
+  
+  // ✅ ODŚWIEŻ USTAWIENIA KAMPANII Z BAZY (aby mieć aktualne wartości po zmianach)
+  const freshCampaign = await db.campaign.findUnique({
+    where: { id: campaign.id },
+    select: {
+      startHour: true,
+      startMinute: true,
+      endHour: true,
+      endMinute: true,
+      allowedDays: true,
+      targetCountries: true,
+      respectHolidays: true
+    }
+  });
+  
+  if (!freshCampaign) {
+    console.log(`[SCHEDULED SENDER] ⚠️ Kampania ${campaign.id} nie istnieje w bazie`);
+    return;
+  }
+  
+  // Aktualizuj obiekt kampanii najnowszymi wartościami
+  campaign.startHour = freshCampaign.startHour;
+  campaign.startMinute = freshCampaign.startMinute ?? 0;
+  campaign.endHour = freshCampaign.endHour;
+  campaign.endMinute = freshCampaign.endMinute ?? 0;
+  campaign.allowedDays = freshCampaign.allowedDays;
+  campaign.targetCountries = freshCampaign.targetCountries;
+  campaign.respectHolidays = freshCampaign.respectHolidays;
   
   // Parsuj ustawienia
   const allowedDays = campaign.allowedDays.split(',');
   const targetCountries = campaign.targetCountries ? campaign.targetCountries.split(',') : [];
   
-  // Sprawdź czy teraz jest dobry moment na wysyłkę
+  // Sprawdź czy teraz jest dobry moment na wysyłkę (używając ODŚWIEŻONYCH wartości)
   const now = new Date();
   const validation = await isValidSendTime(
     now,
@@ -270,68 +385,71 @@ export async function processScheduledCampaign(): Promise<void> {
   
   console.log(`[SCHEDULED SENDER] ✓ Rozpoczynam wysyłkę kampanii ${campaign.name}`);
   
-  // SPRAWDŹ CZY SĄ DOSTĘPNE SKRZYNKI (PRZED ROZPOCZĘCIEM)
-  if (campaign.virtualSalespersonId) {
-    const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId);
-    if (!availableMailbox) {
-      console.log('[SCHEDULED SENDER] ⛔ BRAK DOSTĘPNYCH SKRZYNKEK - zatrzymuję kampanię');
-      
-      await db.campaign.update({
-        where: { id: campaign.id },
-        data: { 
-          status: "SCHEDULED",
-          description: (campaign.description || "") + "\n\n[Automatyczne zatrzymanie " + new Date().toISOString() + "] Brak dostępnych skrzynek - kampania zostanie wznowiona jutro."
+  // ✅ USUNIĘTO SPRAWDZANIE SKRZYNKI NA POCZĄTKU - sprawdzamy dopiero gdy jest lead do wysłania
+  // To pozwala kampanii działać nawet jeśli tymczasowo brakuje skrzynek (może się zwolnić w ciągu minuty)
+  
+  // ✅ NOWE: Przygotuj statusy do przetworzenia (dla nowych kampanii)
+  if (!isContinuingCampaign) {
+    // Dla kampanii SCHEDULED (nowo startująca): zmień "planned" na "queued", "sending" na "queued"
+    await db.campaignLead.updateMany({
+      where: {
+        campaignId: campaign.id,
+        status: { in: ["planned", "sending"] },
+        lead: {
+          status: { not: "BLOCKED" },
+          isBlocked: false
         }
-      });
-      
-      return; // Zatrzymaj kampanię natychmiast
-    }
-    console.log(`[SCHEDULED SENDER] ✓ Dostępna skrzynka: ${availableMailbox.email} (limit: ${availableMailbox.remainingToday})`);
+      },
+      data: { status: "queued" }
+    });
   }
   
-  // Pobierz leady z statusem "queued" (tylko te w kolejce do wysyłki)
-  // Dla kampanii IN_PROGRESS przetwarzaj tylko leady "queued" (nowo dodani)
-  // Dla kampanii SCHEDULED przetwarzaj wszystkie (zmień "planned" na "queued" przed wysyłką)
-  let leadsWithStatus: Array<{ lead: any; campaignLead: any }> = [];
-  
-  for (const cl of campaign.CampaignLead) {
-    if (!cl.lead || cl.lead.status === "BLOCKED" || cl.lead.isBlocked) {
-      continue;
+  // ✅ ATOMOWE POBRANIE I LOCK: Znajdź JEDEN lead i od razu zmień na "sending"
+  // To zapobiega race condition - tylko jeden proces może zająć leada
+  // Używamy bezpośredniego zapytania do bazy zamiast relacji campaign.CampaignLead
+  const atomicLead = await db.campaignLead.findFirst({
+    where: {
+      campaignId: campaign.id,
+      status: "queued",
+      lead: {
+        status: { not: "BLOCKED" },
+        isBlocked: false
+      }
+    },
+    include: {
+      lead: true
+    },
+    orderBy: {
+      createdAt: "asc" // Najstarszy pierwszy
     }
-    
-    // Dla kampanii IN_PROGRESS (kontynuacja) - tylko "queued"
-    if (isContinuingCampaign) {
-      if (cl.status === "queued") {
-        leadsWithStatus.push({ lead: cl.lead, campaignLead: cl });
-      }
-    } else {
-      // Dla kampanii SCHEDULED (nowo startująca) - wszystkie leady
-      // Zmień "planned" na "queued" jeśli jeszcze nie (dla następnego cyklu)
-      let currentStatus = cl.status;
-      if (cl.status === "planned") {
-        await db.campaignLead.update({
-          where: { id: cl.id },
-          data: { status: "queued" }
-        });
-        currentStatus = "queued"; // Zaktualizuj lokalnie
-        console.log(`[SCHEDULED SENDER] 🔄 Zmieniono status CampaignLead ${cl.id} z "planned" na "queued"`);
-      }
-      
-      if (currentStatus === "queued") {
-        leadsWithStatus.push({ lead: cl.lead, campaignLead: cl });
-      }
-    }
-  }
-  
-  // Zachowaj mapowanie lead -> CampaignLead dla aktualizacji statusu
-  const leadToCampaignLeadMap = new Map<number, any>();
-  leadsWithStatus.forEach(item => {
-    leadToCampaignLeadMap.set(item.lead.id, item.campaignLead);
   });
   
-  const leads = leadsWithStatus.map(item => item.lead);
+  if (!atomicLead || !atomicLead.lead) {
+    console.log(`[SCHEDULED SENDER] ❌ Brak leadów do wysłania (campaignId: ${campaign.id})`);
+    return;
+  }
   
-  console.log(`[SCHEDULED SENDER] Leadów do wysłania: ${leads.length} ${isContinuingCampaign ? "(kontynuacja kampanii IN_PROGRESS)" : "(nowo startująca kampania)"}`);
+  console.log(`[SCHEDULED SENDER] 📧 Znalazłem leada do wysłania: ${atomicLead.lead.email} (leadId: ${atomicLead.lead.id}, campaignLeadId: ${atomicLead.id})`);
+  
+  // ✅ ATOMOWA BLOKADA: Zmień status na "sending" (tylko jeden proces może to zrobić)
+  const atomicUpdate = await db.campaignLead.updateMany({
+    where: {
+      id: atomicLead.id,
+      status: "queued" // Tylko jeśli nadal jest "queued"
+    },
+    data: {
+      status: "sending"
+    }
+  });
+  
+  if (atomicUpdate.count === 0) {
+    // Inny proces już zajął tego leada - koniec (tylko 1 mail na wywołanie cron)
+    console.log(`[SCHEDULED SENDER] ⚠️  Lead ${atomicLead.lead.email} został już zajęty przez inny proces`);
+    return;
+  }
+  
+  const lead = atomicLead.lead;
+  const campaignLead = atomicLead;
   
   // Pobierz ustawienia firmy
   const companySettings = await db.companySettings.findFirst();
@@ -339,252 +457,232 @@ export async function processScheduledCampaign(): Promise<void> {
   let successCount = 0;
   let errorCount = 0;
   let skippedCount = 0;
-  let consecutiveNoMailboxErrors = 0; // Licznik kolejnych błędów "brak skrzynek"
+  let consecutiveNoMailboxErrors = 0;
   
-  for (let i = 0; i < leads.length; i++) {
-    const lead = leads[i];
-    const campaignLead = leadToCampaignLeadMap.get(lead.id);
-    
-    // Sprawdź limit dzienny kampanii (PIERWSZY FILTR)
-    if (successCount >= campaign.maxEmailsPerDay) {
-      console.log(`[SCHEDULED SENDER] ⛔ Osiągnięto dzienny limit kampanii (${campaign.maxEmailsPerDay} maili). Zatrzymuję.`);
-      
-      await db.campaign.update({
-        where: { id: campaign.id },
-        data: { 
-          status: "SCHEDULED",
-          description: (campaign.description || "") + `\n\n[Automatyczne zatrzymanie ${new Date().toISOString()}] Osiągnięto dzienny limit kampanii - wysłano ${successCount}/${campaign.maxEmailsPerDay} maili. Kampania zostanie wznowiona jutro.`
-        }
-      });
-      
-      skippedCount = leads.length - i;
-      break;
+  // ✅ Sprawdź SendLog PRZED wysyłką (dodatkowa ochrona)
+  const alreadySentCheck = await db.sendLog.findFirst({
+    where: {
+      campaignId: campaign.id,
+      leadId: lead.id,
+      status: "sent"
     }
-    
-    // ✅ Sprawdź czy kampania nie została zatrzymana (PAUSED/CANCELLED) - co 5 maili
-    if (i % 5 === 0) {
-      const currentCampaign = await db.campaign.findUnique({
-        where: { id: campaign.id },
-        select: { status: true }
-      });
-      
-      if (currentCampaign?.status !== "IN_PROGRESS") {
-        console.log(`[SCHEDULED SENDER] ⏸️  Kampania zatrzymana (status: ${currentCampaign?.status}) - przerwanie`);
-        skippedCount = leads.length - i;
-        break;
-      }
+  });
+
+  if (alreadySentCheck) {
+    // Mail już wysłany - oznacz CampaignLead jako "sent" i zakończ
+    await db.campaignLead.update({
+      where: { id: campaignLead.id },
+      data: { status: "sent" }
+    });
+    console.log(`[SCHEDULED SENDER] ⚠️  Pomijam ${lead.email} - mail już wysłany (wykryty przed wysyłką, wysłany o ${alreadySentCheck.createdAt.toISOString()})`);
+    return;
+  }
+  
+  // ✅ Sprawdź limit dzienny kampanii (używając polskiego czasu)
+  const { getStartOfTodayPL } = await import('@/utils/polishTime');
+  const startOfTodayPL = getStartOfTodayPL();
+  
+  const sentTodayCount = await db.sendLog.count({
+    where: {
+      campaignId: campaign.id,
+      status: 'sent',
+      createdAt: { gte: startOfTodayPL }
     }
+  });
+  
+  if (sentTodayCount >= campaign.maxEmailsPerDay) {
+    console.log(`[SCHEDULED SENDER] ⛔ Osiągnięto dzienny limit kampanii (${campaign.maxEmailsPerDay} maili). Zatrzymuję.`);
     
-    // Sprawdź czy mail już został wysłany (zapobieganie duplikatom)
-    const alreadySent = await db.sendLog.findFirst({
-      where: {
-        campaignId: campaign.id,
-        leadId: lead.id,
-        status: "sent"
+    await db.campaign.update({
+      where: { id: campaign.id },
+      data: { 
+        status: "SCHEDULED",
+        description: (campaign.description || "") + `\n\n[Automatyczne zatrzymanie ${new Date().toISOString()}] Osiągnięto dzienny limit kampanii - wysłano ${sentTodayCount}/${campaign.maxEmailsPerDay} maili. Kampania zostanie wznowiona jutro.`
       }
     });
-
-    if (alreadySent) {
-      console.log(`[SCHEDULED SENDER] Pomijam ${lead.email} - mail już wysłany`);
-      continue;
+    
+    // Przywróć lead do queued
+    await db.campaignLead.update({
+      where: { id: campaignLead.id },
+      data: { status: "queued" }
+    });
+    return;
+  }
+  
+  // ✅ Odśwież ustawienia kampanii (na wypadek zmiany w trakcie)
+  const currentCampaign = await db.campaign.findUnique({
+    where: { id: campaign.id },
+    select: { 
+      status: true,
+      endHour: true,
+      endMinute: true,
+      startHour: true,
+      startMinute: true,
+      delayBetweenEmails: true
     }
+  });
+  
+  if (currentCampaign?.status !== "IN_PROGRESS") {
+    console.log(`[SCHEDULED SENDER] ⏸️  Kampania zatrzymana (status: ${currentCampaign?.status}) - przywracam lead do queued`);
+    await db.campaignLead.update({
+      where: { id: campaignLead.id },
+      data: { status: "queued" }
+    });
+    return;
+  }
+  
+  // Odśwież ustawienia
+  if (currentCampaign) {
+    campaign.endHour = currentCampaign.endHour;
+    campaign.endMinute = currentCampaign.endMinute;
+    campaign.startHour = currentCampaign.startHour;
+    campaign.startMinute = currentCampaign.startMinute;
+    campaign.delayBetweenEmails = currentCampaign.delayBetweenEmails;
+  }
     
-    // Sprawdź limit dzienny handlowca
-    if (campaign.virtualSalesperson) {
-      const remaining = await getRemainingDailyLimit(campaign.virtualSalesperson.id);
+  // Sprawdź limit dzienny handlowca
+  if (campaign.virtualSalesperson) {
+    const remaining = await getRemainingDailyLimit(campaign.virtualSalesperson.id);
+    
+    if (remaining <= 0) {
+      console.log(`[SCHEDULED SENDER] Osiągnięto dzienny limit dla handlowca. Pauza do jutra.`);
       
-      if (remaining <= 0) {
-        console.log(`[SCHEDULED SENDER] Osiągnięto dzienny limit dla handlowca. Pauza do jutra.`);
-        
-        // Oznacz kampanię jako SCHEDULED - wznowi się jutro
-        await db.campaign.update({
-          where: { id: campaign.id },
-          data: { status: "SCHEDULED" }
-        });
-        
-        skippedCount = leads.length - i;
-        break;
-      }
-    }
-    
-    // Sprawdź czy nadal jesteśmy w oknie czasowym
-    const checkTime = new Date();
-    const timeCheck = await isValidSendTime(
-      checkTime,
-      allowedDays,
-      campaign.startHour,
-      campaign.startMinute ?? 0,
-      campaign.endHour,
-      campaign.endMinute ?? 0,
-      campaign.respectHolidays,
-      targetCountries
-    );
-    
-    if (!timeCheck.isValid) {
-      console.log(`[SCHEDULED SENDER] Koniec okna czasowego. Pauza wysyłki.`);
-      
-      // Oznacz kampanię jako SCHEDULED - wznowi się następnego dnia
       await db.campaign.update({
         where: { id: campaign.id },
         data: { status: "SCHEDULED" }
       });
       
-      skippedCount = leads.length - i;
-      break;
-    }
-    
-    // Sprawdź czy są dostępne skrzynki (przed wysłaniem)
-    if (campaign.virtualSalespersonId) {
-      const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId);
-      if (!availableMailbox) {
-        console.log(`[SCHEDULED SENDER] Osiągnięto dzienny limit wszystkich skrzynek. Zatrzymuję kampanię.`);
-        
-        // Oznacz kampanię jako SCHEDULED - wznowi się jutro
-        await db.campaign.update({
-          where: { id: campaign.id },
-          data: { 
-            status: "SCHEDULED",
-            description: (campaign.description || "") + "\n\n[Automatyczne zatrzymanie " + new Date().toISOString() + "] Osiągnięto dzienny limit - wysłano " + successCount + " maili. Kampania zostanie wznowiona jutro."
-          }
-        });
-        
-        skippedCount = leads.length - i;
-        break;
-      }
-    }
-    
-    // Wyślij mail
-    const result = await sendSingleEmail(campaign, lead, companySettings, i);
-    
-    if (result.success) {
-      successCount++;
-      consecutiveNoMailboxErrors = 0; // Reset licznika przy udanym wysłaniu
-      
-      // Inkrementuj licznik handlowca
-      if (campaign.virtualSalesperson) {
-        await incrementSentCounter(campaign.virtualSalesperson.id, 1);
-      }
-      
-      // ✅ Zaktualizuj status CampaignLead na "sent"
-      if (campaignLead) {
-        await db.campaignLead.update({
-          where: { id: campaignLead.id },
-          data: {
-            status: "sent",
-            sentAt: new Date()
-          }
-        });
-      }
-      
-      console.log(`[SCHEDULED SENDER] ✓ Wysłano ${i + 1}/${leads.length} do ${lead.email}`);
-    } else {
-      errorCount++;
-      console.log(`[SCHEDULED SENDER] ✗ Błąd ${i + 1}/${leads.length} do ${lead.email}`);
-      
-      // Sprawdź czy to błąd braku skrzynek
-      if (result.error?.includes("Brak dostępnych skrzynek")) {
-        consecutiveNoMailboxErrors++;
-        console.log(`[SCHEDULED SENDER] ⚠️  Brak skrzynek (${consecutiveNoMailboxErrors}/3 z rzędu)`);
-        
-        // Jeśli 3 błędy z rzędu - zatrzymaj kampanię
-        if (consecutiveNoMailboxErrors >= 3) {
-          console.log(`[SCHEDULED SENDER] ⏸️  Zatrzymanie kampanii - brak dostępnych skrzynek (3x z rzędu)`);
-          
-          await db.campaign.update({
-            where: { id: campaign.id },
-            data: { 
-              status: "SCHEDULED",
-              description: (campaign.description || "") + "\n\n[Automatyczne zatrzymanie] Brak dostępnych skrzynek - kampania zostanie wznowiona jutro."
-            }
-          });
-          
-          skippedCount = leads.length - i;
-          break;
-        }
-      } else {
-        consecutiveNoMailboxErrors = 0; // Reset dla innych błędów
-      }
-    }
-    
-    // Opóźnienie między mailami (dynamiczne rozkładanie w oknie czasowym)
-    if (i < leads.length - 1) {
-      const now = new Date();
-      
-      // Oblicz koniec okna z marginesem 1h bezpieczeństwa
-      const endWindow = new Date(now);
-      endWindow.setHours(campaign.endHour, campaign.endMinute ?? 0, 0);
-      endWindow.setMinutes(endWindow.getMinutes() - 60); // -1h margines
-      
-      const msRemaining = endWindow.getTime() - now.getTime();
-      
-      // Sprawdź czy zbliżamy się do limitów
-      const isApproachingDailyLimit = successCount >= campaign.maxEmailsPerDay - 10; // 10 maili przed limitem
-      const isApproachingTimeLimit = msRemaining <= 300000; // 5 minut do końca
-      
-      let actualDelay: number;
-      
-      if (msRemaining <= 0 || isApproachingTimeLimit) {
-        // Czas minął lub kończy się - użyj bazowego delay
-        const baseDelay = campaign.delayBetweenEmails;
-        const randomVariation = 0.2;
-        const minDelay = baseDelay * (1 - randomVariation);
-        const maxDelay = baseDelay * (1 + randomVariation);
-        actualDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
-        
-        console.log(`[SCHEDULED SENDER] ⏰ ${isApproachingTimeLimit ? 'Kończy się okno czasowe' : 'Okno wygasło'}. Delay: ${actualDelay}s (bazowy)`);
-      } else if (isApproachingDailyLimit) {
-        // Zbliżamy się do dziennego limitu - zwiększ delay
-        const baseDelay = campaign.delayBetweenEmails;
-        const randomVariation = 0.2;
-        const minDelay = baseDelay * 1.5 * (1 - randomVariation); // 1.5x bazowy
-        const maxDelay = baseDelay * 1.5 * (1 + randomVariation);
-        actualDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
-        
-        console.log(`[SCHEDULED SENDER] 📊 Zbliża się limit dzienny (${successCount}/${campaign.maxEmailsPerDay}). Delay: ${actualDelay}s`);
-      } else {
-        // Normalny tryb - dynamiczne rozkładanie
-        const remainingInLoop = leads.length - i - 1; // -1 bo obecny jest już wysłany w linii 296
-        const optimalDelay = Math.floor(msRemaining / Math.max(1, remainingInLoop));
-        
-        // ZAWSZE używaj co najmniej bazowego delay, ale maksymalnie 10x bazowy (żeby nie było zbyt długich opóźnień)
-        const finalOptimalDelay = Math.max(
-          campaign.delayBetweenEmails, 
-          Math.min(optimalDelay, campaign.delayBetweenEmails * 10)
-        );
-        
-        // Losowość ±20%
-        const randomVariation = 0.2;
-        const minDelay = finalOptimalDelay * (1 - randomVariation);
-        const maxDelay = finalOptimalDelay * (1 + randomVariation);
-        actualDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
-        
-        console.log(`[SCHEDULED SENDER] ⏱️  Delay: ${actualDelay}s (optymalny: ${optimalDelay}s → użyty: ${finalOptimalDelay}s, okno: ${Math.floor(msRemaining/1000/60)}min, pozostało: ${remainingInLoop} maili)`);
-      }
-      
-      if (actualDelay > 0) {
-        await new Promise(resolve => setTimeout(resolve, actualDelay * 1000));
-      }
+      // Przywróć lead do queued
+      await db.campaignLead.update({
+        where: { id: campaignLead.id },
+        data: { status: "queued" }
+      });
+      return;
     }
   }
+    
+  // Sprawdź czy nadal jesteśmy w oknie czasowym
+  const checkTime = new Date();
+  const timeCheck = await isValidSendTime(
+    checkTime,
+    allowedDays,
+    campaign.startHour,
+    campaign.startMinute ?? 0,
+    campaign.endHour,
+    campaign.endMinute ?? 0,
+    campaign.respectHolidays,
+    targetCountries
+  );
   
-  // Jeśli wszystko wysłano, oznacz jako COMPLETED
-  if (successCount + errorCount === leads.length) {
+  if (!timeCheck.isValid) {
+    console.log(`[SCHEDULED SENDER] Koniec okna czasowego. Pauza wysyłki.`);
+    
     await db.campaign.update({
       where: { id: campaign.id },
+      data: { status: "SCHEDULED" }
+    });
+    
+    // Przywróć lead do queued
+    await db.campaignLead.update({
+      where: { id: campaignLead.id },
+      data: { status: "queued" }
+    });
+    return;
+  }
+  
+  // Sprawdź czy są dostępne skrzynki
+  let availableMailbox = null;
+  if (campaign.virtualSalespersonId) {
+    availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId);
+    if (!availableMailbox) {
+      console.log(`[SCHEDULED SENDER] ⚠️ Osiągnięto dzienny limit wszystkich skrzynek. Przywracam lead do kolejki - spróbuję za minutę.`);
+      
+      // ✅ NIE ZATRZYMUJ KAMPANII - tylko przywróć lead do kolejki
+      // Kampania zostanie w IN_PROGRESS i cron spróbuje ponownie za minutę
+      // (może inna skrzynka się zwolni lub limit się zresetuje jutro)
+      await db.campaignLead.update({
+        where: { id: campaignLead.id },
+        data: { status: "queued" }
+      });
+      return;
+    }
+    console.log(`[SCHEDULED SENDER] ✓ Dostępna skrzynka: ${availableMailbox.email} (limit: ${availableMailbox.remainingToday})`);
+  }
+  
+  // ✅ PROSTA LOGIKA: Sprawdź czy minął delay od ostatniego maila
+  // Delay = delayBetweenEmails ± 20% (bez równomiernego rozkładu)
+  const lastSentLog = await db.sendLog.findFirst({
+    where: {
+      campaignId: campaign.id,
+      status: 'sent'
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+
+  if (lastSentLog) {
+    const lastSentTime = new Date(lastSentLog.createdAt);
+    // ✅ WAŻNE: Oblicz delay używając AKTUALNEGO czasu (nie checkTime z początku funkcji)
+    const nowForDelay = new Date();
+    const timeSinceLastMail = Math.floor((nowForDelay.getTime() - lastSentTime.getTime()) / 1000); // sekundy
+    
+    // ✅ PROSTY DELAY: Bazowy ± 20%
+    const baseDelay = campaign.delayBetweenEmails;
+    const randomVariation = 0.2;
+    const minRequiredDelay = Math.floor(baseDelay * (1 - randomVariation)); // 80% bazowego
+    
+    // ✅ DEBUG: Szczegółowe logowanie
+    console.log(`[SCHEDULED SENDER] 🕐 Sprawdzam delay: ostatni mail ${lastSentTime.toISOString()}, teraz ${nowForDelay.toISOString()}, minęło ${timeSinceLastMail}s, wymagane minimum ${minRequiredDelay}s (bazowy ${baseDelay}s)`);
+    
+    // Jeśli delay jeszcze nie minął - przywróć lead do queued i zakończ
+    if (timeSinceLastMail < minRequiredDelay) {
+      const remainingDelay = minRequiredDelay - timeSinceLastMail;
+      console.log(`[SCHEDULED SENDER] ⏳ Delay jeszcze nie minął (minęło: ${timeSinceLastMail}s, wymagane minimum: ${minRequiredDelay}s, bazowy: ${baseDelay}s, pozostało: ${remainingDelay}s). Następne wywołanie cron za ~1 minutę.`);
+      
+      // Przywróć lead do queued (zamiast zostawić w "sending")
+      await db.campaignLead.update({
+        where: { id: campaignLead.id },
+        data: { status: "queued" }
+      });
+      return;
+    }
+    
+    console.log(`[SCHEDULED SENDER] ⏱️  Delay minął (minęło: ${timeSinceLastMail}s, wymagane minimum: ${minRequiredDelay}s, bazowy: ${baseDelay}s) - kontynuuję wysyłkę`);
+  } else {
+    console.log(`[SCHEDULED SENDER] 📧 Brak poprzednich maili - wysyłam pierwszy mail z kampanii`);
+  }
+  
+  // Wyślij mail
+  const result = await sendSingleEmail(campaign, lead, companySettings, 0);
+  
+  if (result.success) {
+    // Inkrementuj licznik handlowca
+    if (campaign.virtualSalesperson) {
+      await incrementSentCounter(campaign.virtualSalesperson.id, 1);
+    }
+    
+    // ✅ Zaktualizuj status CampaignLead na "sent" (już był "sending" przez atomową blokadę)
+    await db.campaignLead.update({
+      where: { id: campaignLead.id },
       data: {
-        status: "COMPLETED",
-        sendingCompletedAt: new Date()
+        status: "sent",
+        sentAt: new Date()
       }
     });
     
-    console.log(`[SCHEDULED SENDER] 🎉 Kampania zakończona: ${successCount} sukces, ${errorCount} błędów`);
-    
-    // Przekalkuluj kolejkę handlowca - następna kampania może się rozpocząć
-    if (campaign.virtualSalesperson) {
-      await recalculateQueueForSalesperson(campaign.virtualSalesperson.id);
-    }
+    console.log(`[SCHEDULED SENDER] ✓ Wysłano mail do ${lead.email}`);
   } else {
-    console.log(`[SCHEDULED SENDER] ⏸️ Kampania wstrzymana: ${successCount} sukces, ${errorCount} błędów, ${skippedCount} pozostało`);
+    // Błąd wysyłki - przywróć lead do queued (umożliwia ponowną próbę)
+    await db.campaignLead.update({
+      where: { id: campaignLead.id },
+      data: { status: "queued" }
+    });
+    
+    console.log(`[SCHEDULED SENDER] ✗ Błąd wysyłki do ${lead.email}: ${result.error}`);
   }
+  
+  // ✅ Zakończono - tylko jeden lead na wywołanie cron
+  // Następne wywołanie cron wyśle kolejny lead (jeśli delay minął)
 }
 

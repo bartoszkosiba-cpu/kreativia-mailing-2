@@ -176,10 +176,15 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
           linkUrlB: campaign.linkUrlB || null
         }}
         autoReply={{
-          autoReplyEnabled: campaign.autoReplyEnabled === true || campaign.autoReplyEnabled === 1, // Jawna konwersja do boolean (uwzględnij też SQLite integer)
+          autoReplyEnabled: (campaign.autoReplyEnabled as any) === true || (campaign.autoReplyEnabled as any) === 1, // Jawna konwersja do boolean (uwzględnij też SQLite integer)
           autoReplyContext: campaign.autoReplyContext,
           autoReplyRules: campaign.autoReplyRules,
-          autoReplyDelayMinutes: campaign.autoReplyDelayMinutes || 15
+          autoReplyDelayMinutes: campaign.autoReplyDelayMinutes || 15,
+          autoReplyContent: campaign.autoReplyContent,
+          autoReplyGuardianTemplate: campaign.autoReplyGuardianTemplate,
+          autoReplyGuardianTitle: campaign.autoReplyGuardianTitle,
+          autoReplyIncludeGuardian: campaign.autoReplyIncludeGuardian || false, // ✅ NOWE
+          autoReplyGuardianIntroText: campaign.autoReplyGuardianIntroText || null // ✅ NOWE
         }}
       />
 

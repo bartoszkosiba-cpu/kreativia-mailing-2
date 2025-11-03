@@ -4,6 +4,23 @@ import { sendCampaignEmail } from "@/integrations/smtp/client";
 import { generatePersonalization } from "@/integrations/ai/client";
 import { getNextAvailableMailbox, incrementMailboxCounter } from "@/services/mailboxManager";
 
+/**
+ * Zwraca domyślne powitanie w danym języku (gdy brak imienia lub błąd AI)
+ */
+function getDefaultGreetingForLanguage(language: string): string {
+  switch (language.toLowerCase()) {
+    case 'de':
+      return 'Guten Tag';
+    case 'en':
+      return 'Hello';
+    case 'fr':
+      return 'Bonjour';
+    case 'pl':
+    default:
+      return 'Dzień dobry';
+  }
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const campaignId = Number(params.id);
@@ -279,25 +296,69 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           console.log(`[MAILBOX] Używam skrzynki: ${mailbox.email} (pozostało: ${mailbox.remainingToday})`);
         }
         
-        // Użyj greetingForm z bazy danych lub wygeneruj personalizację
-        let personalizedContent;
+        // ✅ SPRAWDŹ JĘZYK KAMPANII vs JĘZYK LEADA
+        const campaignLanguage = campaign.virtualSalesperson?.language || 'pl';
+        const leadLanguage = lead.language || 'pl';
+        const languageMismatch = campaignLanguage !== leadLanguage;
         
-        if (lead.greetingForm && campaign.text) {
-          // Użyj istniejącej odmiany z bazy danych
-          personalizedContent = lead.greetingForm + "\n\n" + campaign.text;
+        let greetingForm: string | null = null;
+        let personalizedContent: string;
+        
+        if (languageMismatch) {
+          // ✅ RÓŻNE JĘZYKI: Wygeneruj powitanie w języku kampanii
+          console.log(`[SEND] ⚠️ Konflikt języków: lead=${leadLanguage}, kampania=${campaignLanguage} - generuję powitanie w języku kampanii`);
+          
+          if (lead.firstName) {
+            try {
+              const { chatgptService } = await import('@/services/chatgptService');
+              const results = await chatgptService.batchProcessNames(
+                [lead.firstName],
+                [lead.lastName || ''],
+                [campaignLanguage] // ✅ Użyj języka kampanii, nie leada
+              );
+              
+              if (results && results.length > 0 && results[0]?.greetingForm) {
+                greetingForm = results[0].greetingForm;
+                console.log(`[SEND] ✅ Wygenerowano powitanie w języku kampanii (${campaignLanguage}): "${greetingForm}"`);
+              }
+            } catch (error: any) {
+              console.error(`[SEND] ❌ Błąd generowania powitania w języku kampanii:`, error.message);
+              // Fallback - użyj domyślnego powitania w języku kampanii
+              greetingForm = getDefaultGreetingForLanguage(campaignLanguage);
+            }
+          } else {
+            // Brak imienia - użyj domyślnego powitania
+            greetingForm = getDefaultGreetingForLanguage(campaignLanguage);
+          }
+          
+          // Składaj treść z wygenerowanym powitaniem
+          if (greetingForm && campaign.text) {
+            personalizedContent = greetingForm + "\n\n" + campaign.text;
+          } else if (campaign.text) {
+            personalizedContent = campaign.text;
+          } else {
+            personalizedContent = "";
+          }
         } else {
-          // Fallback - wygeneruj personalizację
-          personalizedContent = await generatePersonalization(
-            lead.firstName,
-            lead.lastName,
-            lead.company,
-            lead.industry,
-            lead.title,
-            lead.companyCity,
-            lead.companyCountry,
-            campaign.text,
-            lead.language || 'pl'
-          );
+          // ✅ TAKI SAM JĘZYK: Użyj istniejącego powitania z bazy
+          if (lead.greetingForm && campaign.text) {
+            personalizedContent = lead.greetingForm + "\n\n" + campaign.text;
+          } else if (campaign.text) {
+            // Fallback - wygeneruj personalizację w języku leada/kampanii
+            personalizedContent = await generatePersonalization(
+              lead.firstName,
+              lead.lastName,
+              lead.company,
+              lead.industry,
+              lead.title,
+              lead.companyCity,
+              lead.companyCountry,
+              campaign.text,
+              leadLanguage
+            );
+          } else {
+            personalizedContent = "";
+          }
         }
 
         // Wyślij mail - NOWE: Przekaż mailbox

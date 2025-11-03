@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import AIAgentButton from "../../../inbox/AIAgentButton";
 
 interface InboxReply {
   id: number;
@@ -163,26 +162,7 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
     }
   };
 
-  const getClassificationEmoji = (classification: string | null) => {
-    switch (classification) {
-      case "INTERESTED": return "✅";
-      case "NOT_INTERESTED": return "❌";
-      case "UNSUBSCRIBE": return "🚫";
-      case "OOO": return "🏖️";
-      case "REDIRECT": return "🔄";
-      case "BOUNCE": return "📧";
-      default: return "❓";
-    }
-  };
-
-  const getSentimentEmoji = (sentiment: string | null) => {
-    switch (sentiment) {
-      case "positive": return "😊";
-      case "negative": return "😠";
-      case "neutral": return "😐";
-      default: return "";
-    }
-  };
+  // Funkcje getClassificationEmoji i getSentimentEmoji zostały usunięte - nie używamy już emoji
 
   const handleFetchNewEmails = async () => {
     setIsFetching(true);
@@ -205,7 +185,7 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
   return (
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h1 style={{ margin: 0 }}>📥 Inbox kampanii: {campaignName}</h1>
+        <h1 style={{ margin: 0 }}>Inbox kampanii: {campaignName}</h1>
         <div style={{ display: "flex", gap: 12 }}>
           <Link
             href="/inbox"
@@ -331,16 +311,15 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: "1.5rem" }}>{getClassificationEmoji(reply.classification)}</span>
                   <div>
                     <strong style={{ fontSize: "1.1rem", color: getClassificationColor(reply.classification) }}>
-                      {reply.classification} {getSentimentEmoji(reply.sentiment)}
+                      {reply.classification}
                     </strong>
                     <div style={{ fontSize: "12px", color: "#666" }}>
                       Od: <strong>{reply.fromEmail}</strong> • Lead: {reply.lead?.firstName} {reply.lead?.lastName} ({reply.lead?.email}) • {reply.lead?.company}
                     </div>
                     <div style={{ fontSize: "12px", color: "#666" }}>
-                      📅 {new Date(reply.receivedAt).toLocaleString("pl-PL")}
+                      {new Date(reply.receivedAt).toLocaleString("pl-PL")}
                     </div>
                   </div>
                 </div>
@@ -362,7 +341,7 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
                   )}
                   {reply.newContactsAdded > 0 && (
                     <span style={{ padding: "4px 8px", backgroundColor: "#e9ecef", borderRadius: 4, fontSize: "12px", color: "#6c757d" }}>
-                      ➕ {reply.newContactsAdded} nowy kontakt
+                      {reply.newContactsAdded} nowy kontakt
                     </span>
                   )}
                 </div>
@@ -379,12 +358,12 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
                 }}>
                   {reply.aiSummary && (
                     <p style={{ margin: "0 0 4px 0", fontSize: "14px", color: "#343a40" }}>
-                      🤖 AI Podsumowanie: <strong>{reply.aiSummary}</strong>
+                      AI Podsumowanie: <strong>{reply.aiSummary}</strong>
                     </p>
                   )}
                   {reply.suggestedAction && (
                     <p style={{ margin: 0, fontSize: "14px", color: "#343a40" }}>
-                      💡 Sugerowana akcja: <em>{reply.suggestedAction}</em>
+                      Sugerowana akcja: <em>{reply.suggestedAction}</em>
                     </p>
                   )}
                 </div>
@@ -393,7 +372,7 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
               {/* Treść */}
               <details style={{ marginBottom: 12 }}>
                 <summary style={{ cursor: "pointer", fontWeight: "bold", marginBottom: 8 }}>
-                  📄 Temat: {reply.subject}
+                  Temat: {reply.subject}
                 </summary>
                 <div style={{
                   whiteSpace: "pre-wrap",
@@ -412,11 +391,6 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
 
               {/* Akcje */}
               <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
-                <AIAgentButton
-                  replyId={reply.id}
-                  onProcessed={fetchReplies}
-                />
-
                 {!reply.isHandled && (
                   <button
                     onClick={() => markAsHandled(reply.id)}
@@ -430,7 +404,7 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
                       fontSize: "12px"
                     }}
                   >
-                    ✅ Oznacz jako obsłużone
+                    Oznacz jako obsłużone
                   </button>
                 )}
 
@@ -446,7 +420,7 @@ export default function CampaignInboxPage({ params }: { params: { id: string } }
                     display: "inline-block"
                   }}
                 >
-                  👤 Zobacz kontakt
+                  Zobacz kontakt
                 </Link>
               </div>
             </div>

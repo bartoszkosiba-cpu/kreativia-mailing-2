@@ -11,10 +11,13 @@ import CampaignTextEditor from "./CampaignTextEditor";
 import FollowUpManager from "./FollowUpManager";
 import CampaignSender from "./CampaignSender";
 import CampaignOutbox from "./CampaignOutbox";
+import CampaignOutboxTabs from "./CampaignOutboxTabs";
 import DeleteCampaign from "./DeleteCampaign";
 import CampaignInboxPage from "./inbox/page";
 import AutoReplySettings from "./AutoReplySettings";
 import CampaignAutoRepliesHistory from "./CampaignAutoRepliesHistory";
+import CampaignMaterialDecisions from "./CampaignMaterialDecisions";
+import NextEmailTime from "./NextEmailTime";
 
 type LeadLite = {
   id: number;
@@ -68,6 +71,11 @@ interface AutoReplySettingsProps {
   autoReplyContext: string | null;
   autoReplyRules: string | null;
   autoReplyDelayMinutes: number;
+  autoReplyContent: string | null;
+    autoReplyGuardianTemplate: string | null;
+    autoReplyGuardianTitle: string | null;
+    autoReplyIncludeGuardian?: boolean; // ✅ NOWE
+    autoReplyGuardianIntroText?: string | null; // ✅ NOWE
 }
 
 export default function CampaignTabs(props: Props & { autoReply?: AutoReplySettingsProps }) {
@@ -126,14 +134,14 @@ export default function CampaignTabs(props: Props & { autoReply?: AutoReplySetti
             campaignId={props.campaignId}
             currentStatus={props.status}
             scheduledAt={props.schedule.scheduledAt}
-            allowedDays={props.schedule.allowedDays}
-            startHour={props.schedule.startHour}
+            allowedDays={props.schedule.allowedDays || ""}
+            startHour={props.schedule.startHour ?? 9}
             startMinute={props.schedule.startMinute ?? 0}
-            endHour={props.schedule.endHour}
+            endHour={props.schedule.endHour ?? 17}
             endMinute={props.schedule.endMinute ?? 0}
-            delayBetweenEmails={props.schedule.delayBetweenEmails}
-            maxEmailsPerDay={props.schedule.maxEmailsPerDay}
-            respectHolidays={props.schedule.respectHolidays}
+            delayBetweenEmails={props.schedule.delayBetweenEmails ?? 60}
+            maxEmailsPerDay={props.schedule.maxEmailsPerDay ?? 50}
+            respectHolidays={props.schedule.respectHolidays ?? false}
             targetCountries={props.schedule.targetCountries}
             leadsCount={props.leads.length}
           />
@@ -167,37 +175,40 @@ export default function CampaignTabs(props: Props & { autoReply?: AutoReplySetti
       )}
 
       {active === "wysylka" && (
-        <>
-          <CampaignStartButton
-            campaignId={props.campaignId}
-            currentStatus={props.status}
-            leadsCount={props.leads.length}
-            delayBetweenEmails={props.schedule.delayBetweenEmails}
-          />
-          <CampaignOutbox campaignId={props.campaignId} />
-          <CampaignSender
-            campaignId={props.campaignId}
-            hasSubject={!!props.content.subject}
-            hasText={!!props.content.text}
-            hasLeads={props.leads.length > 0}
-            leadsCount={props.leads.length}
-            salesperson={props.salesperson}
-          />
-        </>
+        <CampaignOutboxTabs
+          campaignId={props.campaignId}
+          campaignName={props.campaignName}
+          campaignStatus={props.status}
+          leadsCount={props.leads.length}
+          delayBetweenEmails={props.schedule.delayBetweenEmails ?? 60}
+          hasSubject={!!props.content.subject}
+          hasText={!!props.content.text}
+          hasLeads={props.leads.length > 0}
+          salesperson={props.salesperson}
+        />
       )}
 
       {active === "automatyczne" && (
         <>
+          {/* Historia odpowiedzi na górze z pełną funkcjonalnością */}
+          <CampaignMaterialDecisions campaignId={props.campaignId} />
+          
+          {/* Ustawienia automatycznych odpowiedzi */}
           <AutoReplySettings
             campaignId={props.campaignId}
             initialSettings={{
               autoReplyEnabled: props.autoReply?.autoReplyEnabled || false,
               autoReplyContext: props.autoReply?.autoReplyContext || null,
               autoReplyRules: props.autoReply?.autoReplyRules || null,
-              autoReplyDelayMinutes: props.autoReply?.autoReplyDelayMinutes || 15
+              autoReplyDelayMinutes: props.autoReply?.autoReplyDelayMinutes || 15,
+              autoReplyContent: props.autoReply?.autoReplyContent || null,
+              autoReplyGuardianTemplate: props.autoReply?.autoReplyGuardianTemplate || null,
+              autoReplyGuardianTitle: props.autoReply?.autoReplyGuardianTitle || null,
+              autoReplyIncludeGuardian: props.autoReply?.autoReplyIncludeGuardian || false, // ✅ NOWE
+              autoReplyGuardianIntroText: props.autoReply?.autoReplyGuardianIntroText || null // ✅ NOWE
             }}
+            campaignSubject={props.content?.subject || null}
           />
-          <CampaignAutoRepliesHistory campaignId={props.campaignId} />
         </>
       )}
 

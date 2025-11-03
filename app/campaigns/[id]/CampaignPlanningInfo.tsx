@@ -14,7 +14,7 @@ interface PlanningInfo {
     minutesRemaining: number;
     endHour: number;
     endMinute: number;
-    endWindowSafe: string;
+    endWindow: string;
   };
   emails: {
     total: number;
@@ -29,6 +29,7 @@ interface PlanningInfo {
     min: number;
     max: number;
   };
+  nextEmailTime: string | null;
   warnings: {
     isApproachingDailyLimit: boolean;
     isApproachingTimeLimit: boolean;
@@ -169,7 +170,7 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
               </span>
               <br />
               <span style={{ color: "var(--gray-600)", fontSize: "12px" }}>
-                Koniec okna (bezpieczny): {new Date(timeWindow.endWindowSafe).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+                Koniec okna: {new Date(timeWindow.endWindow).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
               </span>
             </>
           ) : (
@@ -224,22 +225,25 @@ export default function CampaignPlanningInfo({ campaignId, autoRefresh = true }:
         marginBottom: "var(--spacing-md)",
         border: "1px solid #fde68a"
       }}>
-        <strong style={{ color: "#92400e" }}>Obliczony delay</strong>
+        <strong style={{ color: "#92400e" }}>Opóźnienie między mailami</strong>
         <div style={{ marginTop: "8px", fontSize: "14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
             <span style={{ color: "var(--gray-600)" }}>Bazowy:</span>
             <strong>{delay.base}s</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-            <span style={{ color: "var(--gray-600)" }}>Optymalny:</span>
-            <strong style={{ color: "#059669" }}>{delay.optimal}s</strong>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "var(--gray-600)" }}>Zakres:</span>
             <span style={{ fontSize: "13px", color: "var(--gray-600)" }}>
               {delay.min}-{delay.max}s (±20%)
             </span>
           </div>
+          {info.nextEmailTime && (
+            <div style={{ marginTop: "12px", padding: "8px", backgroundColor: "#fef3c7", borderRadius: "4px", border: "1px solid #fbbf24" }}>
+              <span style={{ fontSize: "13px", color: "#92400e" }}>
+                <strong>Następny mail zaplanowany na:</strong> {info.nextEmailTime}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

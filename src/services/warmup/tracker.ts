@@ -18,18 +18,32 @@ import { differenceInDays, startOfDay } from 'date-fns';
  */
 export async function resetDailyCounters(): Promise<number> {
   try {
-    console.log(`[WARMUP TRACKER] 🔄 Reset liczników warmup...`);
+    console.log(`[WARMUP TRACKER] 🔄 Reset liczników warmup i wszystkich skrzynek...`);
     
+    // ✅ Pobierz początek dzisiejszego dnia w polskim czasie
+    const { getStartOfTodayPL } = await import('@/utils/polishTime');
+    const startOfTodayPL = getStartOfTodayPL();
+    
+    // ✅ RESET WSZYSTKICH SKRZYNEK - zarówno warmup jak i kampanii
+    // To zapewnia, że wszystkie skrzynki są resetowane codziennie o 00:00 PL
     const result = await db.mailbox.updateMany({
       where: {
-        warmupStatus: 'warming'
+        // Resetuj wszystkie aktywne skrzynki
+        isActive: true
       },
       data: {
-        warmupTodaySent: 0
+        // Resetuj licznik warmup dla skrzynek w warmup
+        warmupTodaySent: 0,
+        // Resetuj licznik kampanii dla wszystkich skrzynek
+        // (dla skrzynek w warmup, currentDailySent będzie aktualizowane przez kampanie,
+        // ale resetujemy też na wszelki wypadek dla skrzynek które nie są w warmup)
+        currentDailySent: 0,
+        // Ustaw lastResetDate na początek dzisiejszego dnia w PL
+        lastResetDate: startOfTodayPL
       }
     });
     
-    console.log(`[WARMUP TRACKER] ✅ Zresetowano ${result.count} skrzynek`);
+    console.log(`[WARMUP TRACKER] ✅ Zresetowano wszystkie liczniki dla ${result.count} aktywnych skrzynek (00:00 PL)`);
     return result.count;
     
   } catch (error) {

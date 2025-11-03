@@ -52,12 +52,29 @@ export async function PUT(
 ) {
   try {
     const salespersonId = parseInt(params.id);
+    
+    if (isNaN(salespersonId)) {
+      return NextResponse.json({ error: "Nieprawidłowe ID handlowca" }, { status: 400 });
+    }
+    
+    const body = await req.json();
     const { 
       name, phone, language, markets, 
       realSalespersonEmail,
       realSalespersonName,
+      realSalespersonPhone,
+      realSalespersonSignature,
       isActive 
-    } = await req.json();
+    } = body;
+
+    console.log("[SALESPEOPLE PUT] Otrzymane dane:", {
+      salespersonId,
+      name,
+      realSalespersonPhone,
+      realSalespersonSignature,
+      hasRealPhone: realSalespersonPhone !== undefined,
+      hasRealSignature: realSalespersonSignature !== undefined
+    });
 
     if (!name) {
       return NextResponse.json({ error: "Imię jest wymagane" }, { status: 400 });
@@ -75,26 +92,44 @@ export async function PUT(
       );
     }
 
+    // Przygotuj dane do aktualizacji (tylko pola które są zdefiniowane)
+    const updateData: any = {
+      name,
+      phone: phone !== undefined ? (phone || null) : undefined,
+      language: language || "pl",
+      markets: markets !== undefined ? (markets || null) : undefined,
+      realSalespersonEmail: realSalespersonEmail !== undefined ? (realSalespersonEmail || null) : undefined,
+      realSalespersonName: realSalespersonName !== undefined ? (realSalespersonName || null) : undefined,
+      realSalespersonPhone: realSalespersonPhone !== undefined ? (realSalespersonPhone || null) : undefined,
+      realSalespersonSignature: realSalespersonSignature !== undefined ? (realSalespersonSignature || null) : undefined,
+      isActive: isActive !== false
+    };
+    
+    // Usuń undefined z obiektu
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
+    console.log("[SALESPEOPLE PUT] Dane do aktualizacji:", updateData);
+
     // Aktualizuj handlowca (email NIE jest aktualizowany - pochodzi z głównej skrzynki)
     const salesperson = await db.virtualSalesperson.update({
       where: { id: salespersonId },
-      data: {
-        name,
-        // email nie jest aktualizowany - jest zarządzany przez główną skrzynkę
-        phone: phone || null,
-        language: language || "pl",
-        markets: markets || null,
-        realSalespersonEmail: realSalespersonEmail || null,
-        realSalespersonName: realSalespersonName || null,
-        isActive: isActive !== false
-      }
+      data: updateData
     });
 
     return NextResponse.json(salesperson);
   } catch (error: any) {
     console.error("Błąd aktualizacji handlowca:", error);
+    console.error("Szczegóły błędu:", JSON.stringify(error, null, 2));
     return NextResponse.json(
-      { error: "Wystąpił błąd podczas aktualizacji handlowca", details: error.message },
+      { 
+        error: "Wystąpił błąd podczas aktualizacji handlowca", 
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

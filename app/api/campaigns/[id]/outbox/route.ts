@@ -19,6 +19,12 @@ export async function GET(
       );
     }
 
+    // Pobierz parametry paginacji z query string
+    const searchParams = req.nextUrl.searchParams;
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '25');
+    const offset = (page - 1) * limit;
+
     // Pobierz kampanię
     const campaign = await db.campaign.findUnique({
       where: { id: campaignId },
@@ -36,7 +42,84 @@ export async function GET(
       );
     }
 
-    // Pobierz wszystkie wysyłki dla kampanii
+    // ✅ Data dzisiaj (dla statystyk dzisiejszych)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Pobierz całkowitą liczbę wysyłek (dla paginacji)
+    const totalCount = await db.sendLog.count({
+      where: {
+        campaignId
+      }
+    });
+
+    // ✅ STATYSTYKI DLA WSZYSTKIEJ KAMPANII (nie tylko strona!)
+    const allCampaignStats = {
+      total: await db.sendLog.count({
+        where: { campaignId }
+      }),
+      sent: await db.sendLog.count({
+        where: {
+          campaignId,
+          status: 'sent'
+        }
+      }),
+      failed: await db.sendLog.count({
+        where: {
+          campaignId,
+          status: 'error'
+        }
+      }),
+      sentToBlocked: await db.sendLog.count({
+        where: {
+          campaignId,
+          status: 'sent',
+          lead: {
+            OR: [
+              { status: 'BLOCKED' },
+              { isBlocked: true }
+            ]
+          }
+        }
+      })
+    };
+
+    // ✅ STATYSTYKI DZISIAJ (nawet jeśli była pauza)
+    const todayStats = {
+      total: await db.sendLog.count({
+        where: {
+          campaignId,
+          createdAt: {
+            gte: today,
+            lte: endOfDay
+          }
+        }
+      }),
+      sent: await db.sendLog.count({
+        where: {
+          campaignId,
+          status: 'sent',
+          createdAt: {
+            gte: today,
+            lte: endOfDay
+          }
+        }
+      }),
+      failed: await db.sendLog.count({
+        where: {
+          campaignId,
+          status: 'error',
+          createdAt: {
+            gte: today,
+            lte: endOfDay
+          }
+        }
+      })
+    };
+
+    // Pobierz wysyłki z paginacją
     const sendLogs = await db.sendLog.findMany({
       where: {
         campaignId
@@ -47,6 +130,7 @@ export async function GET(
         error: true,
         createdAt: true,
         subject: true,
+        content: true, // ✅ DODANO: Treść maila dla szczegółów
         toEmail: true, // NOWE: Dodaj toEmail dla maili testowych
         lead: {
           select: {
@@ -70,7 +154,9 @@ export async function GET(
       },
       orderBy: {
         createdAt: 'desc'
-      }
+      },
+      skip: offset,
+      take: limit
     });
 
     // Pobierz odpowiedzi dla tej kampanii i powiąż je z sendLogs
@@ -98,20 +184,21 @@ export async function GET(
       reply: getReplyForLead(log.lead?.id || 0)
     }));
 
-    // Statystyki
-    const stats = {
-      total: sendLogs.length,
-      sent: sendLogs.filter(log => log.status === 'sent').length,
-      failed: sendLogs.filter(log => log.status === 'error').length,
-      queued: sendLogs.filter(log => log.status === 'queued').length,
-      sentToBlocked: sendLogs.filter(log => 
-        log.status === 'sent' && 
-        log.lead && (log.lead.status === 'BLOCKED' || log.lead.isBlocked)
-      ).length
-    };
+    // ✅ Grupowanie po mailboxach (dla WSZYSTKICH maili z kampanii, nie tylko strona!)
+    const allSendLogsForMailboxStats = await db.sendLog.findMany({
+      where: { campaignId },
+      select: {
+        status: true,
+        mailbox: {
+          select: {
+            email: true,
+            displayName: true
+          }
+        }
+      }
+    });
 
-    // Grupowanie po mailboxach (z których skrzynek wysyłano)
-    const mailboxStats = sendLogs.reduce((acc: any, log) => {
+    const mailboxStats = allSendLogsForMailboxStats.reduce((acc: any, log) => {
       if (log.mailbox) {
         const key = log.mailbox.email;
         if (!acc[key]) {
@@ -137,8 +224,15 @@ export async function GET(
           status: campaign.status
         },
         sendLogs: sendLogsWithReplies,
-        stats,
-        mailboxStats: Object.values(mailboxStats)
+        stats: allCampaignStats, // ✅ Wszystkie maile z kampanii (wszystkie dni)
+        todayStats, // ✅ Maile wysłane dzisiaj (nawet jeśli była pauza)
+        mailboxStats: Object.values(mailboxStats),
+        pagination: {
+          total: totalCount,
+          page,
+          limit,
+          totalPages: Math.ceil(totalCount / limit)
+        }
       }
     });
 

@@ -93,6 +93,13 @@ export async function GET(req: NextRequest) {
       include: {
         lead: true,
         campaign: true,
+        mailbox: {
+          select: {
+            id: true,
+            email: true,
+            displayName: true
+          }
+        },
         notifications: {
           where: { status: 'CONFIRMED' },
           select: {

@@ -3,15 +3,25 @@ import { db } from "@/lib/db";
 
 /**
  * GET - Pobierz kolejkę decyzji administratora (PENDING)
+ * Query params:
+ * - status: PENDING (domyślnie)
+ * - campaignId: filtruj po konkretnej kampanii
  */
 export async function GET(req: NextRequest) {
   try {
     const status = req.nextUrl.searchParams.get('status') || 'PENDING';
+    const campaignId = req.nextUrl.searchParams.get('campaignId');
+
+    const where: any = {
+      status: status as any
+    };
+
+    if (campaignId) {
+      where.campaignId = parseInt(campaignId);
+    }
 
     const decisions = await db.pendingMaterialDecision.findMany({
-      where: {
-        status: status as any
-      },
+      where,
       include: {
         lead: {
           select: {
@@ -45,7 +55,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: decisions
+      decisions: decisions
     });
   } catch (error: any) {
     console.error("[MATERIAL DECISIONS] Błąd pobierania decyzji:", error);

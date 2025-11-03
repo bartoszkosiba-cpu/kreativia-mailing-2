@@ -22,6 +22,8 @@ interface VirtualSalesperson {
   imapSecure: boolean;
   realSalespersonEmail: string | null;
   realSalespersonName: string | null;
+  realSalespersonPhone: string | null;
+  realSalespersonSignature: string | null;
   isActive: boolean;
   createdAt: string;
   campaigns: Array<{ id: number; name: string }>;
@@ -51,6 +53,8 @@ export default function SalespeoplePage() {
     markets: "",
     realSalespersonEmail: "",
     realSalespersonName: "",
+    realSalespersonPhone: "",
+    realSalespersonSignature: "",
     isActive: true
   });
 
@@ -93,13 +97,17 @@ export default function SalespeoplePage() {
           markets: "",
           realSalespersonEmail: "",
           realSalespersonName: "",
+          realSalespersonPhone: "",
+          realSalespersonSignature: "",
           isActive: true
         });
         setShowForm(false);
         setEditingId(null);
         fetchSalespeople();
       } else {
-        alert(editingId ? "Błąd aktualizacji handlowca" : "Błąd dodawania handlowca");
+        const errorData = await response.json().catch(() => ({ error: "Nieznany błąd" }));
+        console.error("Błąd odpowiedzi API:", errorData);
+        alert(editingId ? `Błąd aktualizacji handlowca: ${errorData.error || errorData.details || "Nieznany błąd"}` : `Błąd dodawania handlowca: ${errorData.error || errorData.details || "Nieznany błąd"}`);
       }
     } catch (error) {
       alert(editingId ? "Błąd aktualizacji handlowca" : "Błąd dodawania handlowca");
@@ -114,6 +122,8 @@ export default function SalespeoplePage() {
       markets: salesperson.markets || "",
       realSalespersonEmail: salesperson.realSalespersonEmail || "",
       realSalespersonName: salesperson.realSalespersonName || "",
+      realSalespersonPhone: salesperson.realSalespersonPhone || "",
+      realSalespersonSignature: salesperson.realSalespersonSignature || "",
       isActive: salesperson.isActive
     });
     setEditingId(salesperson.id);
@@ -128,6 +138,8 @@ export default function SalespeoplePage() {
       markets: "",
       realSalespersonEmail: "",
       realSalespersonName: "",
+      realSalespersonPhone: "", // ✅ Dodano
+      realSalespersonSignature: "", // ✅ Dodano
       isActive: true
     });
     setEditingId(null);
@@ -210,7 +222,7 @@ export default function SalespeoplePage() {
             cursor: "pointer"
           }}
         >
-          {showForm ? "Anuluj" : "➕ Dodaj handlowca"}
+          {showForm ? "Anuluj" : "Dodaj handlowca"}
         </button>
       </div>
 
@@ -278,7 +290,7 @@ export default function SalespeoplePage() {
 
             {/* Real Salesperson Settings */}
             <div style={{ marginTop: 24, paddingTop: 24, borderTop: "2px solid #28a745" }}>
-              <h3 style={{ marginBottom: 8, color: "#28a745" }}>👤 Prawdziwy handlowiec (do przekazywania leadów)</h3>
+              <h3 style={{ marginBottom: 8, color: "#28a745" }}>Prawdziwy handlowiec (do przekazywania leadów)</h3>
               <p style={{ fontSize: 12, color: "#666", marginBottom: 16 }}>
                 Gdy lead odpowie "jestem zainteresowany", email zostanie przekazany na podany adres
               </p>
@@ -309,12 +321,45 @@ export default function SalespeoplePage() {
                   />
                 </div>
               </div>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontWeight: "bold", marginBottom: 4 }}>
+                    Telefon prawdziwego handlowca
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.realSalespersonPhone}
+                    onChange={(e) => setFormData({ ...formData, realSalespersonPhone: e.target.value })}
+                    style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                    placeholder="+48 606 452 952"
+                  />
+                  <p style={{ fontSize: 11, color: "#666", marginTop: 4, marginBottom: 0 }}>
+                    Używany w automatycznych odpowiedziach z materiałami
+                  </p>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontWeight: "bold", marginBottom: 4 }}>
+                    Podpis/Stanowisko (pod nazwiskiem)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.realSalespersonSignature}
+                    onChange={(e) => setFormData({ ...formData, realSalespersonSignature: e.target.value })}
+                    style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                    placeholder="New Business Development"
+                  />
+                  <p style={{ fontSize: 11, color: "#666", marginTop: 4, marginBottom: 0 }}>
+                    Używany w automatycznych odpowiedziach z materiałami
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Główna skrzynka - tylko przy edycji */}
             {editingId && (
               <div style={{ marginTop: 24, paddingTop: 24, borderTop: "2px solid #6c757d" }}>
-                <h3 style={{ marginBottom: 8, color: "#0066cc" }}>📬 Główna skrzynka</h3>
+                <h3 style={{ marginBottom: 8, color: "#0066cc" }}>Główna skrzynka</h3>
                 <p style={{ fontSize: 12, color: "#666", marginBottom: 16 }}>
                   Główna skrzynka jest zawsze używana jako pierwsza w round-robin dla kampanii
                 </p>
@@ -337,7 +382,7 @@ export default function SalespeoplePage() {
                       .filter(mb => mb.isActive)
                       .map(mailbox => (
                         <option key={mailbox.id} value={mailbox.id}>
-                          {mailbox.email} {mailbox.id === salespeople.find(sp => sp.id === editingId)?.mainMailboxId ? "🎯" : ""}
+                          {mailbox.email} {mailbox.id === salespeople.find(sp => sp.id === editingId)?.mainMailboxId ? "(główna)" : ""}
                         </option>
                       ))}
                   </select>
@@ -365,7 +410,7 @@ export default function SalespeoplePage() {
                   borderRadius: 8, 
                   border: "1px solid #b3d9ff" 
                 }}>
-                  <h4 style={{ margin: "0 0 8px 0", color: "#0066cc" }}>📬 Skrzynki mailowe</h4>
+                  <h4 style={{ margin: "0 0 8px 0", color: "#0066cc" }}>Skrzynki mailowe</h4>
                   <p style={{ margin: 0, fontSize: "14px", color: "#666" }}>
                     Po utworzeniu handlowca, dodaj skrzynki mailowe przez przycisk "Skrzynki" w tabeli.
                     <strong> Ważne:</strong> Ustaw jedną ze skrzynek jako główną - będzie używana w kampaniach i podpisach emaili.

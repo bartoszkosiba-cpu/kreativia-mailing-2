@@ -44,11 +44,28 @@ export async function POST(
       );
     }
 
-    if (decision.status !== 'PENDING') {
+    // Pozwól na zmianę statusu z REJECTED na APPROVED (reaktywacja)
+    // Ale nie pozwól zmienić z APPROVED na REJECTED (raz wysłane, nie odwołujemy)
+    if (decision.status === 'APPROVED' && status === 'REJECTED') {
       return NextResponse.json(
-        { success: false, error: "Decyzja została już podjęta" },
+        { success: false, error: "Nie można odwołać już zatwierdzonej decyzji" },
         { status: 400 }
       );
+    }
+    
+    // Jeśli zmieniamy z REJECTED na APPROVED - usuń poprzednie MaterialResponse jeśli istnieje
+    // (może zostało utworzone przed odrzuceniem, a potem usunięte)
+    if (decision.status === 'REJECTED' && status === 'APPROVED') {
+      // Usuń stare MaterialResponse jeśli istnieją (z poprzedniej próby)
+      await db.materialResponse.deleteMany({
+        where: {
+          replyId: decision.replyId,
+          status: {
+            in: ['pending', 'scheduled', 'failed']
+          }
+        }
+      });
+      console.log(`[MATERIAL DECISIONS] Reaktywacja decyzji ${decisionId} - usunięto stare MaterialResponse`);
     }
 
     // Jeśli APPROVED - zaplanuj wysyłkę materiałów

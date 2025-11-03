@@ -88,7 +88,8 @@ export function startEmailCron() {
           // Przetwórz każdy mail
           for (const email of emails) {
             try {
-              const result = await processReply(email);
+              // ✅ Przekaż toEmail (adres skrzynki, na którą przyszedł mail)
+              const result = await processReply(email, mailbox.email);
               
               if (result.error) {
                 console.log(`[CRON] ⚠ Mail ${email.subject}: ${result.error}`);
@@ -129,8 +130,9 @@ export function startEmailCron() {
 
   console.log('[CRON] ✓ Email cron uruchomiony (pobieranie co 15 minut)');
   
-  // Uruchom cron do wysyłki zaplanowanych kampanii (co 5 minut)
-  campaignCronJob = cron.schedule('*/5 * * * *', async () => {
+  // ✅ Uruchom cron do wysyłki zaplanowanych kampanii (co 1 minutę - dla precyzyjnego harmonogramu)
+  // Wysyłamy TYLKO JEDEN mail na wywołanie (jeśli delay minął), dzięki czemu maile są równomiernie rozłożone
+  campaignCronJob = cron.schedule('* * * * *', async () => {
     // Kolejkowanie - zapobiega nakładaniu się zadań
     if (isCampaignCronTaskRunning) {
       console.log('[CRON] ⏭️ Campaign cron już działa - pomijam');
@@ -138,9 +140,15 @@ export function startEmailCron() {
     }
     
     isCampaignCronTaskRunning = true;
-    console.log('[CRON] 📧 Sprawdzam zaplanowane kampanie...');
+    const cronStartTime = new Date();
+    console.log(`[CRON] 📧 Sprawdzam zaplanowane kampanie... (start: ${cronStartTime.toISOString()})`);
     try {
       await processScheduledCampaign();
+      const cronEndTime = new Date();
+      const cronDuration = Math.floor((cronEndTime.getTime() - cronStartTime.getTime()) / 1000);
+      if (cronDuration > 10) {
+        console.log(`[CRON] ⚠️ ProcessScheduledCampaign trwał ${cronDuration}s (dłużej niż 10s - może blokować kolejne wywołania)`);
+      }
     } catch (error: any) {
       console.error('[CRON] ✗ Błąd wysyłki kampanii:', error.message);
     }
@@ -159,7 +167,7 @@ export function startEmailCron() {
     }
   });
   
-  console.log('[CRON] ✓ Campaign cron uruchomiony (sprawdzanie co 5 minut)');
+  console.log('[CRON] ✓ Campaign cron uruchomiony (sprawdzanie co 1 minutę)');
   
   // Uruchom cron do prefetch świąt + follow-upy (raz dziennie o 00:05 - przesunięte o 5 min)
   holidayCronJob = cron.schedule('5 0 * * *', async () => {
@@ -202,7 +210,10 @@ export function startEmailCron() {
     return;
   }
   
-  dailyReportCronJob = cron.schedule('0 18 * * *', async () => {
+  dailyReportCronJob = cron.schedule('0 18 * * *', {
+    scheduled: true,
+    timezone: 'Europe/Warsaw'
+  }, async () => {
     // Kolejkowanie - zapobiega nakładaniu się zadań
     if (isDailyReportCronTaskRunning) {
       console.log('[CRON] ⏭️ Daily report cron już działa - pomijam');

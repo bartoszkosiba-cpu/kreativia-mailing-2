@@ -107,7 +107,7 @@ export async function recalculateCampaignEstimate(campaignId: number): Promise<E
  * - maxEmailsPerDay (kampania)
  * - Suma pozostałych limitów skrzynek
  */
-async function calculateTodayCapacity(virtualSalespersonId: number, campaignDailyLimit: number): Promise<{ emailsPerDay: number; breakdown: string[] }> {
+export async function calculateTodayCapacity(virtualSalespersonId: number, campaignDailyLimit: number): Promise<{ emailsPerDay: number; breakdown: string[] }> {
   // Pobierz wszystkie skrzynki
   const mailboxes = await db.mailbox.findMany({
     where: {
@@ -119,13 +119,81 @@ async function calculateTodayCapacity(virtualSalespersonId: number, campaignDail
   let totalCapacity = 0;
   const breakdown: string[] = [];
 
+  // ✅ NAPRAWIONE: Oblicz remainingToday dla każdej skrzynki bezpośrednio
+  // (nie używaj getNextAvailableMailbox w pętli - zwraca tylko pierwszą dostępną)
+  
+  const today = new Date().toDateString();
+
+  // Funkcje pomocnicze (skopiowane z mailboxManager.ts)
+  const getWeekFromDay = (day: number): number => {
+    if (day <= 0) return 1;
+    if (day <= 7) return 1;
+    if (day <= 14) return 2;
+    if (day <= 21) return 3;
+    if (day <= 28) return 4;
+    return 5;
+  };
+
+  const getPerformanceLimits = async (week: number): Promise<{ warmup: number; campaign: number }> => {
+    try {
+      const settings = await db.companySettings.findFirst();
+      
+      if (!settings || !settings.warmupPerformanceSettings) {
+        return { warmup: 15, campaign: 10 };
+      }
+      
+      const weeks: Array<{ week: number; warmup: number; campaign: number }> = JSON.parse(settings.warmupPerformanceSettings);
+      const weekData = weeks.find(w => w.week === week);
+      
+      return weekData || weeks[0] || { warmup: 15, campaign: 10 };
+    } catch (error) {
+      console.error('[CALCULATE CAPACITY] Błąd pobierania ustawień wydajności:', error);
+      return { warmup: 15, campaign: 10 };
+    }
+  };
+
   for (const mailbox of mailboxes) {
-    // Pobierz dostępną skrzynkę (sprawdza limity)
-    const available = await getNextAvailableMailbox(virtualSalespersonId);
+    // Resetuj licznik jeśli nowy dzień (używamy isTodayPL z polishTime)
+    const { isTodayPL } = await import('@/utils/polishTime');
+    if (!mailbox.lastResetDate || !isTodayPL(mailbox.lastResetDate)) {
+      const { resetMailboxCounter } = await import('./mailboxManager');
+      await resetMailboxCounter(mailbox.id, mailbox.warmupStatus || undefined);
+    }
+
+    // Oblicz effectiveLimit i currentSent (ta sama logika co getNextAvailableMailbox)
+    let effectiveLimit: number;
+    let currentSent: number;
     
-    if (available && available.id === mailbox.id) {
-      totalCapacity += available.remainingToday;
-      breakdown.push(`${mailbox.email}: ${available.remainingToday}/${available.dailyEmailLimit}`);
+    // PRZYPADEK 3: W warmup - użyj limitów z /settings/performance
+    if (mailbox.warmupStatus === 'warming') {
+      const week = getWeekFromDay(mailbox.warmupDay || 0);
+      const performanceLimits = await getPerformanceLimits(week);
+      
+      effectiveLimit = Math.min(
+        mailbox.dailyEmailLimit,
+        mailbox.warmupDailyLimit || 10,
+        performanceLimits.campaign
+      );
+      
+      currentSent = Math.max(0, mailbox.currentDailySent - (mailbox.warmupTodaySent || 0));
+    } 
+    // PRZYPADEK 1: Nowa skrzynka, nie w warmup - STAŁE 10 maili dziennie
+    else if (mailbox.warmupStatus === 'inactive' || mailbox.warmupStatus === 'ready_to_warmup') {
+      const NEW_MAILBOX_LIMIT = 10;
+      effectiveLimit = NEW_MAILBOX_LIMIT;
+      currentSent = mailbox.currentDailySent;
+    }
+    // PRZYPADEK 2 i 4: Gotowa skrzynka (nie w warmup) - użyj limitu ze skrzynki
+    else {
+      effectiveLimit = mailbox.dailyEmailLimit;
+      currentSent = mailbox.currentDailySent;
+    }
+    
+    const remaining = Math.max(0, effectiveLimit - currentSent);
+    totalCapacity += remaining;
+    
+    if (remaining > 0) {
+      breakdown.push(`${mailbox.email}: ${remaining}/${effectiveLimit}`);
     }
   }
 

@@ -113,22 +113,13 @@ model Campaign {
   linkTextB       String? // Tekst linku - wariant B
   linkUrlB        String? // URL linku - wariant B
 
-  // Automatyczne odpowiedzi z materiałami
-  autoReplyEnabled      Boolean @default(false) // Czy włączony moduł automatycznych odpowiedzi
-  autoReplyContext      String? // Kontekst dla AI (np. "Oferujemy meble biurowe. W treści maila pytamy: 'Czy mogę przesłać katalog i cennik?'")
-  autoReplyRules        String? // JSON: Zasady dla AI generowania odpowiedzi (ton, styl, co uwzględnić)
-  autoReplyDelayMinutes Int     @default(15) // Opóźnienie wysyłki (w minutach)
-
-  createdAt               DateTime                     @default(now())
-  updatedAt               DateTime                     @updatedAt
-  leads                   Lead[]
-  sendLogs                SendLog[]
-  CampaignLead            CampaignLead[]
-  replies                 InboxReply[]
-  notifications           InterestedLeadNotification[]
-  materials               CampaignMaterial[] // Materiały do wysyłki
-  materialResponses       MaterialResponse[] // Historia wysłanych materiałów
-  PendingMaterialDecision PendingMaterialDecision[]
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  leads         Lead[]
+  sendLogs      SendLog[]
+  CampaignLead  CampaignLead[]
+  replies       InboxReply[]
+  notifications InterestedLeadNotification[]
 }
 
 model Lead {
@@ -170,16 +161,14 @@ model Lead {
   campaign      Campaign? @relation(fields: [campaignId], references: [id])
 
   // RELATIONS
-  SendLog                  SendLog[]
-  CampaignLead             CampaignLead[]
-  LeadTag                  LeadTag[]
-  replies                  InboxReply[]
-  statusHistory            LeadStatusHistory[]
-  notifications            InterestedLeadNotification[]
-  materialResponses        MaterialResponse[]
-  pendingMaterialDecisions PendingMaterialDecision[]
-  createdAt                DateTime                     @default(now())
-  updatedAt                DateTime                     @default(now()) @updatedAt
+  SendLog       SendLog[]
+  CampaignLead  CampaignLead[]
+  LeadTag       LeadTag[]
+  replies       InboxReply[]
+  statusHistory LeadStatusHistory[]
+  notifications InterestedLeadNotification[]
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @default(now()) @updatedAt
 }
 
 model SendLog {
@@ -240,11 +229,9 @@ model InboxReply {
 
   createdAt DateTime @default(now())
 
-  lead                     Lead?                        @relation(fields: [leadId], references: [id])
-  campaign                 Campaign?                    @relation(fields: [campaignId], references: [id])
-  notifications            InterestedLeadNotification[]
-  materialResponses        MaterialResponse[]
-  pendingMaterialDecisions PendingMaterialDecision[]
+  lead          Lead?                        @relation(fields: [leadId], references: [id])
+  campaign      Campaign?                    @relation(fields: [campaignId], references: [id])
+  notifications InterestedLeadNotification[]
 }
 
 model CampaignLead {
@@ -778,109 +765,4 @@ model InterestedLeadNotification {
   @@index([replyId])
   @@index([status])
   @@index([salespersonEmail])
-}
-
-// ============================================================================
-// AUTOMATYCZNE ODPOWIEDZI Z MATERIAŁAMI
-// ============================================================================
-
-model CampaignMaterial {
-  id         Int @id @default(autoincrement())
-  campaignId Int
-
-  // Dane materiału
-  name     String // "Katalog mebli biurowych 2025"
-  type     String // "LINK" | "ATTACHMENT"
-  url      String? // Dla typu LINK - URL do pobrania
-  filePath String? // Dla typu ATTACHMENT - ścieżka do pliku na serwerze
-  fileName String? // Nazwa pliku (dla wyświetlania)
-  fileSize Int? // Rozmiar pliku w bajtach
-
-  // Język (zawsze zgodny z językiem kampanii)
-  language String @default("pl") // pl, en, de, fr
-
-  // Kolejność wyświetlania/wysyłki
-  order Int @default(0)
-
-  // Status
-  isActive Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  campaign  Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  responses MaterialResponse[]
-
-  @@index([campaignId])
-  @@index([isActive])
-}
-
-model MaterialResponse {
-  id         Int  @id @default(autoincrement())
-  leadId     Int
-  campaignId Int
-  materialId Int?
-  replyId    Int? // Która odpowiedź leada wywołała wysłanie materiałów
-
-  // Wygenerowana odpowiedź
-  responseText String // Treść maila wysłanego do leada
-  subject      String // Temat maila
-
-  // AI Metadata
-  aiConfidence Float? // Pewność AI że to prośba o materiały (0.0-1.0)
-  aiReasoning  String? // Uzasadnienie decyzji AI (dlaczego wysłano/nie wysłano)
-
-  // Status wysyłki
-  status      String    @default("pending") // pending | scheduled | sending | sent | failed
-  scheduledAt DateTime? // Kiedy zaplanowano wysyłkę
-  sentAt      DateTime? // Kiedy faktycznie wysłano
-  error       String? // Błąd jeśli failed
-
-  // Która skrzynka wysłała
-  mailboxId Int?
-  messageId String? // ID wiadomości (z SMTP)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  lead     Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  campaign Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  material CampaignMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
-  reply    InboxReply?       @relation(fields: [replyId], references: [id], onDelete: SetNull)
-
-  @@index([leadId])
-  @@index([campaignId])
-  @@index([status])
-  @@index([scheduledAt, status])
-}
-
-// Kolejka niepewnych decyzji dla administratora
-model PendingMaterialDecision {
-  id         Int @id @default(autoincrement())
-  leadId     Int
-  campaignId Int
-  replyId    Int
-
-  // Analiza AI
-  aiConfidence    Float // Pewność AI (0.0-1.0)
-  aiReasoning     String // Uzasadnienie decyzji AI
-  leadResponse    String // Treść odpowiedzi leada
-  suggestedAction String // "SEND" | "DONT_SEND" - co sugeruje AI
-
-  // Status decyzji
-  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
-  decidedAt    DateTime? // Kiedy podjęto decyzję
-  decidedBy    String? // Kto podjął decyzję (email/username)
-  decisionNote String? // Notatka administratora
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  lead     Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  campaign Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  reply    InboxReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
-
-  @@index([status])
-  @@index([campaignId])
-  @@index([createdAt])
 }

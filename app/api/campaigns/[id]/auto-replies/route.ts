@@ -26,6 +26,10 @@ export async function GET(
     };
     if (status && type !== "decision") {
       materialResponseWhere.status = status;
+      // Jeśli filtrujemy po 'sent', upewnijmy się że sentAt jest ustawione
+      if (status === 'sent') {
+        materialResponseWhere.sentAt = { not: null };
+      }
     }
 
     const [materialResponses, materialResponsesTotal] = await Promise.all([
@@ -111,15 +115,14 @@ export async function GET(
     // ✅ Filtruj decyzje: ukryj zatwierdzone (APPROVED) które już mają powiązany MaterialResponse
     // (żeby nie pokazywać duplikatów - pokazujemy tylko faktyczną wysyłkę)
     // Najpierw pobierz wszystkie MaterialResponse dla replyId z decyzji
-    const decisionReplyIds = pendingDecisions
-      .filter(d => d.status === 'APPROVED')
-      .map(d => d.replyId);
+    const allDecisionReplyIds = pendingDecisions.map(d => d.replyId);
     
-    const materialResponsesForDecisions = decisionReplyIds.length > 0
+    // Pobierz wszystkie MaterialResponse dla replyId z decyzji (niezależnie od statusu)
+    const materialResponsesForDecisions = allDecisionReplyIds.length > 0
       ? await db.materialResponse.findMany({
           where: {
-            replyId: { in: decisionReplyIds },
-            status: { in: ['scheduled', 'sending', 'sent'] }
+            replyId: { in: allDecisionReplyIds },
+            status: { in: ['scheduled', 'sending', 'sent', 'failed'] } // Uwzględnij też failed
           },
           select: { replyId: true }
         })
@@ -129,10 +132,11 @@ export async function GET(
       materialResponsesForDecisions.map(mr => mr.replyId)
     );
     
-    // Filtruj decyzje - ukryj APPROVED które mają MaterialResponse
+    // Filtruj decyzje - ukryj APPROVED które mają MaterialResponse (w jakimkolwiek aktywnym statusie)
     const filteredDecisions = pendingDecisions.filter(decision => {
-      // Jeśli decyzja jest APPROVED i ma MaterialResponse, pomiń ją
+      // Jeśli decyzja jest APPROVED i ma MaterialResponse, pomiń ją (ukryj duplikat)
       if (decision.status === 'APPROVED' && replyIdsWithMaterialResponse.has(decision.replyId)) {
+        console.log(`[AUTO-REPLIES] Ukrywam decyzję ${decision.id} (APPROVED) bo istnieje MaterialResponse dla replyId ${decision.replyId}`);
         return false;
       }
       return true;
@@ -142,10 +146,21 @@ export async function GET(
     let combinedData: any[] = [];
     let totalCount = 0;
 
+    // ✅ Filtruj MaterialResponse - dla każdego replyId pokaż tylko najnowszy
+    // (zapobiega duplikatom jeśli istnieje wiele MaterialResponse dla tego samego replyId)
+    const materialResponseByReplyId = new Map<number, any>();
+    materialResponses.forEach(mr => {
+      const existing = materialResponseByReplyId.get(mr.replyId!);
+      if (!existing || new Date(mr.createdAt) > new Date(existing.createdAt)) {
+        materialResponseByReplyId.set(mr.replyId!, mr);
+      }
+    });
+    const uniqueMaterialResponses = Array.from(materialResponseByReplyId.values());
+
     if (!type || type === "all") {
       // Kombinuj oba typy i sortuj po dacie
       combinedData = [
-        ...materialResponses.map(mr => ({
+        ...uniqueMaterialResponses.map(mr => ({
           id: mr.id,
           type: "material" as const,
           lead: mr.lead,
@@ -177,12 +192,12 @@ export async function GET(
         }))
       ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      totalCount = materialResponsesTotal + filteredDecisions.length;
+      totalCount = uniqueMaterialResponses.length + filteredDecisions.length;
       
       // Zastosuj paginację na połączonych wynikach
       combinedData = combinedData.slice(offset, offset + limit);
     } else if (type === "material") {
-      combinedData = materialResponses.map(mr => ({
+      combinedData = uniqueMaterialResponses.map(mr => ({
         id: mr.id,
         type: "material" as const,
         lead: mr.lead,
@@ -198,7 +213,7 @@ export async function GET(
         material: mr.material,
         reply: mr.reply
       }));
-      totalCount = materialResponsesTotal;
+      totalCount = uniqueMaterialResponses.length;
     } else if (type === "decision") {
       combinedData = filteredDecisions.map(pd => ({
         id: pd.id,

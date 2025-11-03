@@ -72,6 +72,7 @@ export default function CampaignAutoRepliesHistory({ campaignId }: Props) {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [processingDecision, setProcessingDecision] = useState(false);
   const [decisionNote, setDecisionNote] = useState("");
+  const [refreshingPreview, setRefreshingPreview] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -163,6 +164,34 @@ export default function CampaignAutoRepliesHistory({ campaignId }: Props) {
     setSelectedItem(null);
     setPreviewData(null);
     setDecisionNote("");
+  };
+
+  const handleRefreshPreview = async () => {
+    if (!selectedItem || selectedItem.type !== "decision") {
+      console.log("[REFRESH] Nie można odświeżyć - selectedItem:", selectedItem);
+      return;
+    }
+    
+    console.log("[REFRESH] Odświeżam podgląd dla decyzji:", selectedItem.id, "status:", selectedItem.status);
+    setRefreshingPreview(true);
+    try {
+      const response = await fetch(`/api/material-decisions/${selectedItem.id}/refresh`, {
+        method: "POST"
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setPreviewData(data.data);
+        alert("✓ Odpowiedź została odświeżona z aktualnymi ustawieniami kampanii");
+      } else {
+        alert(`Błąd: ${data.error}`);
+      }
+    } catch (error: any) {
+      console.error("Błąd odświeżania podglądu:", error);
+      alert(`Błąd odświeżania podglądu: ${error.message}`);
+    } finally {
+      setRefreshingPreview(false);
+    }
   };
 
   const handleApproveDecision = async () => {
@@ -617,6 +646,21 @@ export default function CampaignAutoRepliesHistory({ campaignId }: Props) {
               </div>
             ) : previewData ? (
               <>
+                {/* Informacja o możliwości odświeżenia - dla wszystkich decyzji */}
+                {selectedItem.type === "decision" && (
+                  <div style={{ marginBottom: "20px", padding: "12px", backgroundColor: "#fff3cd", border: "1px solid #ffc107", borderRadius: "4px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "18px" }}>ℹ️</span>
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ display: "block", marginBottom: "4px" }}>Uwaga:</strong>
+                        <p style={{ margin: 0, fontSize: "13px", color: "#666" }}>
+                          Ta odpowiedź została wygenerowana na podstawie aktualnych ustawień kampanii. Jeśli wprowadziłeś zmiany w ustawieniach automatycznych odpowiedzi, kliknij <strong>"Odśwież odpowiedź"</strong> poniżej, aby zastosować nowe ustawienia.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Informacje o leadzie i odpowiedzi */}
                 <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#f8f9fa", borderRadius: "4px" }}>
                   <div style={{ marginBottom: "10px" }}>
@@ -678,7 +722,30 @@ export default function CampaignAutoRepliesHistory({ campaignId }: Props) {
                   </div>
                 )}
 
-                {/* Akcje dla decyzji */}
+                {/* Przycisk odświeżania dla wszystkich decyzji */}
+                {selectedItem.type === "decision" && (
+                  <div style={{ marginBottom: "20px", display: "flex", gap: "15px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                    <button
+                      onClick={handleRefreshPreview}
+                      disabled={refreshingPreview}
+                      style={{
+                        padding: "12px 24px",
+                        backgroundColor: refreshingPreview ? "#ccc" : "#ff9800",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: refreshingPreview ? "not-allowed" : "pointer",
+                        fontWeight: 600,
+                        fontSize: "16px",
+                        boxShadow: refreshingPreview ? "none" : "0 2px 4px rgba(255, 152, 0, 0.3)"
+                      }}
+                    >
+                      {refreshingPreview ? "Odświeżanie..." : "🔄 Odśwież odpowiedź"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Akcje dla decyzji PENDING (zatwierdź/odrzuć) */}
                 {selectedItem.type === "decision" && selectedItem.status === "PENDING" && (
                   <>
                     <div style={{ marginBottom: "20px" }}>
@@ -699,7 +766,7 @@ export default function CampaignAutoRepliesHistory({ campaignId }: Props) {
                       />
                     </div>
 
-                    <div style={{ display: "flex", gap: "15px", justifyContent: "flex-end" }}>
+                    <div style={{ display: "flex", gap: "15px", justifyContent: "flex-end", flexWrap: "wrap" }}>
                       <button
                         onClick={handleRejectDecision}
                         disabled={processingDecision}
@@ -734,6 +801,33 @@ export default function CampaignAutoRepliesHistory({ campaignId }: Props) {
                       </button>
                     </div>
                   </>
+                )}
+
+                {/* Akcje dla decyzji REJECTED (reaktywacja - możliwość ponownego zatwierdzenia) */}
+                {selectedItem.type === "decision" && selectedItem.status === "REJECTED" && (
+                  <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#fff3cd", border: "1px solid #ffc107", borderRadius: "4px" }}>
+                    <p style={{ margin: "0 0 15px 0", fontSize: "14px", color: "#666" }}>
+                      Ta decyzja została wcześniej odrzucona. Możesz ją ponownie zatwierdzić i wysłać materiały.
+                    </p>
+                    <div style={{ display: "flex", gap: "15px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      <button
+                        onClick={handleApproveDecision}
+                        disabled={processingDecision}
+                        style={{
+                          padding: "12px 24px",
+                          backgroundColor: processingDecision ? "#ccc" : "#4caf50",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: processingDecision ? "not-allowed" : "pointer",
+                          fontWeight: 600,
+                          fontSize: "16px"
+                        }}
+                      >
+                        {processingDecision ? "Przetwarzanie..." : "Zatwierdź i wyślij materiały"}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </>
             ) : (
