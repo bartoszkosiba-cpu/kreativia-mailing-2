@@ -220,12 +220,21 @@ export default function CampaignsList({ initialCampaigns, initialProgress }: Pro
                 <td style={{ padding: 8, fontSize: "12px", color: "#6b7280" }}>
                   {c.scheduledAt ? (
                     <>
-                      {new Date(c.scheduledAt).toLocaleDateString('pl-PL')}
+                      {(() => {
+                        const { formatPolishDate } = require('@/utils/polishTime');
+                        return formatPolishDate(c.scheduledAt);
+                      })()}
                       {c.sendingStartedAt && (
-                        <><br />Start: {new Date(c.sendingStartedAt).toLocaleDateString('pl-PL')}</>
+                        <><br />Start: {(() => {
+                          const { formatPolishDate } = require('@/utils/polishTime');
+                          return formatPolishDate(c.sendingStartedAt);
+                        })()}</>
                       )}
                       {c.sendingCompletedAt && (
-                        <><br />Koniec: {new Date(c.sendingCompletedAt).toLocaleDateString('pl-PL')}</>
+                        <><br />Koniec: {(() => {
+                          const { formatPolishDate } = require('@/utils/polishTime');
+                          return formatPolishDate(c.sendingCompletedAt);
+                        })()}</>
                       )}
                     </>
                   ) : (

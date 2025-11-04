@@ -321,3 +321,151 @@ export async function getImapMailbox(virtualSalespersonId: number): Promise<Avai
   };
 }
 
+/**
+ * Synchronizuje currentDailySent z rzeczywistymi danymi z SendLog
+ * Naprawia rozbieżności spowodowane przez V1 lub błędy
+ */
+export async function syncMailboxCounterFromSendLog(mailboxId: number): Promise<{
+  mailboxId: number;
+  oldCount: number;
+  newCount: number;
+  synced: boolean;
+}> {
+  const { getStartOfTodayPL } = await import('@/utils/polishTime');
+  const todayStart = getStartOfTodayPL();
+  
+  // Pobierz aktualną skrzynkę
+  const mailbox = await db.mailbox.findUnique({
+    where: { id: mailboxId },
+    select: {
+      id: true,
+      email: true,
+      currentDailySent: true,
+      lastResetDate: true
+    }
+  });
+  
+  if (!mailbox) {
+    throw new Error(`Mailbox ${mailboxId} nie istnieje`);
+  }
+  
+  // Policz rzeczywiste maile wysłane DZISIAJ z SendLog
+  const actualSentToday = await db.sendLog.count({
+    where: {
+      mailboxId,
+      status: 'sent',
+      createdAt: { gte: todayStart }
+    }
+  });
+  
+  const oldCount = mailbox.currentDailySent;
+  const newCount = actualSentToday;
+  
+  // Jeśli jest rozbieżność - zsynchronizuj
+  if (oldCount !== newCount) {
+    await db.mailbox.update({
+      where: { id: mailboxId },
+      data: {
+        currentDailySent: newCount
+      }
+    });
+    
+    console.log(`[MAILBOX SYNC] ✅ Zsynchronizowano ${mailbox.email}: ${oldCount} → ${newCount} (SendLog: ${actualSentToday})`);
+    
+    return {
+      mailboxId,
+      oldCount,
+      newCount,
+      synced: true
+    };
+  }
+  
+  return {
+    mailboxId,
+    oldCount,
+    newCount,
+    synced: false
+  };
+}
+
+/**
+ * Synchronizuje liczniki wszystkich skrzynek z SendLog
+ * Wywołaj przy starcie systemu lub po migracji
+ */
+export async function syncAllMailboxCountersFromSendLog(): Promise<{
+  total: number;
+  synced: number;
+  results: Array<{
+    mailboxId: number;
+    email: string;
+    oldCount: number;
+    newCount: number;
+  }>;
+}> {
+  const { getStartOfTodayPL } = await import('@/utils/polishTime');
+  const todayStart = getStartOfTodayPL();
+  
+  // Pobierz wszystkie aktywne skrzynki
+  const mailboxes = await db.mailbox.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      email: true,
+      currentDailySent: true
+    }
+  });
+  
+  console.log(`[MAILBOX SYNC] 🔄 Synchronizacja ${mailboxes.length} skrzynek z SendLog...`);
+  
+  const results: Array<{
+    mailboxId: number;
+    email: string;
+    oldCount: number;
+    newCount: number;
+  }> = [];
+  
+  let syncedCount = 0;
+  
+  for (const mailbox of mailboxes) {
+    // Policz rzeczywiste maile wysłane DZISIAJ z SendLog
+    const actualSentToday = await db.sendLog.count({
+      where: {
+        mailboxId: mailbox.id,
+        status: 'sent',
+        createdAt: { gte: todayStart }
+      }
+    });
+    
+    const oldCount = mailbox.currentDailySent;
+    const newCount = actualSentToday;
+    
+    // Jeśli jest rozbieżność - zsynchronizuj
+    if (oldCount !== newCount) {
+      await db.mailbox.update({
+        where: { id: mailbox.id },
+        data: {
+          currentDailySent: newCount
+        }
+      });
+      
+      console.log(`[MAILBOX SYNC] ✅ ${mailbox.email}: ${oldCount} → ${newCount}`);
+      syncedCount++;
+      
+      results.push({
+        mailboxId: mailbox.id,
+        email: mailbox.email,
+        oldCount,
+        newCount
+      });
+    }
+  }
+  
+  console.log(`[MAILBOX SYNC] ✅ Zakończono: ${syncedCount}/${mailboxes.length} skrzynek zsynchronizowanych`);
+  
+  return {
+    total: mailboxes.length,
+    synced: syncedCount,
+    results
+  };
+}
+

@@ -1,5 +1,6 @@
 import './globals.css';
 import Navbar from './components/Navbar';
+import '@/services/startCron'; // Uruchom cron jobs przy starcie aplikacji
 
 export const metadata = {
   title: "Kreativia Mailing",

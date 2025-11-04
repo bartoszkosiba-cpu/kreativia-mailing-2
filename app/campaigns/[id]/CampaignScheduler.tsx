@@ -235,7 +235,10 @@ export default function CampaignScheduler({
             </p>
             {schedule.scheduledAt && (
               <p style={{ margin: "8px 0" }}>
-                <strong>Zaplanowana na:</strong> {new Date(schedule.scheduledAt).toLocaleString("pl-PL")}
+                <strong>Zaplanowana na:</strong> {(() => {
+                  const { formatPolishDateTime } = require('@/utils/polishTime');
+                  return formatPolishDateTime(schedule.scheduledAt);
+                })()}
               </p>
             )}
             <p style={{ margin: "8px 0" }}>

@@ -116,8 +116,10 @@ export default function MaterialsManager({ campaignId }: Props) {
         if (!uploadedPath) {
           return; // Błąd uploadu - już pokazano alert
         }
+        // ✅ uploadedPath zwraca "materials/{campaignId}_{timestamp}_{originalName}"
+        // Użyj pełnej ścieżki jako fileName (zawiera prefiks kampanii i timestamp)
         finalFilePath = uploadedPath;
-        finalFileName = selectedFile.name;
+        finalFileName = uploadedPath; // ✅ Użyj pełnej ścieżki z uploadu (zawiera prefiks kampanii)
       }
 
       // Ostatnia walidacja - dla ATTACHMENT musi być filePath
@@ -156,11 +158,13 @@ export default function MaterialsManager({ campaignId }: Props) {
 
       // Reset form (ale zostaw formularz otwarty aby dodać kolejny)
       setFormName("");
+      setFormType("LINK"); // ✅ Resetuj typ na LINK
       setFormUrl("");
       setFormFilePath("");
       setFormFileName("");
       setFormOrder(0);
       setSelectedFile(null);
+      setEditingMaterial(null); // ✅ Upewnij się że nie jesteśmy w trybie edycji
       // setShowAddForm(false); // Nie ukrywaj formularza - pozwól dodać kolejny materiał
       
       // Reset file input
@@ -170,7 +174,7 @@ export default function MaterialsManager({ campaignId }: Props) {
       // Reload
       await loadMaterials();
       
-      // Formularz pozostaje otwarty - możesz dodać kolejny materiał
+      // ✅ Formularz pozostaje otwarty - możesz dodać kolejny materiał
     } catch (error: any) {
       alert(`Błąd dodawania: ${error.message}`);
     }
@@ -187,8 +191,9 @@ export default function MaterialsManager({ campaignId }: Props) {
       return;
     }
 
-    if (formType === "ATTACHMENT" && !selectedFile) {
-      alert("Wybierz plik z dysku");
+    // ✅ POPRAWKA: Przy edycji ATTACHMENT nie wymagaj nowego pliku jeśli już istnieje
+    if (formType === "ATTACHMENT" && !selectedFile && !material.fileName && !material.filePath) {
+      alert("Wybierz plik z dysku lub materiał musi mieć już zapisany plik");
       return;
     }
 
@@ -202,14 +207,14 @@ export default function MaterialsManager({ campaignId }: Props) {
         if (!uploadedPath) {
           return; // Błąd uploadu - już pokazano alert
         }
+        // ✅ uploadedPath zwraca ścieżkę względną (np. "materials/..."), użyj jej jako fileName
         finalFilePath = uploadedPath;
-        finalFileName = selectedFile.name;
+        finalFileName = uploadedPath; // fileName zawiera ścieżkę względną
       }
-      
-      // Jeśli edytujemy i nie wybrano pliku - użyj istniejącej ścieżki
-      if (formType === "ATTACHMENT" && !selectedFile && !finalFilePath) {
-        alert("Wybierz plik z dysku");
-        return;
+      // ✅ Jeśli nie wybrano nowego pliku, użyj istniejących danych z material
+      else if (formType === "ATTACHMENT" && material.fileName) {
+        finalFileName = material.fileName;
+        finalFilePath = material.filePath || material.fileName; // fallback
       }
 
       const response = await fetch(`/api/campaigns/${campaignId}/materials/${material.id}`, {
@@ -219,8 +224,8 @@ export default function MaterialsManager({ campaignId }: Props) {
           name: formName.trim(),
           type: formType,
           url: formType === "LINK" ? formUrl.trim() : null,
-          filePath: formType === "ATTACHMENT" ? finalFilePath : null,
-          fileName: finalFileName,
+          filePath: formType === "ATTACHMENT" ? finalFilePath : null, // ✅ Dla kompatybilności
+          fileName: formType === "ATTACHMENT" ? finalFileName : null, // ✅ Główna ścieżka w schemacie
           order: formOrder || 0,
           isActive: material.isActive
         })
@@ -331,7 +336,10 @@ export default function MaterialsManager({ campaignId }: Props) {
         <h2 style={{ margin: 0 }}>Materiały do wysyłki</h2>
         {!showAddForm && (
           <button
-            onClick={() => setShowAddForm(true)}
+            onClick={() => {
+              resetForm();
+              setShowAddForm(true);
+            }}
             style={{
               padding: "8px 16px",
               backgroundColor: "var(--primary)",
@@ -525,6 +533,35 @@ export default function MaterialsManager({ campaignId }: Props) {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {/* Przycisk "Dodaj kolejny" na końcu listy */}
+          {!showAddForm && (
+            <div style={{ 
+              padding: "15px", 
+              border: "2px dashed #ddd", 
+              borderRadius: "6px", 
+              backgroundColor: "#f8f9fa",
+              textAlign: "center"
+            }}>
+              <button
+                onClick={() => {
+                  resetForm();
+                  setShowAddForm(true);
+                }}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#4caf50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "14px"
+                }}
+              >
+                + Dodaj kolejny materiał
+              </button>
+            </div>
+          )}
           {materials.map((material) => (
             <div
               key={material.id}

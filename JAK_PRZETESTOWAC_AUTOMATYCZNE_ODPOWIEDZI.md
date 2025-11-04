@@ -183,3 +183,4 @@ sqlite3 prisma/dev.db "SELECT id, leadId, campaignId, status, scheduledAt, sentA
 
 **Najłatwiej będzie wysłać rzeczywisty email i sprawdzić czy system go przetworzy!** 🚀
 
+

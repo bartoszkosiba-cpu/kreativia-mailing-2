@@ -155,14 +155,20 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
             <div>
               <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Rozpoczęcie</div>
               <div style={{ fontSize: 14, fontWeight: "bold" }}>
-                {new Date(stats.startDate).toLocaleString("pl-PL")}
+                {(() => {
+                  const { formatPolishDateTime } = require('@/utils/polishTime');
+                  return formatPolishDateTime(stats.startDate);
+                })()}
               </div>
             </div>
             {stats.endDate && (
               <div>
                 <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Zakończenie</div>
                 <div style={{ fontSize: 14, fontWeight: "bold" }}>
-                  {new Date(stats.endDate).toLocaleString("pl-PL")}
+                  {(() => {
+                    const { formatPolishDateTime } = require('@/utils/polishTime');
+                    return formatPolishDateTime(stats.endDate);
+                  })()}
                 </div>
               </div>
             )}
@@ -170,7 +176,10 @@ export default function CampaignReport({ campaignId }: { campaignId: number }) {
               <div>
                 <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Ostatnia aktywność</div>
                 <div style={{ fontSize: 14, fontWeight: "bold" }}>
-                  {new Date(stats.lastActivity).toLocaleString("pl-PL")}
+                  {(() => {
+                    const { formatPolishDateTime } = require('@/utils/polishTime');
+                    return formatPolishDateTime(stats.lastActivity);
+                  })()}
                 </div>
               </div>
             )}

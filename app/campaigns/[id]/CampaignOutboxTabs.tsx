@@ -21,7 +21,83 @@ interface Props {
 }
 
 export default function CampaignOutboxTabs(props: Props) {
-  const [activeTab, setActiveTab] = useState<"status" | "maile" | "testy" | "informacje">("status");
+  type SubTabId = "status" | "maile" | "testy" | "informacje";
+  
+  // Mapowanie hash -> sub tab ID
+  const hashToSubTab: Record<string, SubTabId> = {
+    "#wysylka-status": "status",
+    "#wysylka-maile": "maile",
+    "#wysylka-testy": "testy",
+    "#wysylka-informacje": "informacje"
+  };
+  
+  // Mapowanie sub tab ID -> hash
+  const subTabToHash: Record<SubTabId, string> = {
+    "status": "#wysylka-status",
+    "maile": "#wysylka-maile",
+    "testy": "#wysylka-testy",
+    "informacje": "#wysylka-informacje"
+  };
+  
+  // ✅ Zawsze zaczynaj od "status" (dla SSR) - hash zostanie sprawdzony w useEffect
+  const [activeTab, setActiveTab] = useState<SubTabId>("status");
+  const [isClient, setIsClient] = useState(false);
+  
+  // ✅ Sprawdź hash dopiero po mount (tylko na kliencie)
+  useEffect(() => {
+    setIsClient(true);
+    
+    // Funkcja do pobrania aktywnej podkarty z URL hash
+    const getActiveSubTabFromHash = (): SubTabId => {
+      if (typeof window === 'undefined') return "status";
+      const hash = window.location.hash;
+      // Sprawdź czy hash pasuje do podkart wysyłki
+      if (hashToSubTab[hash]) {
+        return hashToSubTab[hash];
+      }
+      // Jeśli jesteśmy na karcie wysyłka (#wysylka), ale bez podkarty, zwróć domyślną
+      if (hash === "#wysylka") {
+        return "status";
+      }
+      return "status";
+    };
+    
+      // Sprawdź hash przy pierwszym załadowaniu (tylko jeśli jesteśmy na karcie wysyłka)
+      if (window.location.hash.startsWith("#wysylka")) {
+        const initialSubTab = getActiveSubTabFromHash();
+        setActiveTab(initialSubTab);
+      
+      // Jeśli jest tylko #wysylka bez podkarty, ustaw domyślny hash
+      if (window.location.hash === "#wysylka") {
+        window.history.replaceState(null, '', `${window.location.pathname}#wysylka-status`);
+      }
+    }
+    
+    // Nasłuchuj zmian hash
+    const handleHashChange = () => {
+      if (window.location.hash.startsWith("#wysylka")) {
+        const newActive = getActiveSubTabFromHash();
+        setActiveTab(newActive);
+      }
+    };
+    
+    window.addEventListener('hashchange', handleHashChange);
+    
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, []); // Pusta tablica zależności - uruchom tylko raz przy mount
+  
+  // Synchronizuj hash URL z aktywną podkartą przy zmianie (tylko na kliencie)
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const hash = subTabToHash[activeTab];
+    if (hash && typeof window !== 'undefined') {
+      // Użyj history.replaceState zamiast pushState, aby nie dodawać wpisu do historii
+      window.history.replaceState(null, '', `${window.location.pathname}${hash}`);
+    }
+  }, [activeTab, isClient]);
 
   const TabButton = ({ id, label }: { id: typeof activeTab; label: string }) => (
     <button
@@ -199,7 +275,10 @@ function CampaignOutboxStatusTab({
       {/* Użyte skrzynki */}
       {outboxData.mailboxStats.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <h3 style={{ marginBottom: 12 }}>Użyte skrzynki</h3>
+          <h3 style={{ marginBottom: 8 }}>Użyte skrzynki</h3>
+          <p style={{ margin: '0 0 12px 0', fontSize: 12, color: '#666', fontStyle: 'italic' }}>
+            Liczba pokazuje całkowitą liczbę maili wysłanych z tej kampanii (wszystkie czasy), nie tylko dzisiaj.
+          </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             {outboxData.mailboxStats.map((mailbox: any, i: number) => (
               <div key={i} style={{ 
@@ -499,7 +578,10 @@ function CampaignOutboxInfoTab({ campaignId, campaignStatus }: { campaignId: num
       {/* Skrzynki mailowe */}
       {!mailboxesLoading && mailboxes && (
         <div style={{ marginBottom: 24, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8, border: '1px solid #dee2e6' }}>
-          <h4 style={{ marginTop: 0, marginBottom: 16 }}>Skrzynki mailowe</h4>
+          <h4 style={{ marginTop: 0, marginBottom: 8 }}>Skrzynki mailowe</h4>
+          <p style={{ margin: '0 0 16px 0', fontSize: 12, color: '#666', fontStyle: 'italic' }}>
+            Dane pokazują globalną liczbę maili wysłanych dzisiaj ze skrzynki (wszystkie kampanie), nie tylko z tej kampanii.
+          </p>
           
           {/* Podsumowanie */}
           <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#e8f4fd', borderRadius: 6 }}>
@@ -535,7 +617,8 @@ function CampaignOutboxInfoTab({ campaignId, campaignStatus }: { campaignId: num
                   <th style={{ padding: '10px', textAlign: 'left', fontSize: 12, fontWeight: 'bold', color: '#666' }}>Email</th>
                   <th style={{ padding: '10px', textAlign: 'center', fontSize: 12, fontWeight: 'bold', color: '#666' }}>Status</th>
                   <th style={{ padding: '10px', textAlign: 'right', fontSize: 12, fontWeight: 'bold', color: '#666' }}>Limit dzienny</th>
-                  <th style={{ padding: '10px', textAlign: 'right', fontSize: 12, fontWeight: 'bold', color: '#666' }}>Wysłano dziś</th>
+                  <th style={{ padding: '10px', textAlign: 'right', fontSize: 12, fontWeight: 'bold', color: '#666' }}>Wysłano dziś<br/><span style={{ fontSize: 10, fontWeight: 'normal' }}>(wszystkie)</span></th>
+                  <th style={{ padding: '10px', textAlign: 'right', fontSize: 12, fontWeight: 'bold', color: '#666' }}>Wysłano dziś<br/><span style={{ fontSize: 10, fontWeight: 'normal' }}>(ta kampania)</span></th>
                   <th style={{ padding: '10px', textAlign: 'right', fontSize: 12, fontWeight: 'bold', color: '#666' }}>Pozostało</th>
                   <th style={{ padding: '10px', textAlign: 'center', fontSize: 12, fontWeight: 'bold', color: '#666' }}>Dostępna</th>
                 </tr>
@@ -562,6 +645,9 @@ function CampaignOutboxInfoTab({ campaignId, campaignStatus }: { campaignId: num
                     </td>
                     <td style={{ padding: '10px', textAlign: 'right', fontSize: 13, color: mailbox.currentSent >= mailbox.effectiveLimit ? '#f44336' : '#666' }}>
                       {mailbox.currentSent}
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'right', fontSize: 13, color: '#666' }}>
+                      {mailbox.sentTodayForCampaign !== undefined ? mailbox.sentTodayForCampaign : '-'}
                     </td>
                     <td style={{ padding: '10px', textAlign: 'right', fontSize: 13, fontWeight: 'bold', color: mailbox.remaining > 0 ? '#4caf50' : mailbox.remaining === 0 ? '#ff9800' : '#f44336' }}>
                       {mailbox.remaining}

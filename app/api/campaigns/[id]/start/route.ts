@@ -116,13 +116,43 @@ export async function POST(
       }
     });
 
-    // 5. NATYCHMIASTOWO uruchom kampanię
-    // To wywoła processScheduledCampaign() który:
-    // - Sprawdzi isValidSendTime (znowu, ale OK - to jest teraz)
-    // - Zmieni status na IN_PROGRESS
-    // - Rozpocznie wysyłkę z opóźnieniami
-    
-    await processScheduledCampaign();
+    // 5. ✅ NOWY SYSTEM V2: Inicjalizuj kolejkę (CampaignEmailQueue V2)
+    // Najpierw zmień status "planned" → "queued" (dla spójności)
+    await db.campaignLead.updateMany({
+      where: {
+        campaignId,
+        status: "planned",
+        lead: {
+          status: { not: "BLOCKED" },
+          isBlocked: false
+        }
+      },
+      data: {
+        status: "queued"
+      }
+    });
+
+    // ✅ WDROŻENIE V2: Użyj initializeQueueV2 zamiast starego initializeCampaignQueue
+    const { initializeQueueV2 } = await import('@/services/campaignEmailQueueV2');
+    const queueInitialized = await initializeQueueV2(
+      campaignId,
+      20 // Buffer: pierwsze 20 maili
+    );
+
+    if (queueInitialized > 0) {
+      console.log(`[START CAMPAIGN] ✅ Inicjalizowano kolejkę V2: ${queueInitialized} maili`);
+    } else {
+      console.log(`[START CAMPAIGN] ⚠️ Inicjalizacja kolejki V2 zwróciła 0 maili - sprawdź czy są leady w statusie "queued"`);
+    }
+
+    // 6. Zmień status na IN_PROGRESS
+    await db.campaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "IN_PROGRESS",
+        sendingStartedAt: now
+      }
+    });
 
     return NextResponse.json({ 
       success: true, 
@@ -170,11 +200,15 @@ export async function PUT(
       }, { status: 400 });
     }
 
-    // Zmień status na PAUSED
+    // Zmień status na PAUSED i anuluj kolejkę
     await db.campaign.update({
       where: { id: campaignId },
       data: { status: "PAUSED" }
     });
+
+    // Anuluj wszystkie pending/sending wpisy w kolejce
+    const { cancelCampaignQueue } = await import('@/services/campaignEmailQueue');
+    await cancelCampaignQueue(campaignId);
 
     return NextResponse.json({ 
       success: true, 

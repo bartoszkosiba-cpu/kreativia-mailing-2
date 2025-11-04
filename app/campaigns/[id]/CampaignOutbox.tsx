@@ -171,15 +171,8 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
   });
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('pl-PL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+    const { formatPolishDateTime } = require('@/utils/polishTime');
+    return formatPolishDateTime(dateString);
   };
 
   return (
@@ -233,7 +226,10 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
           {/* Statystyki skrzynek */}
           {data.mailboxStats.length > 0 && (
             <div style={{ marginBottom: 24 }}>
-              <h3 style={{ marginBottom: 12 }}>Użyte skrzynki</h3>
+              <h3 style={{ marginBottom: 8 }}>Użyte skrzynki</h3>
+              <p style={{ margin: '0 0 12px 0', fontSize: 12, color: '#666', fontStyle: 'italic' }}>
+                Liczba pokazuje całkowitą liczbę maili wysłanych z tej kampanii (wszystkie czasy), nie tylko dzisiaj.
+              </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                 {data.mailboxStats.map((mailbox, i) => (
                   <div key={i} style={{ 

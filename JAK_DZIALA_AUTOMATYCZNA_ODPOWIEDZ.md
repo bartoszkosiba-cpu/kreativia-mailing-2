@@ -160,3 +160,4 @@ Czy AI rozpozna prośbę (pewność >= 60%)?
 
 **Jeśli którykolwiek warunek nie jest spełniony → auto-reply nie działa!**
 
+

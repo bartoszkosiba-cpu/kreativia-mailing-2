@@ -87,10 +87,7 @@ export function startWarmupCron() {
   // ============================================================================
   // 00:00 - RESET LICZNIKÓW (polski czas)
   // ============================================================================
-  global.warmupCronJobs!.reset = cron.schedule('0 0 * * *', {
-    scheduled: true,
-    timezone: 'Europe/Warsaw'
-  }, async () => {
+  global.warmupCronJobs!.reset = cron.schedule('0 0 * * *', async () => {
     // Kolejkowanie - zapobiega nakładaniu się zadań
     if (global.warmupCronRunning!.reset) {
       console.log(`[WARMUP CRON] ⏭️ Reset cron już działa - pomijam`);
@@ -106,15 +103,15 @@ export function startWarmupCron() {
     } finally {
       global.warmupCronRunning!.reset = false;
     }
+  }, {
+    scheduled: true,
+    timezone: 'Europe/Warsaw'
   });
   
   // ============================================================================
   // 00:30 - PLANOWANIE MAILI NA DZIEŃ (polski czas)
   // ============================================================================
-  global.warmupCronJobs!.schedule = cron.schedule('30 0 * * *', {
-    scheduled: true,
-    timezone: 'Europe/Warsaw'
-  }, async () => {
+  global.warmupCronJobs!.schedule = cron.schedule('30 0 * * *', async () => {
     // Kolejkowanie - zapobiega nakładaniu się zadań
     if (global.warmupCronRunning!.schedule) {
       console.log(`[WARMUP CRON] ⏭️ Schedule cron już działa - pomijam`);
@@ -131,15 +128,15 @@ export function startWarmupCron() {
     } finally {
       global.warmupCronRunning!.schedule = false;
     }
+  }, {
+    scheduled: true,
+    timezone: 'Europe/Warsaw'
   });
   
   // ============================================================================
   // 01:00 - ZWIĘKSZANIE DNI WARMUP (polski czas)
   // ============================================================================
-  global.warmupCronJobs!.advance = cron.schedule('0 1 * * *', {
-    scheduled: true,
-    timezone: 'Europe/Warsaw'
-  }, async () => {
+  global.warmupCronJobs!.advance = cron.schedule('0 1 * * *', async () => {
     // Kolejkowanie - zapobiega nakładaniu się zadań
     if (global.warmupCronRunning!.advance) {
       console.log(`[WARMUP CRON] ⏭️ Advance cron już działa - pomijam`);
@@ -156,6 +153,9 @@ export function startWarmupCron() {
     } finally {
       global.warmupCronRunning!.advance = false;
     }
+  }, {
+    scheduled: true,
+    timezone: 'Europe/Warsaw'
   });
   
   // ============================================================================

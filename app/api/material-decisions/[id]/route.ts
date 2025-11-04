@@ -20,9 +20,9 @@ export async function POST(
     } = body;
 
     // Walidacja
-    if (!status || !['APPROVED', 'REJECTED'].includes(status)) {
+    if (!status || !['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
       return NextResponse.json(
-        { success: false, error: "Status musi być APPROVED lub REJECTED" },
+        { success: false, error: "Status musi być APPROVED, REJECTED lub PENDING" },
         { status: 400 }
       );
     }
@@ -45,12 +45,61 @@ export async function POST(
     }
 
     // Pozwól na zmianę statusu z REJECTED na APPROVED (reaktywacja)
+    // Pozwól na zmianę statusu z REJECTED na PENDING (przywrócenie do kolejki)
     // Ale nie pozwól zmienić z APPROVED na REJECTED (raz wysłane, nie odwołujemy)
     if (decision.status === 'APPROVED' && status === 'REJECTED') {
       return NextResponse.json(
         { success: false, error: "Nie można odwołać już zatwierdzonej decyzji" },
         { status: 400 }
       );
+    }
+    
+    // Jeśli zmieniamy z REJECTED na PENDING - przywróć do kolejki
+    if (decision.status === 'REJECTED' && status === 'PENDING') {
+      // Wyczyść pola związane z decyzją (żeby było jakby nowa)
+      await db.pendingMaterialDecision.update({
+        where: { id: decisionId },
+        data: {
+          status: 'PENDING',
+          decidedAt: null,
+          decidedBy: null,
+          decisionNote: null
+        }
+      });
+      
+      return NextResponse.json({
+        success: true,
+        data: await db.pendingMaterialDecision.findUnique({
+          where: { id: decisionId },
+          include: {
+            lead: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                company: true
+              }
+            },
+            campaign: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            reply: {
+              select: {
+                id: true,
+                fromEmail: true,
+                subject: true,
+                content: true,
+                createdAt: true
+              }
+            }
+          }
+        }),
+        message: 'Decyzja została przywrócona do kolejki oczekujących'
+      });
     }
     
     // Jeśli zmieniamy z REJECTED na APPROVED - usuń poprzednie MaterialResponse jeśli istnieje

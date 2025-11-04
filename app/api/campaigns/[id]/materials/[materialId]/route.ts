@@ -27,7 +27,7 @@ export async function PUT(
     } = body;
 
     // Sprawdź czy materiał należy do kampanii
-    const existingMaterial = await db.campaignMaterial.findUnique({
+    const existingMaterial = await db.material.findUnique({
       where: { id: materialId }
     });
 
@@ -55,13 +55,18 @@ export async function PUT(
       // Jeśli zmieniono typ, wyczyść przeciwne pole
       if (type === 'LINK') {
         updateData.url = url?.trim() || null;
-        updateData.filePath = null;
+        updateData.fileName = null; // ✅ Wyczyść fileName (nie ma filePath w schemacie)
       } else if (type === 'ATTACHMENT') {
-        updateData.filePath = filePath?.trim() || null;
+        // ✅ Użyj fileName (główna ścieżka w schemacie) lub filePath (dla kompatybilności)
+        updateData.fileName = (fileName?.trim() || filePath?.trim() || null);
         updateData.url = null;
       }
     }
     if (fileName !== undefined) updateData.fileName = fileName?.trim() || null;
+    // ✅ Jeśli fileName nie jest podany, ale filePath jest - użyj filePath jako fileName
+    if (fileName === undefined && filePath !== undefined && type === 'ATTACHMENT') {
+      updateData.fileName = filePath?.trim() || null;
+    }
     if (fileSize !== undefined) {
       updateData.fileSize = fileSize ? (typeof fileSize === 'number' ? fileSize : parseInt(String(fileSize))) : null;
     }
@@ -75,7 +80,7 @@ export async function PUT(
     console.log(`[MATERIALS PUT] Aktualizacja materiału ${materialId} w kampanii ${campaignId}:`, updateData);
 
     // Aktualizuj materiał
-    const material = await db.campaignMaterial.update({
+    const material = await db.material.update({
       where: { id: materialId },
       data: updateData
     });
@@ -107,7 +112,7 @@ export async function DELETE(
     const materialId = parseInt(params.materialId);
 
     // Sprawdź czy materiał należy do kampanii
-    const existingMaterial = await db.campaignMaterial.findUnique({
+    const existingMaterial = await db.material.findUnique({
       where: { id: materialId }
     });
 
@@ -119,7 +124,7 @@ export async function DELETE(
     }
 
     // Usuń materiał (cascade usunie też powiązane MaterialResponse)
-    await db.campaignMaterial.delete({
+    await db.material.delete({
       where: { id: materialId }
     });
 

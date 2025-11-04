@@ -122,3 +122,4 @@ Szukaj w logach następujących wpisów:
 **Status:** ⚠️ **WYMAGA SPRAWDZENIA CRON I LOGÓW**  
 **Nie wprowadzano zmian** - tylko odczyt i analiza ✅
 
+

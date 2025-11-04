@@ -179,7 +179,40 @@ export async function GET(
     let nextActionReason: string = '';
     let waitTimeSeconds: number | null = null;
     
-    // Sprawdź najbliższego leada w kolejce
+    // ✅ SPRAWDŹ NAJBLIŻSZY MAIL W KOLEJCE (CampaignEmailQueue) - to jest prawdziwy czas!
+    let nextQueuedEmail = null;
+    try {
+      nextQueuedEmail = await db.campaignEmailQueue.findFirst({
+        where: {
+          campaignId,
+          status: 'pending'
+        },
+        orderBy: {
+          scheduledAt: 'asc'
+        },
+        include: {
+          campaignLead: {
+            include: {
+              lead: {
+                select: {
+                  id: true,
+                  email: true,
+                  firstName: true,
+                  lastName: true,
+                  company: true
+                }
+              }
+            }
+          }
+        }
+      });
+    } catch (error: any) {
+      // Jeśli model nie istnieje - to OK, kolejka może być pusta lub nieużywana
+      console.warn(`[SENDING-INFO] Nie można sprawdzić CampaignEmailQueue: ${error.message}`);
+      nextQueuedEmail = null;
+    }
+    
+    // Sprawdź najbliższego leada w kolejce (jako fallback)
     const nextQueuedLead = await db.campaignLead.findFirst({
       where: {
         campaignId,
@@ -206,9 +239,24 @@ export async function GET(
     });
 
     if (campaign.status !== 'IN_PROGRESS') {
-      // Kampania nie jest aktywna
-      nextAction = 'Czeka na uruchomienie kampanii';
-      nextActionReason = `Status kampanii: ${campaign.status}`;
+      // Kampania nie jest aktywna - ale sprawdź czy są maile zaplanowane w kolejce
+      if (nextQueuedEmail) {
+        // Są maile zaplanowane - pokaż kiedy będą wysłane po wznowieniu
+        nextAction = 'Czeka na uruchomienie kampanii';
+        nextActionReason = `Status kampanii: ${campaign.status}. Maile zaplanowane w kolejce, będą wysłane po wznowieniu.`;
+        nextEmailTime = new Date(nextQueuedEmail.scheduledAt);
+        waitTimeSeconds = Math.max(0, Math.floor((nextEmailTime.getTime() - now.getTime()) / 1000));
+        // nextLead zostanie ustawiony poniżej z nextQueuedEmail
+      } else if (nextQueuedLead) {
+        // Brak maili w kolejce, ale są leady w kolejce - pokaż że po wznowieniu będą wysłane
+        nextAction = 'Czeka na uruchomienie kampanii';
+        nextActionReason = `Status kampanii: ${campaign.status}. Są leady w kolejce (${totalQueued}), będą wysłane po wznowieniu.`;
+        // nextLead zostanie ustawiony poniżej z nextQueuedLead
+      } else {
+        // Brak maili i leadów w kolejce
+        nextAction = 'Czeka na uruchomienie kampanii';
+        nextActionReason = `Status kampanii: ${campaign.status}`;
+      }
     } else if (totalQueued === 0) {
       // Brak leadów w kolejce
       nextAction = 'Brak leadów do wysłania';
@@ -242,50 +290,150 @@ export async function GET(
       tomorrow.setHours(startHour, startMinute, 0, 0);
       nextEmailTime = tomorrow;
       waitTimeSeconds = Math.floor((tomorrow.getTime() - now.getTime()) / 1000);
-    } else if (lastSentLogs.length > 0) {
-      // Jest ostatni wysłany mail - sprawdź delay
-      const lastSent = new Date(lastSentLogs[0].createdAt);
-      const timeSinceLastMail = Math.floor((now.getTime() - lastSent.getTime()) / 1000);
+    } else {
+      // ✅ SPRAWDŹ DOSTĘPNOŚĆ SKRZYNEK (przed delay check)
+      const { getNextAvailableMailbox } = await import('@/services/mailboxManager');
+      const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId, campaignId);
       
-      if (timeSinceLastMail < minDelay) {
-        // Delay jeszcze nie minął
-        const remainingDelay = minDelay - timeSinceLastMail;
-        nextAction = 'Czeka na minięcie delay';
-        nextActionReason = `Minęło ${timeSinceLastMail}s, wymagane minimum ${minDelay}s (bazowy ${baseDelay}s)`;
-        nextEmailTime = new Date(lastSent.getTime() + minDelay * 1000);
-        waitTimeSeconds = remainingDelay;
+      if (!availableMailbox) {
+        // Brak dostępnych skrzynek - sprawdź które kampanie blokują
+        const { getStartOfTodayPL } = await import('@/utils/polishTime');
+        const todayStart = getStartOfTodayPL();
         
-        // Sprawdź czy nie wykracza poza okno czasowe
-        if (nextEmailTime > endTimeToday) {
-          nextAction = 'Czeka na okno czasowe jutro';
-          nextActionReason = 'Delay minąłby poza oknem czasowym';
+        const blockingCampaigns = await db.campaign.findMany({
+          where: {
+            virtualSalespersonId: campaign.virtualSalespersonId,
+            status: 'IN_PROGRESS',
+            id: { not: campaignId }
+          },
+          select: {
+            id: true,
+            name: true
+          }
+        });
+
+        if (blockingCampaigns.length > 0) {
+          const blockingCampaignIds = blockingCampaigns.map(c => c.id);
+          const usedMailboxes = await db.sendLog.findMany({
+            where: {
+              campaignId: { in: blockingCampaignIds },
+              mailboxId: { not: null },
+              createdAt: { gte: todayStart },
+              status: 'sent'
+            },
+            select: { mailboxId: true },
+            distinct: ['mailboxId']
+          });
+
+          const usedMailboxIds = usedMailboxes.map(m => m.mailboxId).filter((id): id is number => id !== null);
+          
+          // Pobierz nazwy skrzynek
+          const mailboxEmails = usedMailboxIds.length > 0
+            ? await db.mailbox.findMany({
+                where: { id: { in: usedMailboxIds } },
+                select: { email: true }
+              }).then(mbs => mbs.map(m => m.email))
+            : [];
+
+          const blockingNames = blockingCampaigns.map(c => c.name).join(', ');
+          
+          nextAction = 'Czeka na dostępność skrzynek';
+          nextActionReason = `Wszystkie skrzynki są używane przez inne aktywne kampanie: ${blockingNames}. Skrzynki: ${mailboxEmails.join(', ') || 'wszystkie'}`;
+          
+          // Spróbuj ponownie za 1-2 minuty (gdy inna kampania może zakończyć wysyłkę lub wyczerpać limit)
+          const retryTime = new Date(now);
+          retryTime.setMinutes(retryTime.getMinutes() + 2);
+          nextEmailTime = retryTime;
+          waitTimeSeconds = Math.floor((retryTime.getTime() - now.getTime()) / 1000);
+        } else {
+          // Brak innych kampanii, ale brak skrzynek - wszystkie wyczerpane
+          nextAction = 'Czeka na dostępność skrzynek';
+          nextActionReason = 'Wszystkie skrzynki wyczerpały dzienny limit. Skrzynki będą dostępne jutro po resecie.';
+          
+          // Spróbuj jutro o startHour
           const tomorrow = new Date(today);
           tomorrow.setDate(tomorrow.getDate() + 1);
           tomorrow.setHours(startHour, startMinute, 0, 0);
           nextEmailTime = tomorrow;
           waitTimeSeconds = Math.floor((tomorrow.getTime() - now.getTime()) / 1000);
         }
+      } else if (lastSentLogs.length > 0) {
+        // Jest ostatni wysłany mail - sprawdź delay
+        const lastSent = new Date(lastSentLogs[0].createdAt);
+        const timeSinceLastMail = Math.floor((now.getTime() - lastSent.getTime()) / 1000);
+        
+        if (timeSinceLastMail < minDelay) {
+          // Delay jeszcze nie minął
+          const remainingDelay = minDelay - timeSinceLastMail;
+          nextAction = 'Czeka na minięcie delay';
+          nextActionReason = `Minęło ${timeSinceLastMail}s, wymagane minimum ${minDelay}s (bazowy ${baseDelay}s)`;
+          nextEmailTime = new Date(lastSent.getTime() + minDelay * 1000);
+          waitTimeSeconds = remainingDelay;
+          
+          // Sprawdź czy nie wykracza poza okno czasowe
+          if (nextEmailTime > endTimeToday) {
+            nextAction = 'Czeka na okno czasowe jutro';
+            nextActionReason = 'Delay minąłby poza oknem czasowym';
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(startHour, startMinute, 0, 0);
+            nextEmailTime = tomorrow;
+            waitTimeSeconds = Math.floor((tomorrow.getTime() - now.getTime()) / 1000);
+          }
+        } else {
+          // Delay minął - może wysłać teraz
+          // ✅ Jeśli jest mail w kolejce - użyj jego scheduledAt (stabilny czas)
+          if (nextQueuedEmail) {
+            nextAction = 'Gotowy do wysłania';
+            nextActionReason = 'Mail zaplanowany w kolejce, cron wyśle gdy scheduledAt minie';
+            nextEmailTime = new Date(nextQueuedEmail.scheduledAt);
+            waitTimeSeconds = Math.max(0, Math.floor((nextEmailTime.getTime() - now.getTime()) / 1000));
+          } else {
+            // Brak maili w kolejce - pokaż że system czeka na inicjalizację
+            nextAction = 'Gotowy do wysłania';
+            nextActionReason = 'Delay minął, brak maili w kolejce - system automatycznie zainicjalizuje w ciągu ~1 minuty';
+            // Użyj stabilnego czasu: zaokrąglij do następnej pełnej minuty (nie przesuwa się co sekundę)
+            const nextMinute = new Date(now);
+            nextMinute.setSeconds(0);
+            nextMinute.setMilliseconds(0);
+            nextMinute.setMinutes(nextMinute.getMinutes() + 1); // Następna pełna minuta
+            nextEmailTime = nextMinute;
+            waitTimeSeconds = Math.max(0, Math.floor((nextEmailTime.getTime() - now.getTime()) / 1000));
+          }
+        }
       } else {
-        // Delay minął - może wysłać teraz
-        nextAction = 'Gotowy do wysłania';
-        nextActionReason = 'Delay minął, cron wyśle mail w ciągu ~1 minuty';
-        nextEmailTime = new Date(now.getTime() + 60 * 1000); // Za ~1 minutę (następny cron)
-        waitTimeSeconds = 60;
-      }
-    } else {
-      // Brak wysłanych maili, ale są leady w kolejce
-      if (now < startTimeToday) {
-        // Jeszcze nie zaczęliśmy
-        nextAction = 'Czeka na początek okna czasowego';
-        nextActionReason = `Okno czasowe zaczyna się o ${formatScheduleTime(startHour, startMinute)}`;
-        nextEmailTime = startTimeToday;
-        waitTimeSeconds = Math.floor((startTimeToday.getTime() - now.getTime()) / 1000);
-      } else {
-        // Jesteśmy w oknie czasowym - może wysłać teraz
-        nextAction = 'Gotowy do wysłania';
-        nextActionReason = 'Pierwszy mail z kampanii, cron wyśle w ciągu ~1 minuty';
-        nextEmailTime = new Date(now.getTime() + 60 * 1000);
-        waitTimeSeconds = 60;
+        // Brak wysłanych maili, ale są leady w kolejce (else dla else if (lastSentLogs.length > 0))
+        if (now < startTimeToday) {
+          // Jeszcze nie zaczęliśmy
+          nextAction = 'Czeka na początek okna czasowego';
+          nextActionReason = `Okno czasowe zaczyna się o ${formatScheduleTime(startHour, startMinute)}`;
+          nextEmailTime = startTimeToday;
+          waitTimeSeconds = Math.floor((startTimeToday.getTime() - now.getTime()) / 1000);
+        } else {
+          // Jesteśmy w oknie czasowym - może wysłać teraz
+          // ✅ Jeśli jest mail w kolejce - użyj jego scheduledAt
+          if (nextQueuedEmail) {
+            nextAction = 'Gotowy do wysłania';
+            nextActionReason = 'Mail zaplanowany w kolejce, cron wyśle gdy scheduledAt minie';
+            nextEmailTime = new Date(nextQueuedEmail.scheduledAt);
+            waitTimeSeconds = Math.max(0, Math.floor((nextEmailTime.getTime() - now.getTime()) / 1000));
+          } else {
+            // Brak maili w kolejce
+            nextAction = 'Gotowy do wysłania';
+            nextActionReason = 'Pierwszy mail z kampanii, brak maili w kolejce - system automatycznie zainicjalizuje w ciągu ~1 minuty';
+            // Użyj stabilnego czasu: zaokrąglij do następnej pełnej minuty (nie przesuwa się co sekundę)
+            const nextMinute = new Date(now);
+            nextMinute.setSeconds(0);
+            nextMinute.setMilliseconds(0);
+            nextMinute.setMinutes(nextMinute.getMinutes() + 1); // Następna pełna minuta
+            // Ale nie wcześniej niż startTimeToday
+            const baseTime = campaign.scheduledAt && new Date(campaign.scheduledAt) > now 
+              ? new Date(campaign.scheduledAt) 
+              : (startTimeToday > nextMinute ? startTimeToday : nextMinute);
+            nextEmailTime = baseTime;
+            waitTimeSeconds = Math.max(0, Math.floor((nextEmailTime.getTime() - now.getTime()) / 1000));
+          }
+        }
       }
     }
 
@@ -321,12 +469,17 @@ export async function GET(
           action: nextAction,
           reason: nextActionReason,
           waitTimeSeconds,
-          nextLead: nextQueuedLead ? {
+          nextLead: nextQueuedEmail?.campaignLead?.lead ? {
+            email: nextQueuedEmail.campaignLead.lead.email,
+            firstName: nextQueuedEmail.campaignLead.lead.firstName,
+            lastName: nextQueuedEmail.campaignLead.lead.lastName,
+            company: nextQueuedEmail.campaignLead.lead.company
+          } : (nextQueuedLead?.lead ? {
             email: nextQueuedLead.lead.email,
             firstName: nextQueuedLead.lead.firstName,
             lastName: nextQueuedLead.lead.lastName,
             company: nextQueuedLead.lead.company
-          } : null
+          } : null)
         },
         todayInfo: {
           isActiveToday,

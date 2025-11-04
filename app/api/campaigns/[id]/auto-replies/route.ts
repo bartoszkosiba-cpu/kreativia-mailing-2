@@ -72,6 +72,8 @@ export async function GET(
       })
     ]);
 
+    console.log(`[AUTO-REPLIES API] Campaign ${campaignId}: Found ${materialResponses.length} MaterialResponse (total: ${materialResponsesTotal}), type=${type}, status=${status}`);
+
     // Pobierz PendingMaterialDecision dla tej kampanii
     const decisionWhere: any = {
       campaignId
@@ -150,12 +152,19 @@ export async function GET(
     // (zapobiega duplikatom jeśli istnieje wiele MaterialResponse dla tego samego replyId)
     const materialResponseByReplyId = new Map<number, any>();
     materialResponses.forEach(mr => {
-      const existing = materialResponseByReplyId.get(mr.replyId!);
-      if (!existing || new Date(mr.createdAt) > new Date(existing.createdAt)) {
-        materialResponseByReplyId.set(mr.replyId!, mr);
+      if (mr.replyId) { // ✅ Tylko jeśli replyId istnieje
+        const existing = materialResponseByReplyId.get(mr.replyId);
+        if (!existing || new Date(mr.createdAt) > new Date(existing.createdAt)) {
+          materialResponseByReplyId.set(mr.replyId, mr);
+        }
+      } else {
+        // Jeśli nie ma replyId, dodaj bezpośrednio (może być stare dane)
+        console.warn(`[AUTO-REPLIES API] MaterialResponse ${mr.id} nie ma replyId`);
       }
     });
     const uniqueMaterialResponses = Array.from(materialResponseByReplyId.values());
+    
+    console.log(`[AUTO-REPLIES API] Po filtrowaniu: ${uniqueMaterialResponses.length} unikalnych MaterialResponse`);
 
     if (!type || type === "all") {
       // Kombinuj oba typy i sortuj po dacie
@@ -214,6 +223,10 @@ export async function GET(
         reply: mr.reply
       }));
       totalCount = uniqueMaterialResponses.length;
+      console.log(`[AUTO-REPLIES API] type=material: ${combinedData.length} items, totalCount=${totalCount}`);
+      
+      // ✅ Zastosuj paginację dla type=material
+      combinedData = combinedData.slice(offset, offset + limit);
     } else if (type === "decision") {
       combinedData = filteredDecisions.map(pd => ({
         id: pd.id,
@@ -245,8 +258,10 @@ export async function GET(
     });
   } catch (error: any) {
     console.error("[AUTO-REPLIES] Błąd pobierania historii:", error);
+    console.error("[AUTO-REPLIES] Szczegóły błędu:", error.message);
+    console.error("[AUTO-REPLIES] Stack:", error.stack);
     return NextResponse.json(
-      { success: false, error: "Błąd podczas pobierania historii" },
+      { success: false, error: "Błąd podczas pobierania historii", details: error.message },
       { status: 500 }
     );
   }

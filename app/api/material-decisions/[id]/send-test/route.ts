@@ -235,7 +235,7 @@ export async function POST(
       if (realName && realEmail) {
         const introText = decision.campaign.autoReplyGuardianIntroText?.trim();
         if (introText) {
-          emailContent += '\n\n' + introText;
+          emailContent += '\n\n\n\n' + introText; // ✅ Dwa dodatkowe entery przed tekstem
         }
         
         emailContent += '\n\n**' + realName + '**';
@@ -258,46 +258,136 @@ export async function POST(
     const attachments: Array<{ filename: string; path: string }> = [];
     const links: Array<{ name: string; url: string }> = [];
     
+    console.log(`[MATERIAL TEST] 📦 Przetwarzam ${decision.campaign.materials.length} materiałów...`);
+    
     for (const material of decision.campaign.materials) {
-      if (material.type === 'ATTACHMENT' && material.filePath) {
-        let filePathToCheck = material.filePath;
+      console.log(`[MATERIAL TEST] 📄 Materiał: ${material.name} (type: ${material.type}, fileName: ${material.fileName || 'null'})`);
+      
+      if (material.type === 'ATTACHMENT' && material.fileName) {
+        // ✅ fileName może zawierać pełną ścieżkę względną (np. "materials/3_123456_katalog.pdf")
+        // lub tylko nazwę pliku (np. "katalog.pdf")
+        const fileName = material.fileName;
+        console.log(`[MATERIAL TEST] 🔍 Szukam pliku: ${fileName}`);
         
-        if (filePathToCheck.startsWith('materials/')) {
-          filePathToCheck = `uploads/${filePathToCheck}`;
-        }
+        // Usuń prefix "materials/" jeśli istnieje
+        const fileNameWithoutPath = fileName.replace(/^materials\//, '');
+        const baseFileName = path.basename(fileName);
+        const baseFileNameWithoutPath = path.basename(fileNameWithoutPath);
         
-        const possiblePaths = [
-          path.join(process.cwd(), filePathToCheck),
-          path.join(process.cwd(), 'uploads', 'materials', path.basename(material.filePath)),
-          path.join(process.cwd(), material.filePath),
-          path.join(process.cwd(), 'public', 'materials', path.basename(material.filePath)),
-          material.filePath
+        console.log(`[MATERIAL TEST] Warianty nazwy: fileNameWithoutPath="${fileNameWithoutPath}", baseFileName="${baseFileName}", baseFileNameWithoutPath="${baseFileNameWithoutPath}"`);
+        
+        // ✅ NOWE: Szukaj plików z prefiksem {campaignId}_{timestamp}_ w uploads/materials/
+        // Pliki są zapisywane jako: {campaignId}_{timestamp}_{originalFileName}
+        const campaignId = decision.campaign.id;
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
+        let foundPath: string | null = null;
+        
+        // Najpierw sprawdź dokładną nazwę (jeśli fileName zawiera pełną ścieżkę)
+        const exactPaths = [
+          path.join(process.cwd(), 'uploads', 'materials', fileName),
+          path.join(process.cwd(), 'uploads', 'materials', fileNameWithoutPath),
+          path.join(process.cwd(), 'uploads', 'materials', baseFileName),
+          path.join(process.cwd(), 'uploads', 'materials', baseFileNameWithoutPath),
         ];
         
-        let foundPath: string | null = null;
-        for (const fullPath of possiblePaths) {
-          if (fs.existsSync(fullPath)) {
-            foundPath = fullPath;
-            console.log(`[MATERIAL TEST] Znaleziono plik: ${fullPath}`);
+        for (const exactPath of exactPaths) {
+          if (fs.existsSync(exactPath)) {
+            foundPath = exactPath;
+            console.log(`[MATERIAL TEST] ✅ Znaleziono dokładną ścieżkę: ${foundPath}`);
             break;
           }
         }
         
+        // Jeśli nie znaleziono, szukaj plików z prefiksem {campaignId}_*
+        if (!foundPath && fs.existsSync(uploadsDir)) {
+          try {
+            const filesInDir = fs.readdirSync(uploadsDir);
+            console.log(`[MATERIAL TEST] Szukam pliku z prefiksem ${campaignId}_* wśród ${filesInDir.length} plików...`);
+            
+            // Szukaj pliku który zaczyna się od {campaignId}_ i zawiera nazwę pliku
+            const matchingFile = filesInDir.find(file => {
+              // Plik powinien zaczynać się od {campaignId}_ i zawierać nazwę pliku (może być zmieniona)
+              const startsWithCampaignId = file.startsWith(`${campaignId}_`);
+              const containsFileName = baseFileNameWithoutPath && 
+                file.toLowerCase().includes(baseFileNameWithoutPath.toLowerCase().replace(/[^a-z0-9]/gi, '_'));
+              return startsWithCampaignId && (containsFileName || file.includes(baseFileNameWithoutPath));
+            });
+            
+            if (matchingFile) {
+              foundPath = path.join(uploadsDir, matchingFile);
+              console.log(`[MATERIAL TEST] ✅ Znaleziono plik z prefiksem: ${foundPath}`);
+            } else {
+              // Jeśli nie znaleziono dopasowania, użyj ostatniego pliku z prefiksem {campaignId}_
+              const campaignFiles = filesInDir.filter(f => f.startsWith(`${campaignId}_`)).sort().reverse();
+              if (campaignFiles.length > 0) {
+                foundPath = path.join(uploadsDir, campaignFiles[0]);
+                console.log(`[MATERIAL TEST] ⚠️ Używam ostatniego pliku z kampanii ${campaignId}: ${campaignFiles[0]}`);
+              }
+            }
+          } catch (e: any) {
+            console.error(`[MATERIAL TEST] Błąd odczytu katalogu: ${e.message}`);
+          }
+        }
+        
+        // Fallback: sprawdź inne lokalizacje
+        if (!foundPath) {
+          const fallbackPaths = [
+            path.join(process.cwd(), 'public', 'materials', fileName),
+            path.join(process.cwd(), 'public', 'materials', fileNameWithoutPath),
+            path.join(process.cwd(), 'materials', fileName),
+            path.join(process.cwd(), 'materials', fileNameWithoutPath),
+            path.join(process.cwd(), fileName),
+            path.join(process.cwd(), fileNameWithoutPath)
+          ];
+          
+          for (const fallbackPath of fallbackPaths) {
+            if (fs.existsSync(fallbackPath)) {
+              foundPath = fallbackPath;
+              console.log(`[MATERIAL TEST] ✅ Znaleziono w fallback: ${foundPath}`);
+              break;
+            }
+          }
+        }
+        
+        // foundPath jest już ustawiony w kodzie powyżej
+        
         if (foundPath) {
+          // Użyj oryginalnej nazwy pliku (bez ścieżki) dla załącznika
+          const attachmentFileName = baseFileNameWithoutPath || baseFileName || material.name;
           attachments.push({
-            filename: material.fileName || material.name || path.basename(material.filePath),
+            filename: attachmentFileName,
             path: foundPath
           });
+          console.log(`[MATERIAL TEST] ✅ Dodano załącznik: ${attachmentFileName} (z ${foundPath})`);
         } else {
-          console.warn(`[MATERIAL TEST] Plik nie istnieje: ${material.filePath}`);
+          console.error(`[MATERIAL TEST] ❌❌❌ PLIK NIE ISTNIEJE w żadnej z lokalizacji dla: ${fileName}`);
+          console.error(`[MATERIAL TEST] Sprawdzane ścieżki:`, possiblePaths.map(p => `  - ${p}`).join('\n'));
+          
+          // Sprawdź czy katalog uploads/materials istnieje
+          const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
+          const uploadsDirExists = fs.existsSync(uploadsDir);
+          console.error(`[MATERIAL TEST] Katalog uploads/materials istnieje: ${uploadsDirExists}`);
+          if (uploadsDirExists) {
+            try {
+              const filesInDir = fs.readdirSync(uploadsDir);
+              console.error(`[MATERIAL TEST] Pliki w uploads/materials (${filesInDir.length}):`, filesInDir.slice(0, 10).join(', '));
+            } catch (e: any) {
+              console.error(`[MATERIAL TEST] Błąd odczytu katalogu: ${e.message}`);
+            }
+          }
         }
       } else if (material.type === 'LINK' && material.url) {
         links.push({
           name: material.name,
           url: material.url
         });
+        console.log(`[MATERIAL TEST] ✅ Dodano link: ${material.name} -> ${material.url}`);
+      } else {
+        console.warn(`[MATERIAL TEST] ⚠️ Materiał ${material.name} pominięty (type: ${material.type}, fileName: ${material.fileName || 'null'})`);
       }
     }
+    
+    console.log(`[MATERIAL TEST] 📎 Podsumowanie: ${attachments.length} załączników, ${links.length} linków`);
 
     // 3. Linki do materiałów (jeśli są) - PRZED stopką
     if (links.length > 0) {
@@ -373,10 +463,16 @@ export async function POST(
         const label = languageLabels[campaignLanguage as keyof typeof languageLabels] || languageLabels.pl;
         const leadName = `${decision.lead.firstName || ''} ${decision.lead.lastName || ''}`.trim() || decision.lead.email;
         
+        // ✅ Dodaj odstępy przed cytatem i wizualne oznaczenie
+        emailContent += '\n\n\n';
+        emailContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        emailContent += `${label} ${leadName} w dniu ${dateStr}, o godz. ${timeStr}:\n`;
+        emailContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        
+        // ✅ Dodaj prefix "> " do każdej linii cytatu (standardowe oznaczenie cytatu)
+        const quotedLines = cleanReplyText.split('\n').map(line => line.trim() ? `> ${line}` : '');
+        emailContent += quotedLines.join('\n');
         emailContent += '\n\n';
-        emailContent += `${label} ${leadName} w dniu ${dateStr}, o godz. ${timeStr}:\n\n`;
-        emailContent += cleanReplyText;
-        emailContent += '\n';
       }
     }
 
@@ -386,8 +482,16 @@ export async function POST(
     textContent = textContent.replace(/\[LINK\](.+?)\[\/LINK:(.+?)\]/g, '$1');
     textContent = textContent.replace(/\[LOGO\].+?\[\/LOGO\]/g, '[Logo firmy]');
     
-    // Wersja HTML
-    const htmlContent = convertToHtml(emailContent).replace(/\n/g, '<br>');
+    // Wersja HTML - dodatkowe formatowanie dla cytatu
+    let htmlContent = convertToHtml(emailContent);
+    
+    // ✅ Oznacz cytat wizualnie w HTML (szary kolor, wcięcie, border)
+    // Zastąp linie z prefiksem "> " na formatowane bloki cytatu
+    htmlContent = htmlContent.replace(/^(&gt; .+)$/gm, '<div style="color: #666; padding-left: 20px; border-left: 3px solid #ccc; margin: 5px 0;">$1</div>');
+    // Zastąp separator "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" na linię poziomą
+    htmlContent = htmlContent.replace(/━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;">');
+    
+    htmlContent = htmlContent.replace(/\n/g, '<br>');
 
     // Pobierz pierwszą dostępną skrzynkę mailową
     const mailbox = decision.campaign.virtualSalesperson?.mailboxes?.[0];
@@ -414,6 +518,9 @@ export async function POST(
       path: att.path
     }));
 
+    console.log(`[MATERIAL TEST] 📎 Przygotowano ${attachments.length} załączników:`, 
+      attachments.map(a => `${a.filename} (${a.path})`).join(', '));
+
     // Wyślij email testowy
     const fromEmail = mailbox.email;
     const fromName = mailbox.displayName || decision.campaign.virtualSalesperson?.name || "Kreativia";
@@ -427,6 +534,8 @@ export async function POST(
       attachments: nodemailerAttachments.length > 0 ? nodemailerAttachments : undefined,
       replyTo: mailbox.email
     };
+
+    console.log(`[MATERIAL TEST] 📧 Wysyłanie emaila z ${nodemailerAttachments.length} załącznikami...`);
 
     // ✅ NIE dodawaj handlowca do CC w testowym emailu (aby nie wprowadzać w błąd)
 

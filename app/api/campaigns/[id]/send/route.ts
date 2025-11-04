@@ -87,6 +87,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "Kampania nie ma leadów" }, { status: 400 });
     }
 
+    // ✅ NOWE: Sprawdź czy kampania jest IN_PROGRESS z kolejką - jeśli tak, nie pozwól na bezpośrednią wysyłkę
+    // (aby uniknąć duplikatów - użyj systemu kolejki zamiast tego)
+    if (!testEmail && campaign.status === "IN_PROGRESS") {
+      // Sprawdź czy ma kolejkę
+      const queueCount = await db.campaignEmailQueue.count({
+        where: {
+          campaignId: campaignId,
+          status: { in: ["pending", "sending"] }
+        }
+      });
+
+      if (queueCount > 0) {
+        return NextResponse.json({ 
+          error: "Kampania jest już w trakcie wysyłki przez system kolejki",
+          reason: `Kampania ma status IN_PROGRESS i ${queueCount} maili w kolejce. Użyj systemu kolejki zamiast bezpośredniej wysyłki.`,
+          hint: "Jeśli chcesz wysłać testowy mail, użyj parametru 'testEmail'."
+        }, { status: 400 });
+      }
+    }
+
     // Jeśli to test, wyślij tylko do testowego emaila
     if (testEmail) {
       try {

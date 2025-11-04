@@ -60,18 +60,24 @@ export default function FollowUpManager({ campaignId, isFollowUp }: { campaignId
   
   const loadFollowUpInfo = async () => {
     try {
+      setIsLoading(true);
       const response = await fetch(`/api/campaigns/${campaignId}/follow-up`);
-      if (response.ok) {
-        const data = await response.json();
-        setInfo(data);
-        
-        // Ustaw następny numer follow-upu
-        const nextSequence = (data.existingFollowUps.length || 0) + 1;
-        setFollowUpSequence(nextSequence);
-        setFollowUpDays(data.minFollowUpDays);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Nie udało się pobrać danych" }));
+        console.error("Błąd odpowiedzi API:", errorData);
+        alert(`Błąd ładowania danych: ${errorData.error || response.statusText}`);
+        return;
       }
+      const data = await response.json();
+      setInfo(data);
+      
+      // Ustaw następny numer follow-upu
+      const nextSequence = (data.existingFollowUps.length || 0) + 1;
+      setFollowUpSequence(nextSequence);
+      setFollowUpDays(data.minFollowUpDays);
     } catch (error) {
       console.error("Błąd ładowania info o follow-upach:", error);
+      alert(`Błąd ładowania danych: ${error instanceof Error ? error.message : "Nieznany błąd"}`);
     } finally {
       setIsLoading(false);
     }

@@ -184,36 +184,75 @@ export async function GET(
       reply: getReplyForLead(log.lead?.id || 0)
     }));
 
-    // ✅ Grupowanie po mailboxach (dla WSZYSTKICH maili z kampanii, nie tylko strona!)
-    const allSendLogsForMailboxStats = await db.sendLog.findMany({
-      where: { campaignId },
+    // ✅ Grupowanie po mailboxach - dla TEJ KAMPANII (z SendLog)
+    // Policz maile z SendLog dla tej kampanii (wszystkie dni, nie tylko dzisiaj)
+    const sentLogsForCampaign = await db.sendLog.findMany({
+      where: {
+        campaignId,
+        status: 'sent',
+        mailboxId: { not: null }
+      },
       select: {
-        status: true,
-        mailbox: {
+        mailboxId: true
+      }
+    });
+    
+    // Policz błędy z SendLog (wszystkie dla tej kampanii)
+    const failedLogsForCampaign = await db.sendLog.findMany({
+      where: {
+        campaignId,
+        status: 'error',
+        mailboxId: { not: null }
+      },
+      select: {
+        mailboxId: true
+      }
+    });
+    
+    // Policz maile i błędy per mailbox
+    const sentPerMailbox: { [key: number]: number } = {};
+    sentLogsForCampaign.forEach(log => {
+      if (log.mailboxId) {
+        sentPerMailbox[log.mailboxId] = (sentPerMailbox[log.mailboxId] || 0) + 1;
+      }
+    });
+    
+    const failedPerMailbox: { [key: number]: number } = {};
+    failedLogsForCampaign.forEach(log => {
+      if (log.mailboxId) {
+        failedPerMailbox[log.mailboxId] = (failedPerMailbox[log.mailboxId] || 0) + 1;
+      }
+    });
+    
+    // Pobierz handlowca z skrzynkami (używamy już istniejącej zmiennej campaign)
+    const campaignWithMailboxes = await db.campaign.findUnique({
+      where: { id: campaignId },
+      select: { 
+        virtualSalespersonId: true,
+        virtualSalesperson: {
           select: {
-            email: true,
-            displayName: true
+            mailboxes: {
+              where: { isActive: true },
+              select: {
+                id: true,
+                email: true,
+                displayName: true
+              }
+            }
           }
         }
       }
     });
-
-    const mailboxStats = allSendLogsForMailboxStats.reduce((acc: any, log) => {
-      if (log.mailbox) {
-        const key = log.mailbox.email;
-        if (!acc[key]) {
-          acc[key] = {
-            email: log.mailbox.email,
-            displayName: log.mailbox.displayName,
-            sent: 0,
-            failed: 0
-          };
-        }
-        if (log.status === 'sent') acc[key].sent++;
-        if (log.status === 'error') acc[key].failed++;
-      }
-      return acc;
-    }, {});
+    
+    // Utwórz statystyki - tylko dla skrzynek które mają maile w tej kampanii
+    const mailboxStats = campaignWithMailboxes?.virtualSalesperson?.mailboxes
+      .filter(mb => sentPerMailbox[mb.id] > 0 || failedPerMailbox[mb.id] > 0) // Pokaż tylko te które mają maile
+      .map(mb => ({
+        email: mb.email,
+        displayName: mb.displayName,
+        sent: sentPerMailbox[mb.id] || 0, // ✅ Z SendLog dla TEJ kampanii
+        failed: failedPerMailbox[mb.id] || 0 // Błędy z tej kampanii
+      })) || [];
 
     return NextResponse.json({
       success: true,

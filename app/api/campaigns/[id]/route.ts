@@ -31,8 +31,27 @@ export async function PATCH(
       const boolValue = typeof body.autoReplyEnabled === 'boolean' 
         ? body.autoReplyEnabled 
         : body.autoReplyEnabled === true || body.autoReplyEnabled === 'true';
+      const oldAutoReplyEnabled = existingCampaign.autoReplyEnabled;
       updateData.autoReplyEnabled = boolValue;
       console.log(`[CAMPAIGN PATCH] autoReplyEnabled: ${JSON.stringify(body.autoReplyEnabled)} (type: ${typeof body.autoReplyEnabled}) → ${boolValue} (type: ${typeof boolValue})`);
+      
+      // ✅ Jeśli wyłączamy automatyczne odpowiedzi, anuluj wszystkie MaterialResponse w statusie 'scheduled'
+      if (oldAutoReplyEnabled && !boolValue) {
+        console.log(`[CAMPAIGN PATCH] ⚠️ Wyłączono automatyczne odpowiedzi dla kampanii ${campaignId} - anuluję zaplanowane MaterialResponse`);
+        const cancelledCount = await db.materialResponse.updateMany({
+          where: {
+            campaignId: campaignId,
+            status: 'scheduled'
+          },
+          data: {
+            status: 'cancelled',
+            error: 'Automatyczne odpowiedzi zostały wyłączone dla tej kampanii'
+          }
+        });
+        if (cancelledCount.count > 0) {
+          console.log(`[CAMPAIGN PATCH] ✅ Anulowano ${cancelledCount.count} MaterialResponse w statusie 'scheduled'`);
+        }
+      }
     }
     if (body.autoReplyContext !== undefined) {
       updateData.autoReplyContext = body.autoReplyContext?.trim() || null;

@@ -39,8 +39,10 @@ model VirtualSalesperson {
   lastResetDate    DateTime? // Kiedy ostatnio zresetowano licznik
 
   // Prawdziwy handlowiec (dla forwardowania zainteresowanych leadów)
-  realSalespersonEmail String? // Email prawdziwego handlowca
-  realSalespersonName  String? // Imię i nazwisko prawdziwego handlowca
+  realSalespersonEmail     String? // Email prawdziwego handlowca
+  realSalespersonName      String? // Imię i nazwisko prawdziwego handlowca
+  realSalespersonPhone     String? // Telefon prawdziwego handlowca
+  realSalespersonSignature String? // Podpis/tytuł prawdziwego handlowca (np. "New Business Development")
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -113,13 +115,28 @@ model Campaign {
   linkTextB       String? // Tekst linku - wariant B
   linkUrlB        String? // URL linku - wariant B
 
-  createdAt     DateTime                     @default(now())
-  updatedAt     DateTime                     @updatedAt
-  leads         Lead[]
-  sendLogs      SendLog[]
-  CampaignLead  CampaignLead[]
-  replies       InboxReply[]
-  notifications InterestedLeadNotification[]
+  // Automatyczne odpowiedzi z materiałami
+  autoReplyEnabled           Boolean @default(false)
+  autoReplyContext           String? // Kontekst dla AI (np. "Jesteśmy drukarnią")
+  autoReplyRules             String? // JSON z regułami (co uważać za prośbę o materiały)
+  autoReplyDelayMinutes      Int     @default(15) // Opóźnienie przed wysłaniem odpowiedzi
+  autoReplyContent           String? // Statyczna treść odpowiedzi (może zawierać {firstName}, {materials})
+  autoReplyGuardianTemplate  String? // Szablon informacji o opiekunie klienta (może zawierać {name}, {email}, {phone}, {title})
+  autoReplyGuardianTitle     String? // Tytuł opiekuna klienta (np. "New Business Development")
+  autoReplyIncludeGuardian   Boolean @default(false) // Czy dodać informację o opiekunie do odpowiedzi
+  autoReplyGuardianIntroText String? // Wstępny tekst przed danymi opiekuna (np. "Twój opiekun klienta:")
+
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+  leads                    Lead[]
+  sendLogs                 SendLog[]
+  CampaignLead             CampaignLead[]
+  CampaignEmailQueue       CampaignEmailQueue[]
+  replies                  InboxReply[]
+  notifications            InterestedLeadNotification[]
+  materials                Material[]
+  materialResponses        MaterialResponse[]
+  pendingMaterialDecisions PendingMaterialDecision[]
 }
 
 model Lead {
@@ -161,14 +178,16 @@ model Lead {
   campaign      Campaign? @relation(fields: [campaignId], references: [id])
 
   // RELATIONS
-  SendLog       SendLog[]
-  CampaignLead  CampaignLead[]
-  LeadTag       LeadTag[]
-  replies       InboxReply[]
-  statusHistory LeadStatusHistory[]
-  notifications InterestedLeadNotification[]
-  createdAt     DateTime                     @default(now())
-  updatedAt     DateTime                     @default(now()) @updatedAt
+  SendLog                  SendLog[]
+  CampaignLead             CampaignLead[]
+  LeadTag                  LeadTag[]
+  replies                  InboxReply[]
+  statusHistory            LeadStatusHistory[]
+  notifications            InterestedLeadNotification[]
+  materialResponses        MaterialResponse[]
+  pendingMaterialDecisions PendingMaterialDecision[]
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @default(now()) @updatedAt
 }
 
 model SendLog {
@@ -198,6 +217,7 @@ model InboxReply {
   id              Int      @id @default(autoincrement())
   leadId          Int?
   campaignId      Int?
+  mailboxId       Int? // NOWE: Z której skrzynki mailowej przyszedł mail
   messageId       String   @unique
   threadId        String?
   subject         String
@@ -229,9 +249,14 @@ model InboxReply {
 
   createdAt DateTime @default(now())
 
-  lead          Lead?                        @relation(fields: [leadId], references: [id])
-  campaign      Campaign?                    @relation(fields: [campaignId], references: [id])
-  notifications InterestedLeadNotification[]
+  lead                     Lead?                        @relation(fields: [leadId], references: [id])
+  campaign                 Campaign?                    @relation(fields: [campaignId], references: [id])
+  mailbox                  Mailbox?                     @relation(fields: [mailboxId], references: [id])
+  notifications            InterestedLeadNotification[]
+  materialResponses        MaterialResponse[]
+  pendingMaterialDecisions PendingMaterialDecision[]
+
+  @@index([mailboxId])
 }
 
 model CampaignLead {
@@ -244,8 +269,9 @@ model CampaignLead {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  campaign Campaign @relation(fields: [campaignId], references: [id])
-  lead     Lead     @relation(fields: [leadId], references: [id])
+  campaign           Campaign             @relation(fields: [campaignId], references: [id])
+  lead               Lead                 @relation(fields: [leadId], references: [id])
+  campaignEmailQueue CampaignEmailQueue[]
 
   @@unique([campaignId, leadId])
 }
@@ -428,8 +454,10 @@ model Mailbox {
   virtualSalesperson VirtualSalesperson   @relation(fields: [virtualSalespersonId], references: [id], onDelete: Cascade)
   mainMailboxFor     VirtualSalesperson[] @relation("MainMailbox") // Skrzynki które są główne dla handlowców
   sendLogs           SendLog[]
+  inboxReplies       InboxReply[] // Odpowiedzi otrzymane na tę skrzynkę
   warmupEmails       WarmupEmail[]
   warmupQueue        WarmupQueue[]
+  materialResponses  MaterialResponse[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -718,6 +746,39 @@ model WarmupQueue {
   @@index([status])
 }
 
+// ============================================================================
+// CAMPAIGN EMAIL QUEUE - Kolejka zaplanowanych maili kampanii (precyzyjne planowanie)
+// ============================================================================
+
+model CampaignEmailQueue {
+  id             Int @id @default(autoincrement())
+  campaignId     Int
+  campaignLeadId Int // Relacja do CampaignLead (lead w kampanii)
+
+  // Planowanie
+  scheduledAt DateTime // Dokładny czas wysyłki (np. 2025-11-04 14:31:32)
+
+  // Status wysyłki
+  status String    @default("pending") // pending | sending | sent | failed | cancelled
+  sentAt DateTime? // Kiedy wysłano
+  error  String? // Błąd jeśli failed
+
+  // Metadata (opcjonalnie - dla debugowania)
+  metadata String? // JSON z dodatkowymi danymi
+
+  // Relacje
+  campaign     Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignLead CampaignLead @relation(fields: [campaignLeadId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([campaignId])
+  @@index([campaignLeadId])
+  @@index([scheduledAt, status]) // Kluczowy indeks dla szybkiego wyszukiwania
+  @@index([status])
+}
+
 model LeadStatusHistory {
   id     Int  @id @default(autoincrement())
   leadId Int
@@ -765,4 +826,83 @@ model InterestedLeadNotification {
   @@index([replyId])
   @@index([status])
   @@index([salespersonEmail])
+}
+
+// ============================================================================
+// AUTOMATYCZNE ODPOWIEDZI Z MATERIAŁAMI
+// ============================================================================
+
+model Material {
+  id         Int      @id @default(autoincrement())
+  campaignId Int
+  name       String // Nazwa materiału (np. "Katalog 2025")
+  type       String // LINK | ATTACHMENT
+  url        String? // URL dla LINK
+  fileName   String? // Nazwa pliku dla ATTACHMENT
+  order      Int      @default(0) // Kolejność wyświetlania (0, 1, 2, ...)
+  isActive   Boolean  @default(true) // Czy aktywny
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  campaign          Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  materialResponses MaterialResponse[]
+
+  @@index([campaignId])
+  @@index([campaignId, isActive])
+}
+
+model MaterialResponse {
+  id           Int       @id @default(autoincrement())
+  leadId       Int
+  campaignId   Int
+  replyId      Int
+  materialId   Int? // NULL = wszystkie materiały kampanii
+  subject      String
+  responseText String // Treść odpowiedzi
+  aiConfidence Float? // Pewność AI (0.0-1.0)
+  aiReasoning  String? // Uzasadnienie decyzji AI
+  status       String    @default("pending") // pending | scheduled | sending | sent | failed | cancelled
+  scheduledAt  DateTime? // Kiedy zaplanowano wysyłkę
+  sentAt       DateTime? // Kiedy faktycznie wysłano
+  error        String? // Błąd jeśli status = failed
+  mailboxId    Int? // Z której skrzynki wysłano
+  messageId    String? // ID wiadomości z SMTP
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  lead     Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  reply    InboxReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  material Material?  @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  mailbox  Mailbox?   @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+  @@index([replyId])
+  @@index([status])
+  @@index([scheduledAt, status])
+}
+
+model PendingMaterialDecision {
+  id              Int       @id @default(autoincrement())
+  leadId          Int
+  campaignId      Int
+  replyId         Int
+  aiConfidence    Float // Pewność AI (0.0-1.0)
+  aiReasoning     String // Uzasadnienie decyzji AI
+  leadResponse    String // Treść odpowiedzi leada
+  suggestedAction String // SEND | DONT_SEND
+  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  decisionNote    String? // Notatka administratora
+  decidedBy       String? // Kto zdecydował (np. "Administrator")
+  decidedAt       DateTime? // Kiedy zdecydowano
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  lead     Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  reply    InboxReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([replyId])
+  @@index([status])
 }

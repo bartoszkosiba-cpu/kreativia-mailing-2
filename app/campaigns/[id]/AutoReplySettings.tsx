@@ -24,7 +24,8 @@ export default function AutoReplySettings({ campaignId, initialSettings, campaig
   const autoReplyEnabledValue: any = initialSettings.autoReplyEnabled;
   const initialEnabled = autoReplyEnabledValue === true || autoReplyEnabledValue === 1 || String(autoReplyEnabledValue) === "1";
   
-  const [enabled, setEnabled] = useState(initialEnabled);
+  // Funkcjonalność zawsze włączona (checkbox ukryty)
+  const [enabled, setEnabled] = useState(true);
   const [delay, setDelay] = useState(initialSettings.autoReplyDelayMinutes || 15);
   const [content, setContent] = useState(initialSettings.autoReplyContent || "");
   const [includeGuardian, setIncludeGuardian] = useState(initialSettings.autoReplyIncludeGuardian || false); // ✅ NOWE
@@ -40,18 +41,16 @@ export default function AutoReplySettings({ campaignId, initialSettings, campaig
     materials: Array<{ id: number; name: string; type: string; url: string | null; fileName: string | null }>;
   } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [exampleFirstName, setExampleFirstName] = useState("Jan");
 
   // Synchronizuj stan z initialSettings gdy się zmienią (np. po odświeżeniu strony)
   useEffect(() => {
-    const autoReplyEnabledValue: any = initialSettings.autoReplyEnabled;
-    const newEnabled = autoReplyEnabledValue === true || autoReplyEnabledValue === 1 || String(autoReplyEnabledValue) === "1";
-    setEnabled(newEnabled);
+    // enabled zawsze true - checkbox ukryty
+    setEnabled(true);
     setDelay(initialSettings.autoReplyDelayMinutes || 15);
     setContent(initialSettings.autoReplyContent || "");
     setIncludeGuardian(initialSettings.autoReplyIncludeGuardian || false); // ✅ NOWE
     setGuardianIntroText(initialSettings.autoReplyGuardianIntroText || ""); // ✅ NOWE
-  }, [initialSettings.autoReplyEnabled, initialSettings.autoReplyDelayMinutes, initialSettings.autoReplyContent, initialSettings.autoReplyIncludeGuardian, initialSettings.autoReplyGuardianIntroText]);
+  }, [initialSettings.autoReplyDelayMinutes, initialSettings.autoReplyContent, initialSettings.autoReplyIncludeGuardian, initialSettings.autoReplyGuardianIntroText]);
 
   // Pobierz dane dla podglądu (dane handlowca i stopka)
   useEffect(() => {
@@ -76,48 +75,33 @@ export default function AutoReplySettings({ campaignId, initialSettings, campaig
     }
   };
 
-  // Automatyczny zapis checkboxa przy zmianie (opóźniony, żeby uniknąć zapisu przy inicjalizacji)
-  const [prevEnabled, setPrevEnabled] = useState(initialEnabled);
+  // Zapisz autoReplyEnabled jako true przy pierwszym załadowaniu (checkbox ukryty, ale funkcjonalność zawsze włączona)
   useEffect(() => {
-    // Zapisz tylko jeśli wartość faktycznie się zmieniła (nie przy pierwszym renderze)
-    if (enabled !== prevEnabled && enabled !== initialEnabled) {
-      const timeoutId = setTimeout(() => {
-        const saveCheckbox = async () => {
-          try {
-            const response = await fetch(`/api/campaigns/${campaignId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                autoReplyEnabled: enabled
-              })
-            });
+    const ensureEnabled = async () => {
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            autoReplyEnabled: true
+          })
+        });
 
-            const data = await response.json();
+        const data = await response.json();
+        if (!data.success) {
+          console.error("[AUTO REPLY] Błąd zapisu autoReplyEnabled:", data.error);
+        }
+      } catch (error: any) {
+        console.error("[AUTO REPLY] Błąd zapisu autoReplyEnabled:", error);
+      }
+    };
 
-            if (!data.success) {
-              console.error("[AUTO REPLY] Błąd automatycznego zapisu checkboxa:", data.error);
-              // Przywróć poprzednią wartość w przypadku błędu
-              setEnabled(prevEnabled);
-            } else {
-              // Zapis się udał, zaktualizuj prevEnabled
-              setPrevEnabled(enabled);
-            }
-          } catch (error: any) {
-            console.error("[AUTO REPLY] Błąd automatycznego zapisu checkboxa:", error);
-            // Przywróć poprzednią wartość w przypadku błędu
-            setEnabled(prevEnabled);
-          }
-        };
-
-        saveCheckbox();
-      }, 500); // Opóźnienie 500ms żeby uniknąć nadmiernych requestów
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [enabled, prevEnabled, initialEnabled, campaignId]);
+    // Zapisz tylko raz przy załadowaniu
+    ensureEnabled();
+  }, [campaignId]);
 
   // Zapisz wszystkie ustawienia (kontekst + zasady + opóźnienie)
-  // Uwaga: autoReplyEnabled zapisuje się automatycznie przez checkbox
+  // Uwaga: autoReplyEnabled zawsze jest true (checkbox ukryty)
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     setSavedMessage("");
@@ -159,30 +143,7 @@ export default function AutoReplySettings({ campaignId, initialSettings, campaig
     <div style={{ padding: "20px", backgroundColor: "white", borderRadius: "8px", marginBottom: "20px" }}>
       <h2 style={{ marginTop: 0, marginBottom: "20px" }}>Automatyczne odpowiedzi z materiałami</h2>
 
-      {/* Checkbox aktywacji (automatyczny zapis) */}
-      <div style={{ marginBottom: "20px", border: "1px solid #e0e0e0", padding: "15px", borderRadius: "8px", backgroundColor: "#fafafa" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            style={{ 
-              width: "18px", 
-              height: "18px", 
-              cursor: "pointer"
-            }}
-          />
-          <span style={{ fontWeight: 600 }}>
-            Włącz automatyczne odpowiedzi z materiałami
-          </span>
-        </label>
-        <p style={{ marginTop: "8px", color: "#666", fontSize: "14px" }}>
-          Gdy lead odpowiada z zainteresowaniem i prosi o materiały (katalog, cennik), system automatycznie wyśle odpowiedź z załącznikami/linkami.
-        </p>
-        <p style={{ marginTop: "4px", color: "#999", fontSize: "12px", fontStyle: "italic" }}>
-          Zmiana zapisuje się automatycznie.
-        </p>
-      </div>
+      {/* Checkbox ukryty - funkcjonalność zawsze włączona */}
 
       {/* Opcje widoczne tylko gdy moduł jest aktywny */}
       {enabled && (
@@ -319,8 +280,6 @@ export default function AutoReplySettings({ campaignId, initialSettings, campaig
           content={content}
           previewData={previewData}
           loadingPreview={loadingPreview}
-          exampleFirstName={exampleFirstName}
-          setExampleFirstName={setExampleFirstName}
           campaignSubject={campaignSubject}
           campaignId={campaignId}
           includeGuardian={includeGuardian}
@@ -336,8 +295,6 @@ function EmailPreview({
   content,
   previewData,
   loadingPreview,
-  exampleFirstName,
-  setExampleFirstName,
   campaignSubject,
   campaignId,
   includeGuardian,
@@ -351,59 +308,14 @@ function EmailPreview({
     materials: Array<{ id: number; name: string; type: string; url: string | null; fileName: string | null }>;
   } | null;
   loadingPreview: boolean;
-  exampleFirstName: string;
-  setExampleFirstName: (name: string) => void;
   campaignSubject: string | null | undefined;
   campaignId: number;
   includeGuardian?: boolean; // ✅ NOWE
   guardianIntroText?: string; // ✅ NOWE
 }) {
   
-  // Pobierz przykładowe powitanie z leada z kampanii
-  const [exampleGreeting, setExampleGreeting] = useState<string>("Dzień dobry");
-  const [loadingGreeting, setLoadingGreeting] = useState(false);
-  
-  useEffect(() => {
-    const loadExampleGreeting = async () => {
-      if (!exampleFirstName) {
-        setExampleGreeting("Dzień dobry");
-        return;
-      }
-      
-      setLoadingGreeting(true);
-      try {
-        // Znajdź leada z kampanii z podobnym imieniem lub pobierz pierwszy z powitaniem
-        const response = await fetch(`/api/campaigns/${campaignId}/leads`);
-        const data = await response.json();
-        
-        if (data && data.leads && data.leads.length > 0) {
-          // Znajdź leada z podobnym imieniem lub pierwszy z powitaniem
-          const matchingLead = data.leads.find((l: any) => 
-            l.firstName?.toLowerCase() === exampleFirstName.toLowerCase() && l.greetingForm
-          ) || data.leads.find((l: any) => l.greetingForm);
-          
-          if (matchingLead?.greetingForm) {
-            // Zastąp imię w powitaniu
-            const greeting = matchingLead.greetingForm.replace(/[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+/g, exampleFirstName);
-            setExampleGreeting(greeting);
-          } else {
-            // Fallback - wygeneruj powitanie
-            setExampleGreeting(exampleFirstName ? `Dzień dobry ${exampleFirstName}` : "Dzień dobry");
-          }
-        } else {
-          // Fallback
-          setExampleGreeting(exampleFirstName ? `Dzień dobry ${exampleFirstName}` : "Dzień dobry");
-        }
-      } catch (error) {
-        // Fallback
-        setExampleGreeting(exampleFirstName ? `Dzień dobry ${exampleFirstName}` : "Dzień dobry");
-      } finally {
-        setLoadingGreeting(false);
-      }
-    };
-    
-    loadExampleGreeting();
-  }, [exampleFirstName, campaignId]);
+  // Użyj przykładowego powitania dla podglądu (bez potrzeby ładowania z API)
+  const exampleGreeting = "Dzień dobry [Lead]";
   
   // Generuj treść emaila z podstawionymi placeholderami
   const generatePreviewContent = (): string => {
@@ -411,9 +323,9 @@ function EmailPreview({
     
     let previewContent = content;
     
-    // Podstaw placeholdery - użyj rzeczywistego powitania z leada
-    previewContent = previewContent.replace(/\{firstName\}/g, exampleFirstName);
-    previewContent = previewContent.replace(/\{lastName\}/g, "Kowalski");
+    // Podstaw placeholdery - użyj przykładowych wartości dla podglądu
+    previewContent = previewContent.replace(/\{firstName\}/g, "[Imię leada]");
+    previewContent = previewContent.replace(/\{lastName\}/g, "[Nazwisko leada]");
     previewContent = previewContent.replace(/\{greeting\}/g, exampleGreeting);
     
     // Materiały
@@ -430,6 +342,20 @@ function EmailPreview({
     } else {
       previewContent = previewContent.replace(/\{materials\}/g, "1. Przykładowy katalog");
       previewContent = previewContent.replace(/\{materialsList\}/g, "1. Przykładowy katalog");
+    }
+    
+    // ✅ Jeśli treść nie zaczyna się od powitania (i nie ma placeholder {greeting}), dodaj je na początku
+    // Sprawdź czy treść już zawiera powitanie na początku
+    const trimmedContent = previewContent.trim();
+    const hasGreetingAtStart = trimmedContent.toLowerCase().startsWith('dzień dobry') || 
+                               trimmedContent.toLowerCase().startsWith('hello') ||
+                               trimmedContent.toLowerCase().startsWith('guten tag') ||
+                               trimmedContent.toLowerCase().startsWith('bonjour') ||
+                               trimmedContent.toLowerCase().includes('dzień dobry');
+    
+    // Jeśli nie ma powitania na początku i nie było placeholder {greeting}, dodaj przykładowe powitanie
+    if (!hasGreetingAtStart && !content.includes('{greeting}')) {
+      previewContent = `${exampleGreeting},\n\n${previewContent}`;
     }
     
     return previewContent;
@@ -489,24 +415,9 @@ function EmailPreview({
     <div style={{ marginTop: "30px", padding: "20px", backgroundColor: "#f8f9fa", borderRadius: "8px", border: "1px solid #e0e0e0" }}>
       <h3 style={{ marginTop: 0, marginBottom: "20px" }}>Podgląd odpowiedzi</h3>
       
-      {/* Przykładowe imię */}
-      <div style={{ marginBottom: "15px" }}>
-        <label style={{ display: "block", marginBottom: "5px", fontSize: "13px", fontWeight: 600, color: "#666" }}>
-          Przykładowe imię leada (dla podglądu):
-        </label>
-        <input
-          type="text"
-          value={exampleFirstName}
-          onChange={(e) => setExampleFirstName(e.target.value)}
-          style={{
-            width: "200px",
-            padding: "6px 10px",
-            border: "1px solid #ddd",
-            borderRadius: "4px",
-            fontSize: "14px"
-          }}
-          placeholder="Jan"
-        />
+      {/* Informacja o powitaniu */}
+      <div style={{ marginBottom: "15px", padding: "10px", backgroundColor: "#e9ecef", borderRadius: "4px", fontSize: "13px", color: "#666", fontStyle: "italic" }}>
+        💡 Tu pojawi się powitanie przygotowane automatycznie dla konkretnego leada (np. "Dzień dobry Panie Janie")
       </div>
 
       {/* Email preview */}

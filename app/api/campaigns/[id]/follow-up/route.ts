@@ -272,13 +272,6 @@ export async function GET(
       where: { id: campaignId },
       include: {
         CampaignLead: {
-          where: {
-            lead: {
-              status: {
-                not: "BLOCKED" // Licz tylko aktywne leady
-              }
-            }
-          },
           include: {
             lead: true
           }
@@ -298,8 +291,14 @@ export async function GET(
       );
     }
     
+    // Filtruj leadów - pomiń zablokowanych
+    const activeCampaignLeads = campaign.CampaignLead.filter(cl => {
+      const lead = cl.lead;
+      return lead.status !== 'BLOCKED' && !lead.isBlocked;
+    });
+    
     // Znajdź leadów bez odpowiedzi lub z OOO
-    const allLeadIds = campaign.CampaignLead.map(cl => cl.leadId);
+    const allLeadIds = activeCampaignLeads.map(cl => cl.leadId);
     
     const replies = await db.inboxReply.findMany({
       where: {
@@ -316,14 +315,8 @@ export async function GET(
     let blockedCount = 0;
     
     // Policz statystyki dla leadów
-    campaign.CampaignLead.forEach(cl => {
+    activeCampaignLeads.forEach(cl => {
       const lead = cl.lead;
-      
-      // Zablokowane leady są już przefiltrowane w zapytaniu Prisma
-      if (lead.status === 'BLOCKED') {
-        blockedCount++;
-        return;
-      }
       
       const leadReply = replies.find(r => r.leadId === lead.id);
       
@@ -334,10 +327,13 @@ export async function GET(
       }
     });
     
+    // Policz zablokowanych (wszyscy z kampanii minus aktywni)
+    blockedCount = campaign.CampaignLead.length - activeCampaignLeads.length;
+    
     const eligibleForFollowUp = noReplyCount + oooCount;
     
     // Oblicz minimalny czas opóźnienia (czas trwania wysyłki)
-    const leadsCount = campaign.CampaignLead.length;
+    const leadsCount = activeCampaignLeads.length;
     const delaySeconds = campaign.delayBetweenEmails;
     const totalSeconds = leadsCount * delaySeconds;
     const hoursPerDay = campaign.endHour - campaign.startHour;
@@ -349,7 +345,7 @@ export async function GET(
       status: campaign.status,
       completedAt: campaign.sendingCompletedAt,
       stats: {
-        total: campaign.CampaignLead.length,
+        total: activeCampaignLeads.length,
         noReply: noReplyCount,
         ooo: oooCount,
         blocked: blockedCount,

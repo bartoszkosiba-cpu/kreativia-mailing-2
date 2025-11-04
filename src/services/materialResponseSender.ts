@@ -253,11 +253,15 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
   const now = new Date();
   
   // Pobierz wszystkie zaplanowane wysyłki które są gotowe
+  // ✅ TYLKO jeśli kampania ma włączone automatyczne odpowiedzi
   const scheduledResponses = await db.materialResponse.findMany({
     where: {
       status: 'scheduled',
       scheduledAt: {
         lte: now // Zaplanowane na teraz lub wcześniej
+      },
+      campaign: {
+        autoReplyEnabled: true // ✅ TYLKO jeśli autoReplyEnabled = true
       }
     },
     include: {
@@ -410,22 +414,17 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
       const links: Array<{ name: string; url: string }> = [];
       
       for (const material of materials) {
-        if (material.type === 'ATTACHMENT' && material.filePath) {
+        if (material.type === 'ATTACHMENT' && material.fileName) {
+          // ✅ Użyj fileName zamiast filePath (które nie istnieje w modelu)
           // Pliki mogą być w różnych miejscach - sprawdź różne ścieżki
-          // Format filePath może być: "materials/filename" lub "uploads/materials/filename" lub pełna ścieżka
-          let filePathToCheck = material.filePath;
-          
-          // Jeśli zaczyna się od "materials/", dodaj "uploads/"
-          if (filePathToCheck.startsWith('materials/')) {
-            filePathToCheck = `uploads/${filePathToCheck}`;
-          }
+          const fileName = material.fileName;
           
           const possiblePaths = [
-            path.join(process.cwd(), filePathToCheck), // uploads/materials/filename
-            path.join(process.cwd(), 'uploads', 'materials', path.basename(material.filePath)), // Tylko nazwa pliku
-            path.join(process.cwd(), material.filePath), // Dokładnie jak zapisane
-            path.join(process.cwd(), 'public', 'materials', path.basename(material.filePath)), // W public
-            material.filePath // Pełna ścieżka bezwzględna (jeśli zapisana tak)
+            path.join(process.cwd(), 'uploads', 'materials', fileName),
+            path.join(process.cwd(), 'uploads', 'materials', path.basename(fileName)),
+            path.join(process.cwd(), 'public', 'materials', fileName),
+            path.join(process.cwd(), 'materials', fileName),
+            path.join(process.cwd(), fileName)
           ];
           
           let foundPath: string | null = null;
@@ -439,11 +438,11 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
           
           if (foundPath) {
             attachments.push({
-              filename: material.fileName || material.name || path.basename(material.filePath),
+              filename: material.fileName || material.name,
               path: foundPath
             });
           } else {
-            console.warn(`[MATERIAL SENDER] Plik nie istnieje: ${material.filePath}`);
+            console.warn(`[MATERIAL SENDER] Plik nie istnieje: ${fileName}`);
             console.warn(`[MATERIAL SENDER] Sprawdzono ścieżki: ${possiblePaths.slice(0, 3).join(', ')}...`);
           }
         } else if (material.type === 'LINK' && material.url) {
@@ -525,7 +524,7 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
           // Tekst wprowadzający (jeśli ustawiony)
           const introText = response.campaign.autoReplyGuardianIntroText?.trim();
           if (introText) {
-            emailContent += '\n\n' + introText;
+            emailContent += '\n\n\n\n' + introText; // ✅ Dwa dodatkowe entery przed tekstem
           }
           
           // Formatowanie danych handlowca (BOLD dla imienia)
@@ -618,17 +617,34 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
         let directReplyText = directReplyLines.join('\n').trim();
         
         // ✅ Zbuduj cytat TYLKO z bezpośredniej odpowiedzi leada (bez zagnieżdżonych cytatów)
-        // Format:
-        // Wiadomość napisana przez [Lead Name] <[Lead Email]> w dniu [Data]:
-        // [Treść odpowiedzi leada - TYLKO bezpośrednia, bez cytatów]
-        let quotedContent = '\n\n';
+        // Format z wizualnym oznaczeniem:
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Wiadomość napisana przez [Lead Name] w dniu [Data]:
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // > [Treść odpowiedzi leada - każda linia z prefiksem "> "]
         
+        const languageLabels = {
+          pl: 'Wiadomość napisana przez',
+          en: 'Message written by',
+          de: 'Nachricht geschrieben von',
+          fr: 'Message écrit par'
+        };
+        
+        const label = languageLabels[campaignLanguage as keyof typeof languageLabels] || languageLabels.pl;
         const leadName = response.lead.firstName && response.lead.lastName 
           ? `${response.lead.firstName} ${response.lead.lastName}`
           : response.lead.email;
-        quotedContent += `Wiadomość napisana przez ${leadName} <${response.reply.fromEmail}> w dniu ${dateStr}, o godz. ${timeStr}:\n\n`;
-        quotedContent += directReplyText;
-        quotedContent += '\n'; // ✅ Dodaj enter po zakończeniu cytatu na końcu
+        
+        // ✅ Dodaj odstępy przed cytatem i wizualne oznaczenie
+        let quotedContent = '\n\n\n';
+        quotedContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        quotedContent += `${label} ${leadName} w dniu ${dateStr}, o godz. ${timeStr}:\n`;
+        quotedContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        
+        // ✅ Dodaj prefix "> " do każdej linii cytatu (standardowe oznaczenie cytatu)
+        const quotedLines = directReplyText.split('\n').map(line => line.trim() ? `> ${line}` : '');
+        quotedContent += quotedLines.join('\n');
+        quotedContent += '\n\n';
         
         emailContent += quotedContent;
       }
@@ -654,8 +670,16 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
       textContent = textContent.replace(/\[LINK\](.+?)\[\/LINK:(.+?)\]/g, '$1');
       textContent = textContent.replace(/\[LOGO\].+?\[\/LOGO\]/g, '[Logo firmy]');
       
-      // Wersja HTML (konwertuj **bold** i linki, potem \n na <br>)
-      const htmlContent = convertToHtml(emailContent).replace(/\n/g, '<br>');
+      // Wersja HTML - dodatkowe formatowanie dla cytatu
+      let htmlContent = convertToHtml(emailContent);
+      
+      // ✅ Oznacz cytat wizualnie w HTML (szary kolor, wcięcie, border)
+      // Zastąp linie z prefiksem "> " na formatowane bloki cytatu
+      htmlContent = htmlContent.replace(/^(&gt; .+)$/gm, '<div style="color: #666; padding-left: 20px; border-left: 3px solid #ccc; margin: 5px 0;">$1</div>');
+      // Zastąp separator "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" na linię poziomą
+      htmlContent = htmlContent.replace(/━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;">');
+      
+      htmlContent = htmlContent.replace(/\n/g, '<br>');
 
       // Określ nadawcę (dokładnie jak w sendCampaignEmail)
       const fromEmail = mailbox.email;

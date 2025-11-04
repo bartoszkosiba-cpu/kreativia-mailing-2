@@ -60,3 +60,4 @@ Wszystkie duplikaty są wysłane **dokładnie o sekundzie :01** w pełnej minuci
 2. **Unique constraint** na `SendLog(campaignId, leadId, variantLetter)` jako dodatkowe zabezpieczenie
 3. **Lepsze zarządzanie flagą** `isCampaignCronTaskRunning` (shared lock w bazie?)
 
+

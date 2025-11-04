@@ -294,10 +294,16 @@ export default function HistoryPage() {
                         </td>
                         <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
-                            {new Date(entry.date).toLocaleDateString("pl-PL")}
+                            {(() => {
+                              const { formatPolishDate } = require('@/utils/polishTime');
+                              return formatPolishDate(entry.date);
+                            })()}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {new Date(entry.date).toLocaleTimeString("pl-PL")}
+                            {(() => {
+                              const { formatPolishTime } = require('@/utils/polishTime');
+                              return formatPolishTime(entry.date);
+                            })()}
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-5">

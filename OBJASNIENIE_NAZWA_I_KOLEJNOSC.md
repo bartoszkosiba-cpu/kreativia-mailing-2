@@ -221,3 +221,4 @@ Nazwa: "Plik1"
 
 Gotowe! Teraz wiesz na co wpływa każda pozycja! 🎯
 
+

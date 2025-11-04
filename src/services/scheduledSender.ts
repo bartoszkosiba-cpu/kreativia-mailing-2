@@ -98,12 +98,14 @@ function getCampaignFieldsForVariant(campaign: any, variant: "A" | "B") {
 
 /**
  * Wysyła pojedynczego maila z opóźnieniem
+ * Eksportowana dla użycia w campaignEmailSender
  */
-async function sendSingleEmail(
+export async function sendSingleEmail(
   campaign: any,
   lead: any,
   companySettings: any,
-  index: number = 0 // Indeks leada (dla alternating mode)
+  index: number = 0, // Indeks leada (dla alternating mode)
+  preReservedMailbox?: any // Opcjonalny: zarezerwowana skrzynka (używana w V2)
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     // Wybierz wariant A/B
@@ -163,8 +165,10 @@ async function sendSingleEmail(
     }
 
     // Pobierz dostępną skrzynkę mailową (round-robin)
-    let mailbox = null;
-    if (campaign.virtualSalespersonId) {
+    // ✅ Jeśli mailbox jest przekazany (preReservedMailbox), użyj go (zarezerwowany w V2)
+    let mailbox = preReservedMailbox || null;
+    
+    if (!mailbox && campaign.virtualSalespersonId) {
       mailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId);
       
       if (!mailbox) {
@@ -191,6 +195,8 @@ async function sendSingleEmail(
       }
       
       console.log(`[SENDER] Używam skrzynki: ${mailbox.email} (pozostało: ${mailbox.remainingToday})`);
+    } else if (mailbox) {
+      console.log(`[SENDER] Używam zarezerwowanej skrzynki: ${mailbox.email} (pozostało: ${mailbox.remainingToday})`);
     }
 
     const result = await sendCampaignEmail({
@@ -235,7 +241,8 @@ async function sendSingleEmail(
     }
 
     // Inkrementuj licznik użycia skrzynki
-    if (mailbox) {
+    // ✅ Jeśli mailbox był przekazany (preReservedMailbox), NIE zwiększaj ponownie (już zarezerwowany w V2)
+    if (mailbox && !preReservedMailbox) {
       await incrementMailboxCounter(mailbox.id);
     }
 

@@ -213,3 +213,4 @@ sqlite3 prisma/dev.db "SELECT * FROM SendLog WHERE campaignId = 2 AND leadId = N
 
 **System jest gotowy! 🚀**
 
+

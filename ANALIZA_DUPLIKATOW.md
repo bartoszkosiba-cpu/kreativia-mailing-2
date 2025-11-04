@@ -82,3 +82,4 @@ model SendLog {
 1. **Natychmiast:** Dodać unique constraint (najszybsze rozwiązanie)
 2. **Długoterminowo:** Zmienić logikę na atomowe pobieranie leada (bardziej odporne)
 
+

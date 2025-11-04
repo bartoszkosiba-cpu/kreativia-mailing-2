@@ -117,3 +117,4 @@ Rozumiem Twoją logikę:
 
 **Czy mogę teraz naprawić kod?**
 
+

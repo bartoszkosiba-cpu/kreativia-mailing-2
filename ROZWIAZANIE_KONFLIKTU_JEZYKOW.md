@@ -86,3 +86,4 @@ Jesteśmy producentem...    ← język kampanii (PL) ✅
 
 **Status:** ✅ **GOTOWE DO UŻYCIA**
 
+

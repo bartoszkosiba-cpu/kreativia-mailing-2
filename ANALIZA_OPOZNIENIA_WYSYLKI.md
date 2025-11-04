@@ -149,3 +149,4 @@ Jeśli chcesz, mogę:
 
 **Status:** 🔍 **ANALIZA ZAKOŃCZONA - CZEKAM NA DECYZJĘ**
 
+

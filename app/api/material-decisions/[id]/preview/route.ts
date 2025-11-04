@@ -229,7 +229,7 @@ export async function GET(
         // Tekst wprowadzający (jeśli ustawiony)
         const introText = decision.campaign.autoReplyGuardianIntroText?.trim();
         if (introText) {
-          emailContent += '\n\n' + introText;
+          emailContent += '\n\n\n\n' + introText; // ✅ Dwa dodatkowe entery przed tekstem
         }
         
         // Formatowanie danych handlowca (BOLD dla imienia)
@@ -328,10 +328,16 @@ export async function GET(
         const label = languageLabels[campaignLanguage as keyof typeof languageLabels] || languageLabels.pl;
         const leadName = `${decision.lead.firstName || ''} ${decision.lead.lastName || ''}`.trim() || decision.lead.email;
         
+        // ✅ Dodaj odstępy przed cytatem i wizualne oznaczenie
+        emailContent += '\n\n\n';
+        emailContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        emailContent += `${label} ${leadName} w dniu ${dateStr}, o godz. ${timeStr}:\n`;
+        emailContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        
+        // ✅ Dodaj prefix "> " do każdej linii cytatu (standardowe oznaczenie cytatu)
+        const quotedLines = cleanReplyText.split('\n').map(line => line.trim() ? `> ${line}` : '');
+        emailContent += quotedLines.join('\n');
         emailContent += '\n\n';
-        emailContent += `${label} ${leadName} w dniu ${dateStr}, o godz. ${timeStr}:\n\n`;
-        emailContent += cleanReplyText;
-        emailContent += '\n'; // Dodatkowy enter na końcu cytatu
       }
     }
 

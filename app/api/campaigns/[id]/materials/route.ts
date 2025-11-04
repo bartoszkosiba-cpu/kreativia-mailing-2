@@ -12,15 +12,15 @@ export async function GET(
     const campaignId = parseInt(params.id);
 
     // Sprawdź czy model istnieje
-    if (!db.campaignMaterial) {
-      console.error("[MATERIALS GET] Błąd: db.campaignMaterial jest undefined!");
+    if (!db.material) {
+      console.error("[MATERIALS GET] Błąd: db.material jest undefined!");
       return NextResponse.json(
-        { success: false, error: "Model CampaignMaterial nie jest dostępny. Uruchom: npx prisma generate i zrestartuj serwer" },
+        { success: false, error: "Model Material nie jest dostępny. Uruchom: npx prisma generate i zrestartuj serwer" },
         { status: 500 }
       );
     }
 
-    const materials = await db.campaignMaterial.findMany({
+    const materials = await db.material.findMany({
       where: { campaignId },
       orderBy: { order: 'asc' }
     });
@@ -81,9 +81,9 @@ export async function POST(
       );
     }
 
-    if (type === 'ATTACHMENT' && (!filePath || !filePath.trim())) {
+    if (type === 'ATTACHMENT' && (!fileName || !fileName.trim())) {
       return NextResponse.json(
-        { success: false, error: "filePath jest wymagany dla typu ATTACHMENT (lub wybierz plik z dysku)" },
+        { success: false, error: "fileName jest wymagany dla typu ATTACHMENT (lub wybierz plik z dysku)" },
         { status: 400 }
       );
     }
@@ -118,15 +118,14 @@ export async function POST(
     }
 
     // Przygotuj dane do zapisu
+    // ✅ fileName może zawierać pełną ścieżkę względną (np. "materials/3_123456_katalog.pdf")
+    // lub tylko nazwę pliku (np. "katalog.pdf") - system znajdzie plik w różnych lokalizacjach
     const materialData: any = {
       campaignId,
       name: name.trim(),
       type,
       url: type === 'LINK' ? (url?.trim() || null) : null,
-      filePath: type === 'ATTACHMENT' ? (filePath?.trim() || null) : null,
-      fileName: fileName?.trim() || null,
-      fileSize: parsedFileSize,
-      language,
+      fileName: type === 'ATTACHMENT' ? (fileName?.trim() || filePath?.trim() || null) : null, // ✅ Użyj fileName lub filePath (dla kompatybilności)
       order: order ? parseInt(String(order)) : 0,
       isActive: true
     };
@@ -134,24 +133,22 @@ export async function POST(
     console.log(`[MATERIALS] Dane materiału:`, {
       name: materialData.name,
       type: materialData.type,
-      filePath: materialData.filePath,
       fileName: materialData.fileName,
-      fileSize: materialData.fileSize,
-      language: materialData.language
+      url: materialData.url
     });
 
     // Utwórz materiał
     // Sprawdź czy model istnieje (debug)
-    if (!db.campaignMaterial) {
-      console.error("[MATERIALS] Błąd: db.campaignMaterial jest undefined!");
+    if (!db.material) {
+      console.error("[MATERIALS] Błąd: db.material jest undefined!");
       console.error("[MATERIALS] Dostępne modele w db:", Object.keys(db).filter(k => !k.startsWith('_') && !k.startsWith('$')));
       return NextResponse.json(
-        { success: false, error: "Model CampaignMaterial nie jest dostępny. Uruchom: npx prisma generate" },
+        { success: false, error: "Model Material nie jest dostępny. Uruchom: npx prisma generate" },
         { status: 500 }
       );
     }
 
-    const material = await db.campaignMaterial.create({
+    const material = await db.material.create({
       data: materialData
     });
 

@@ -56,3 +56,4 @@ Kod został zmieniony na **atomowe pobieranie leada** z bazy:
 
 **Kampania jest gotowa do wznowienia z nową logiką!**
 
+

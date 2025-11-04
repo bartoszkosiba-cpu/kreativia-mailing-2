@@ -116,3 +116,4 @@
    - Co 1 minutę jest OK dla precyzji, ale może być zbyt często
    - **ALTERNATYWA:** Co 30 sekund? (ale to może być zbyt agresywne)
 
+

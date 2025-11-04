@@ -164,13 +164,15 @@ export class EmailAgentAI {
 
     switch (classType) {
       case 'INTERESTED':
-        // Sprawdź czy kampania ma włączony automatyczny moduł odpowiedzi z materiałami
+        // ✅ Zawsze sprawdzaj czy to prośba o materiały (niezależnie od autoReplyEnabled)
+        // autoReplyEnabled wpływa tylko na automatyczną wysyłkę, nie na kolejkę decyzji administratora
         const campaign = reply.campaign;
-        if (campaign?.autoReplyEnabled && campaignId) {
+        if (campaignId) {
           // Sprawdź czy to prośba o materiały
           const materialAnalysis = await this.checkMaterialRequest(reply, campaign);
           
-          // ZMIENIONE: Zawsze wymagaj akceptacji administratora (nie wysyłaj automatycznie)
+          // Jeśli to prośba o materiały - zawsze dodaj do kolejki administratora
+          // (niezależnie od autoReplyEnabled - to jest kolejka decyzji, nie automatyczna wysyłka)
           if (materialAnalysis.isMaterialRequest && materialAnalysis.confidence >= 0.6) {
             // Dodaj do kolejki administratora - zawsze wymagaj akceptacji
             return {
@@ -536,6 +538,23 @@ export class EmailAgentAI {
           }
         });
         console.log(`[EMAIL AGENT AI] ✅ Dodano reaktywowanego lead ${leadId} z powrotem do kampanii ${campaignId}`);
+      }
+    }
+
+    // ✅ INTERESTED: Jeśli lead jest ZAINTERESOWANY i kampania jest podana, zaktualizuj CampaignLead.status
+    if (isInterested && campaignId) {
+      const updatedCampaignLead = await db.campaignLead.updateMany({
+        where: {
+          leadId: leadId,
+          campaignId: campaignId
+        },
+        data: {
+          status: 'INTERESTED'
+        }
+      });
+      
+      if (updatedCampaignLead.count > 0) {
+        console.log(`[EMAIL AGENT AI] ✅ Zaktualizowano CampaignLead.status → INTERESTED dla lead ${leadId} w kampanii ${campaignId}`);
       }
     }
 

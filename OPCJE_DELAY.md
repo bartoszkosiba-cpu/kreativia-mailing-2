@@ -67,3 +67,4 @@ Ale jeśli chcesz równomierny rozkład → OPCJA B z zabezpieczeniem:
 1. **Prosty stały delay** (90s ±20%) - odporny na awarie
 2. **Adaptacyjny delay** (90s-180s) - równomierny rozkład
 
+
