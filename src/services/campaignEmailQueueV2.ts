@@ -17,10 +17,9 @@ export function calculateNextEmailTimeV2(
   lastSentTime: Date,
   delayBetweenEmails: number
 ): Date {
-  // Delay = delayBetweenEmails ± 20%
-  const randomVariation = 0.2;
-  const minDelay = Math.floor(delayBetweenEmails * (1 - randomVariation)); // 80%
-  const maxDelay = Math.floor(delayBetweenEmails * (1 + randomVariation)); // 120%
+  // Delay = delayBetweenEmails + 0-100% (losowo od bazowego do podwójnego)
+  const minDelay = delayBetweenEmails; // 90s (0% dodatku)
+  const maxDelay = delayBetweenEmails * 2; // 180s (100% dodatku)
   
   // ✅ Losowy delay w zakresie [minDelay, maxDelay] włącznie
   // Math.random() zwraca [0, 1), więc Math.floor(Math.random() * (range + 1)) daje [0, range]
@@ -59,11 +58,22 @@ export function isWithinSendWindow(
 
   // Sprawdź dzień tygodnia
   if (campaign.allowedDays) {
-    const allowedDaysArray = campaign.allowedDays.split(',');
-    const dayNames = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
-    const currentDayName = dayNames[currentDay];
+    const allowedDaysArray = campaign.allowedDays.split(',').map(d => d.trim().toUpperCase());
+    // Mapowanie: 0 = niedziela, 1 = poniedziałek, ..., 6 = sobota
+    // allowedDays używa formatu: MON, TUE, WED, THU, FRI, SAT, SUN
+    const dayMapping: { [key: number]: string } = {
+      0: 'SUN', // niedziela
+      1: 'MON', // poniedziałek
+      2: 'TUE', // wtorek
+      3: 'WED', // środa
+      4: 'THU', // czwartek
+      5: 'FRI', // piątek
+      6: 'SAT'  // sobota
+    };
     
-    if (!allowedDaysArray.includes(currentDayName)) {
+    const currentDayCode = dayMapping[currentDay];
+    
+    if (!currentDayCode || !allowedDaysArray.includes(currentDayCode)) {
       return false;
     }
   }
@@ -208,7 +218,7 @@ export async function initializeQueueV2(
 
     // Sprawdź dostępność skrzynek przed planowaniem (wyklucz skrzynki używane przez inne aktywne kampanie)
     const { getNextAvailableMailbox } = await import('./mailboxManager');
-    const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId, campaignId);
+    const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId || 0, campaignId);
     const hasAvailableMailbox = availableMailbox !== null;
 
     // Jeśli brak dostępnych skrzynek, zaplanuj wszystkie na jutro o startHour (w polskim czasie)
@@ -474,11 +484,63 @@ export async function scheduleNextEmailV2(
   delayBetweenEmails: number
 ): Promise<number | null> {
   try {
-    // Pobierz następny lead z CampaignLead (status = queued)
+    // ✅ NOWA FUNKCJONALNOŚĆ: Sprawdź czy to 10. mail DZISIAJ - jeśli tak, dodaj pauzę (10 min + 0-50%)
+    // ✅ POPRAWKA: Licz tylko maile wysłane DZISIAJ, nie wszystkie w historii
+    const { getStartOfTodayPL } = await import('@/utils/polishTime');
+    const startOfToday = getStartOfTodayPL();
+    
+    const sentCountToday = await db.sendLog.count({
+      where: {
+        campaignId,
+        status: 'sent',
+        createdAt: {
+          gte: startOfToday // Tylko maile wysłane dzisiaj
+        }
+      }
+    });
+
+    let nextTime = lastSentTime;
+    
+    // Jeśli to wielokrotność 10 (10, 20, 30, ...) DZISIAJ, dodaj pauzę
+    if (sentCountToday > 0 && sentCountToday % 10 === 0) {
+      const basePauseMinutes = 10; // 10 minut bazowej pauzy
+      const randomVariation = 0.5; // 0-50% randomizacji
+      const minPauseMinutes = basePauseMinutes; // 10 min (0% dodatku)
+      const maxPauseMinutes = basePauseMinutes * (1 + randomVariation); // 15 min (50% dodatku)
+      const pauseRange = maxPauseMinutes - minPauseMinutes;
+      const actualPauseMinutes = Math.floor(Math.random() * (pauseRange * 60 + 1)) + (minPauseMinutes * 60); // [600, 900]s
+      
+      nextTime = new Date(lastSentTime.getTime() + (actualPauseMinutes * 1000));
+      console.log(`[QUEUE V2] ⏸️  Pauza co 10 maili: ${sentCountToday} maili wysłanych DZISIAJ, dodaję pauzę ${Math.floor(actualPauseMinutes / 60)} min ${actualPauseMinutes % 60}s (${Math.floor(minPauseMinutes)}-${Math.floor(maxPauseMinutes)} min)`);
+    } else {
+      // Normalny odstęp między mailami
+      nextTime = calculateNextEmailTimeV2(
+        lastSentTime,
+        delayBetweenEmails
+      );
+    }
+
+    // ✅ POPRAWKA: Pobierz leady które są już w kolejce (pending/sending) aby je wykluczyć
+    const leadsInQueue = await db.campaignEmailQueue.findMany({
+      where: {
+        campaignId,
+        status: { in: ['pending', 'sending'] }
+      },
+      select: {
+        campaignLeadId: true
+      }
+    });
+    const leadsInQueueIds = leadsInQueue.map(e => e.campaignLeadId);
+
+    // ✅ POPRAWKA: Pobierz następny lead z CampaignLead (status = queued) który NIE jest w kolejce
     const nextCampaignLead = await db.campaignLead.findFirst({
       where: {
         campaignId,
         status: "queued",
+        // Wyklucz leady które są już w kolejce
+        ...(leadsInQueueIds.length > 0 ? {
+          id: { notIn: leadsInQueueIds }
+        } : {}),
         lead: {
           status: { not: "BLOCKED" },
           isBlocked: false
@@ -520,7 +582,8 @@ export async function scheduleNextEmailV2(
       return null;
     }
 
-    // Sprawdź czy już jest w kolejce
+    // ✅ Sprawdzenie czy już jest w kolejce jest teraz niepotrzebne (już wykluczone w zapytaniu)
+    // Ale zostawiamy jako dodatkowe zabezpieczenie
     const existing = await db.campaignEmailQueue.findFirst({
       where: {
         campaignId,
@@ -530,7 +593,7 @@ export async function scheduleNextEmailV2(
     });
 
     if (existing) {
-      console.log(`[QUEUE V2] ⚠️  Lead ${nextCampaignLead.lead.email} już jest w kolejce`);
+      console.log(`[QUEUE V2] ⚠️  Lead ${nextCampaignLead.lead.email} już jest w kolejce (double-check)`);
       return null;
     }
 
@@ -550,8 +613,8 @@ export async function scheduleNextEmailV2(
       return null;
     }
 
-    // Oblicz czas następnego maila
-    let scheduledAt = calculateNextEmailTimeV2(lastSentTime, delayBetweenEmails);
+    // Użyj obliczony nextTime (z pauzą jeśli potrzeba) lub oblicz normalny odstęp
+    let scheduledAt = nextTime;
 
     // Sprawdź czy czas jest w oknie wysyłki
     if (!isWithinSendWindow(scheduledAt, campaign)) {

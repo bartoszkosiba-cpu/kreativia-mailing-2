@@ -98,9 +98,19 @@ export async function processAutoFollowUps(): Promise<void> {
 
     console.log(`[AUTO-FOLLOWUP] Znaleziono ${awaitingLeads.length} leadów do AUTO_FOLLOWUP`);
 
-    for (const lead of awaitingLeads) {
+    // ✅ ZABEZPIECZENIE: Limit na liczbę leadów do przetworzenia (max 20 na raz) - zapobiega masowej wysyłce
+    const leadsToProcess = awaitingLeads.slice(0, 20);
+    
+    // ✅ ZABEZPIECZENIE: Wysyłaj z opóźnieniem między mailami (2 sekundy) - zapobiega masowej wysyłce
+    for (let i = 0; i < leadsToProcess.length; i++) {
+      const lead = leadsToProcess[i];
       try {
         await sendAutoFollowUp(lead);
+        
+        // Opóźnienie między mailami (tylko jeśli nie jest to ostatni mail)
+        if (i < leadsToProcess.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 sekundy
+        }
       } catch (error: any) {
         console.error(`[AUTO-FOLLOWUP] ✗ Błąd dla leada ${lead.id}:`, error.message);
       }

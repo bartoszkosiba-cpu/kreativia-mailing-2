@@ -30,14 +30,128 @@ function getDefaultGreetingForLanguage(language: string): string {
   }
 }
 
-// Funkcja convertToHtml - dokładnie taka sama jak w client.ts
+// ✅ Funkcja convertToHtml - rozszerzona o formatowanie cytatów
 function convertToHtml(text: string): string {
-  // Najpierw konwertuj logo [LOGO]base64[/LOGO] na <img>
-  let html = text.replace(/\[LOGO\](.+?)\[\/LOGO\]/g, '<img src="$1" alt="Company Logo" style="max-width: 112px; margin: 20px 0;" />');
+  let html = text;
+  
+  // 1. Najpierw obsłuż specjalne tagi systemowe
+  // Konwertuj logo [LOGO]base64[/LOGO] na <img>
+  html = html.replace(/\[LOGO\](.+?)\[\/LOGO\]/g, '<img src="$1" alt="Company Logo" style="max-width: 112px; margin: 20px 0;" />');
+  
   // Konwertuj linki [LINK]text[/LINK:url] na <a href="url">text</a>
   html = html.replace(/\[LINK\](.+?)\[\/LINK:(.+?)\]/g, '<a href="$2" style="color: #0066cc; text-decoration: underline;">$1</a>');
-  // Konwertuj **bold** na <strong>
+  
+  // Formatuj **bold** na <strong>
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  
+  // 2. ✅ Formatuj separator ━━━━━━━━ na <hr>
+  html = html.replace(/━+/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;" />');
+  
+  // 3. ✅ Formatuj sekcję "Wiadomość napisana przez..." + cytat
+  // Znajdź nagłówek i cały blok cytatów po nim
+  html = html.replace(/(Wiadomość napisana przez[^\n\r]+(?:[\r\n]+))((?:>.*[\r\n]*)+)/gi, (match, header, quoteBlock) => {
+    // Formatuj nagłówek (kursywa, szary kolor)
+    const formattedHeader = `<div style="color: #888; font-size: 12px; margin: 16px 0 8px 0; font-style: italic;">${header.trim()}</div>`;
+    
+    // Formatuj blok cytatów - wyciągnij wszystkie linie z ">"
+    // ✅ Zachowaj puste linie (linie z samym ">") jako odstępy
+    const quoteLines = quoteBlock
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.startsWith('>'))
+      .map(line => {
+        const withoutPrefix = line.replace(/^>\s*/, '');
+        // Jeśli linia była pusta (tylko ">"), zwróć pusty string (będzie renderowany jako odstęp)
+        return withoutPrefix === '' ? '' : withoutPrefix;
+      });
+    
+    if (quoteLines.length === 0) {
+      return match; // Jeśli nie ma cytatów, zwróć oryginał
+    }
+    
+    // ✅ Połącz linie, ale puste linie (puste stringi) zamień na <br><br> (odstęp)
+    const cleanQuote = quoteLines
+      .map((line, index) => {
+        if (line === '') {
+          // Pusta linia - dodaj odstęp
+          return '<br>';
+        } else if (index > 0 && quoteLines[index - 1] === '') {
+          // Jeśli poprzednia linia była pusta, to już dodaliśmy <br>, więc dodaj tylko jedną linię
+          return line;
+        } else {
+          return line;
+        }
+      })
+      .join('<br>')
+      .replace(/<br><br>/g, '<br><br>'); // Podwójne <br> to odstęp
+    
+    // Zwróć sformatowany nagłówek i blok cytatów
+    return formattedHeader + `<div style="color: #666; padding: 12px 16px; border-left: 3px solid #ccc; margin: 0 0 16px 0; background: #f9f9f9; border-radius: 4px; font-size: 13px; line-height: 1.6;">${cleanQuote}</div>`;
+  });
+  
+  // 4. ✅ Formatuj pozostałe cytaty (linie z "> " które nie są w sformatowanym bloku)
+  // Znajdź wszystkie ciągłe bloki cytatów (linie zaczynające się od "> ")
+  html = html.replace(/^(>.*(?:\n>.*)*)/gm, (match) => {
+    // Sprawdź czy to nie jest już sformatowany blok
+    if (match.includes('<div style')) return match;
+    
+    // ✅ Usuń "> " z każdej linii, ale zachowaj puste linie jako odstępy
+    const cleanQuote = match
+      .split(/\r?\n/)
+      .map(line => {
+        const withoutPrefix = line.replace(/^>\s*/, '');
+        // Jeśli linia była pusta (tylko ">"), zwróć pusty string dla odstępu
+        return withoutPrefix === '' ? '' : withoutPrefix;
+      })
+      .map((line, index, array) => {
+        if (line === '') {
+          // Pusta linia - zwróć jako odstęp (będzie dodany jako <br><br>)
+          return '';
+        } else if (index > 0 && array[index - 1] === '') {
+          // Jeśli poprzednia linia była pusta, to już będzie <br><br>, więc zwróć tylko linię
+          return line;
+        } else {
+          return line;
+        }
+      })
+      .filter((line, index, array) => {
+        // Jeśli mamy ciąg pustych linii, zostaw tylko jedną
+        if (line === '' && index > 0 && array[index - 1] === '') {
+          return false;
+        }
+        return true;
+      })
+      .join('<br>')
+      .replace(/<br><br>/g, '<br><br>'); // Podwójne <br> to odstęp
+    
+    return `<div style="color: #666; padding: 12px 16px; border-left: 3px solid #ccc; margin: 12px 0; background: #f9f9f9; border-radius: 4px; font-size: 13px; line-height: 1.6;">${cleanQuote}</div>`;
+  });
+  
+  // 5. ✅ Obsługa placeholderów CID dla obrazów (np. [cid:image001.png@01DC4E35.596DBEF0])
+  html = html.replace(/\[cid:([^\]]+)\]/gi, (match, cidContent) => {
+    const fileName = cidContent.split('@')[0] || cidContent;
+    const extension = fileName.split('.').pop()?.toUpperCase() || 'IMAGE';
+    return `<span style="display: inline-block; padding: 4px 8px; background: #fff3cd; border-radius: 4px; font-size: 11px; color: #856404; margin: 4px 0; font-weight: 500; border: 1px solid #ffeaa7;">[OBRAZ: ${extension}]</span>`;
+  });
+  
+  // 6. Konwertuj line breaks na <br> (tylko te które nie są już w sformatowanych blokach)
+  // Najpierw zastąp line breaks w sformatowanych blokach specjalnym placeholderem
+  html = html.replace(/<div style="[^"]*border-left[^"]*">([\s\S]*?)<\/div>/g, (match, content) => {
+    return match.replace(/\r?\n/g, 'QUOTE_LINE_BREAK');
+  });
+  
+  // Teraz zamień line breaks na <br>
+  html = html
+    .replace(/\r\n\r\n/g, '<br><br>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\r\r/g, '<br><br>')
+    .replace(/\r\n/g, '<br>')
+    .replace(/\n/g, '<br>')
+    .replace(/\r/g, '<br>');
+  
+  // Przywróć line breaks w sformatowanych blokach (zostaną one jako <br> w środku bloku)
+  html = html.replace(/QUOTE_LINE_BREAK/g, '<br>');
+  
   return html;
 }
 
@@ -293,7 +407,7 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
     orderBy: {
       scheduledAt: 'asc'
     },
-    take: 50 // Max 50 na raz
+    take: 10 // ✅ ZABEZPIECZENIE: Zmniejszono z 50 na 10 - zapobiega masowej wysyłce
   });
 
   if (scheduledResponses.length === 0) {
@@ -307,33 +421,28 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
 
   // ✅ Każdy MaterialResponse już reprezentuje wszystkie materiały kampanii dla jednej odpowiedzi
   // Nie musimy grupować - każdy response to osobny email z wszystkimi materiałami
-  for (const response of scheduledResponses) {
+  // ✅ ZABEZPIECZENIE: Wysyłaj z opóźnieniem między mailami (63 sekundy) - zapobiega masowej wysyłce
+  for (let i = 0; i < scheduledResponses.length; i++) {
+    const response = scheduledResponses[i];
     
     if (!response.lead || !response.campaign) {
       console.error(`[MATERIAL SENDER] Brak leada lub kampanii dla MaterialResponse ID: ${response.id}`);
       continue;
     }
 
-    // ✅ SPRAWDŹ czy status nie został już zmieniony (zapobieganie wielokrotnemu wysłaniu)
-    const currentResponse = await db.materialResponse.findUnique({
-      where: { id: response.id },
-      select: { status: true }
+    // ✅ ATOMIC UPDATE: Zmień status na 'sending' TYLKO jeśli status jest 'scheduled'
+    // Użyj updateMany z warunkiem - tylko jeden proces może zaktualizować status
+    const updateResult = await db.materialResponse.updateMany({
+      where: { 
+        id: response.id,
+        status: 'scheduled' // ✅ Tylko jeśli status jest 'scheduled'
+      },
+      data: { status: 'sending' as any }
     });
 
-    if (!currentResponse || currentResponse.status !== 'scheduled') {
-      console.log(`[MATERIAL SENDER] ⚠️ MaterialResponse ${response.id} już został przetworzony (status: ${currentResponse?.status}) - pomijam`);
-      continue;
-    }
-
-    // ✅ Atomic update: zmień status na 'sending' (zapobiega równoległemu wysłaniu)
-    try {
-      await db.materialResponse.update({
-        where: { id: response.id },
-        data: { status: 'sending' as any }
-      });
-    } catch (updateError: any) {
-      // Jeśli nie udało się zaktualizować (np. już jest 'sent'), pomiń
-      console.log(`[MATERIAL SENDER] ⚠️ Nie można zaktualizować statusu MaterialResponse ${response.id} - pomijam`);
+    // Jeśli updateResult.count === 0, znaczy że ktoś już zaktualizował status (lub status nie jest 'scheduled')
+    if (updateResult.count === 0) {
+      console.log(`[MATERIAL SENDER] ⚠️ MaterialResponse ${response.id} już został przetworzony przez inny proces - pomijam`);
       continue;
     }
 
@@ -413,45 +522,127 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
       const attachments: Array<{ filename: string; path: string }> = [];
       const links: Array<{ name: string; url: string }> = [];
       
+      // ✅ Przygotuj załączniki (dokładnie jak w send-test route)
       for (const material of materials) {
         if (material.type === 'ATTACHMENT' && material.fileName) {
-          // ✅ Użyj fileName zamiast filePath (które nie istnieje w modelu)
-          // Pliki mogą być w różnych miejscach - sprawdź różne ścieżki
+          // ✅ fileName może zawierać pełną ścieżkę względną (np. "materials/3_123456_katalog.pdf")
+          // lub tylko nazwę pliku (np. "katalog.pdf")
           const fileName = material.fileName;
+          console.log(`[MATERIAL SENDER] 🔍 Szukam pliku: ${fileName}`);
           
-          const possiblePaths = [
+          // Usuń prefix "materials/" jeśli istnieje
+          const fileNameWithoutPath = fileName.replace(/^materials\//, '');
+          const baseFileName = path.basename(fileName);
+          const baseFileNameWithoutPath = path.basename(fileNameWithoutPath);
+          
+          // ✅ Szukaj plików z prefiksem {campaignId}_{timestamp}_ w uploads/materials/
+          // Pliki są zapisywane jako: {campaignId}_{timestamp}_{originalFileName}
+          const campaignId = response.campaign.id;
+          const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
+          let foundPath: string | null = null;
+          
+          // Najpierw sprawdź dokładną nazwę (jeśli fileName zawiera pełną ścieżkę)
+          const exactPaths = [
             path.join(process.cwd(), 'uploads', 'materials', fileName),
-            path.join(process.cwd(), 'uploads', 'materials', path.basename(fileName)),
-            path.join(process.cwd(), 'public', 'materials', fileName),
-            path.join(process.cwd(), 'materials', fileName),
-            path.join(process.cwd(), fileName)
+            path.join(process.cwd(), 'uploads', 'materials', fileNameWithoutPath),
+            path.join(process.cwd(), 'uploads', 'materials', baseFileName),
+            path.join(process.cwd(), 'uploads', 'materials', baseFileNameWithoutPath),
           ];
           
-          let foundPath: string | null = null;
-          for (const fullPath of possiblePaths) {
-            if (fs.existsSync(fullPath)) {
-              foundPath = fullPath;
-              console.log(`[MATERIAL SENDER] Znaleziono plik: ${fullPath}`);
+          for (const exactPath of exactPaths) {
+            if (fs.existsSync(exactPath)) {
+              foundPath = exactPath;
+              console.log(`[MATERIAL SENDER] ✅ Znaleziono dokładną ścieżkę: ${foundPath}`);
               break;
             }
           }
           
+          // Jeśli nie znaleziono, szukaj plików z prefiksem {campaignId}_*
+          if (!foundPath && fs.existsSync(uploadsDir)) {
+            try {
+              const filesInDir = fs.readdirSync(uploadsDir);
+              console.log(`[MATERIAL SENDER] Szukam pliku z prefiksem ${campaignId}_* wśród ${filesInDir.length} plików...`);
+              
+              // Szukaj pliku który zaczyna się od {campaignId}_ i zawiera nazwę pliku
+              const matchingFile = filesInDir.find(file => {
+                // Plik powinien zaczynać się od {campaignId}_ i zawierać nazwę pliku (może być zmieniona)
+                const startsWithCampaignId = file.startsWith(`${campaignId}_`);
+                const sanitizedBaseFileName = baseFileNameWithoutPath.replace(/[^a-zA-Z0-9.-]/g, '_').toLowerCase();
+                const sanitizedFile = file.replace(/[^a-zA-Z0-9.-]/g, '_').toLowerCase();
+                const containsFileName = sanitizedBaseFileName && 
+                  (sanitizedFile.includes(sanitizedBaseFileName) || 
+                   sanitizedBaseFileName.includes(path.basename(sanitizedFile, path.extname(sanitizedFile))));
+                return startsWithCampaignId && (containsFileName || file.includes(baseFileNameWithoutPath));
+              });
+              
+              if (matchingFile) {
+                foundPath = path.join(uploadsDir, matchingFile);
+                console.log(`[MATERIAL SENDER] ✅ Znaleziono plik z prefiksem: ${foundPath}`);
+              } else {
+                // Jeśli nie znaleziono dopasowania, użyj ostatniego pliku z prefiksem {campaignId}_
+                const campaignFiles = filesInDir.filter(f => f.startsWith(`${campaignId}_`)).sort().reverse();
+                if (campaignFiles.length > 0) {
+                  foundPath = path.join(uploadsDir, campaignFiles[0]);
+                  console.log(`[MATERIAL SENDER] ⚠️ Używam ostatniego pliku z kampanii ${campaignId}: ${campaignFiles[0]}`);
+                }
+              }
+            } catch (e: any) {
+              console.error(`[MATERIAL SENDER] Błąd odczytu katalogu: ${e.message}`);
+            }
+          }
+          
+          // Fallback: sprawdź inne lokalizacje
+          if (!foundPath) {
+            const fallbackPaths = [
+              path.join(process.cwd(), 'public', 'materials', fileName),
+              path.join(process.cwd(), 'public', 'materials', fileNameWithoutPath),
+              path.join(process.cwd(), 'materials', fileName),
+              path.join(process.cwd(), 'materials', fileNameWithoutPath),
+              path.join(process.cwd(), fileName),
+              path.join(process.cwd(), fileNameWithoutPath)
+            ];
+            
+            for (const fallbackPath of fallbackPaths) {
+              if (fs.existsSync(fallbackPath)) {
+                foundPath = fallbackPath;
+                console.log(`[MATERIAL SENDER] ✅ Znaleziono w fallback: ${foundPath}`);
+                break;
+              }
+            }
+          }
+          
           if (foundPath) {
+            // Użyj oryginalnej nazwy pliku (bez ścieżki) dla załącznika
+            const attachmentFileName = baseFileNameWithoutPath || baseFileName || material.name;
             attachments.push({
-              filename: material.fileName || material.name,
+              filename: attachmentFileName,
               path: foundPath
             });
+            console.log(`[MATERIAL SENDER] ✅ Dodano załącznik: ${attachmentFileName} (z ${foundPath})`);
           } else {
-            console.warn(`[MATERIAL SENDER] Plik nie istnieje: ${fileName}`);
-            console.warn(`[MATERIAL SENDER] Sprawdzono ścieżki: ${possiblePaths.slice(0, 3).join(', ')}...`);
+            console.error(`[MATERIAL SENDER] ❌ PLIK NIE ISTNIEJE w żadnej z lokalizacji dla: ${fileName}`);
+            // Sprawdź czy katalog uploads/materials istnieje
+            const uploadsDirExists = fs.existsSync(uploadsDir);
+            console.error(`[MATERIAL SENDER] Katalog uploads/materials istnieje: ${uploadsDirExists}`);
+            if (uploadsDirExists) {
+              try {
+                const filesInDir = fs.readdirSync(uploadsDir);
+                console.error(`[MATERIAL SENDER] Pliki w uploads/materials (${filesInDir.length}):`, filesInDir.slice(0, 10).join(', '));
+              } catch (e: any) {
+                console.error(`[MATERIAL SENDER] Błąd odczytu katalogu: ${e.message}`);
+              }
+            }
           }
         } else if (material.type === 'LINK' && material.url) {
           links.push({
             name: material.name,
             url: material.url
           });
+          console.log(`[MATERIAL SENDER] ✅ Dodano link: ${material.name} -> ${material.url}`);
         }
       }
+      
+      console.log(`[MATERIAL SENDER] 📎 Podsumowanie: ${attachments.length} załączników, ${links.length} linków`);
 
       // ✅ Pobierz ustawienia firmy dla pełnej stopki
       const companySettings = await db.companySettings.findFirst();
@@ -583,10 +774,15 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
           minute: '2-digit' 
         });
         
-        // Wyczyść treść odpowiedzi leada z HTML
+        // ✅ Wyczyść treść odpowiedzi leada z HTML, ale ZACHOWAJ formatowanie (puste linie, odstępy)
         let leadReplyText = response.reply.content
-          .replace(/<[^>]+>/g, '')
-          .replace(/\n+/g, '\n')
+          .replace(/<[^>]+>/g, '') // Usuń HTML tagi
+          .replace(/&nbsp;/g, ' ') // Zamień &nbsp; na spacje
+          .replace(/&amp;/g, '&') // Przywróć &
+          .replace(/&lt;/g, '<') // Przywróć <
+          .replace(/&gt;/g, '>') // Przywróć >
+          .replace(/&quot;/g, '"') // Przywróć "
+          // ✅ NIE usuń wielokrotnych \n - zachowaj puste linie dla formatowania
           .trim();
         
         // ✅ Wyciągnij TYLKO bezpośrednią odpowiedź leada (usuń zagnieżdżone cytaty)
@@ -610,18 +806,21 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
             break; // Zatrzymaj się na pierwszym zagnieżdżonym cytacie
           }
           
+          // ✅ Zachowaj pustą linię jeśli istnieje (dla formatowania)
           directReplyLines.push(line);
         }
         
-        // Złącz linie i usuń puste na końcu
-        let directReplyText = directReplyLines.join('\n').trim();
+        // ✅ Usuń puste linie tylko na początku i końcu, ale ZACHOWAJ w środku
+        let directReplyText = directReplyLines.join('\n');
+        // Usuń puste linie tylko na początku i końcu
+        directReplyText = directReplyText.replace(/^\n+/, '').replace(/\n+$/, '');
         
         // ✅ Zbuduj cytat TYLKO z bezpośredniej odpowiedzi leada (bez zagnieżdżonych cytatów)
         // Format z wizualnym oznaczeniem:
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // Wiadomość napisana przez [Lead Name] w dniu [Data]:
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // > [Treść odpowiedzi leada - każda linia z prefiksem "> "]
+        // > [Treść odpowiedzi leada - każda linia z prefiksem "> ", zachowaj puste linie]
         
         const languageLabels = {
           pl: 'Wiadomość napisana przez',
@@ -641,8 +840,15 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
         quotedContent += `${label} ${leadName} w dniu ${dateStr}, o godz. ${timeStr}:\n`;
         quotedContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         
-        // ✅ Dodaj prefix "> " do każdej linii cytatu (standardowe oznaczenie cytatu)
-        const quotedLines = directReplyText.split('\n').map(line => line.trim() ? `> ${line}` : '');
+        // ✅ Dodaj prefix "> " do każdej linii cytatu, ZACHOWAJ puste linie (są ważne dla formatowania!)
+        const quotedLines = directReplyText.split('\n').map(line => {
+          if (line.trim() === '') {
+            // Pusta linia - zachowaj jako pustą linię (będzie renderowana jako odstęp w HTML)
+            return '>';
+          } else {
+            return `> ${line}`;
+          }
+        });
         quotedContent += quotedLines.join('\n');
         quotedContent += '\n\n';
         
@@ -670,16 +876,8 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
       textContent = textContent.replace(/\[LINK\](.+?)\[\/LINK:(.+?)\]/g, '$1');
       textContent = textContent.replace(/\[LOGO\].+?\[\/LOGO\]/g, '[Logo firmy]');
       
-      // Wersja HTML - dodatkowe formatowanie dla cytatu
+      // ✅ Wersja HTML - convertToHtml już formatuje cytaty poprawnie
       let htmlContent = convertToHtml(emailContent);
-      
-      // ✅ Oznacz cytat wizualnie w HTML (szary kolor, wcięcie, border)
-      // Zastąp linie z prefiksem "> " na formatowane bloki cytatu
-      htmlContent = htmlContent.replace(/^(&gt; .+)$/gm, '<div style="color: #666; padding-left: 20px; border-left: 3px solid #ccc; margin: 5px 0;">$1</div>');
-      // Zastąp separator "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" na linię poziomą
-      htmlContent = htmlContent.replace(/━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;">');
-      
-      htmlContent = htmlContent.replace(/\n/g, '<br>');
 
       // Określ nadawcę (dokładnie jak w sendCampaignEmail)
       const fromEmail = mailbox.email;
@@ -702,37 +900,55 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
         console.log(`[MATERIAL SENDER] Dodano handlowca ${guardianEmailForCc} do CC`);
       }
 
+      // ✅ Dodaj administratora do BCC (zawsze - ukryta kopia)
+      if (companySettings?.forwardEmail) {
+        mailOptions.bcc = companySettings.forwardEmail;
+        console.log(`[MATERIAL SENDER] Dodano administratora ${companySettings.forwardEmail} do BCC`);
+      }
+
       const result = await transport.sendMail(mailOptions);
 
-      // ✅ Aktualizuj MaterialResponse na 'sent' (już był 'sending', więc to jest bezpieczne)
-      await db.materialResponse.update({
-        where: { id: response.id, status: 'sending' }, // ✅ Dodatkowa ochrona: tylko jeśli status jest 'sending'
-        data: {
-          status: 'sent',
-          sentAt: new Date(),
-          mailboxId: mailbox.id,
-          messageId: result.messageId
-        }
-      });
-
-      // ✅ Zapisz do SendLog dla śledzenia
-      try {
-        await db.sendLog.create({
+      // ✅ ATOMIC UPDATE: Użyj transakcji aby upewnić się że wszystko jest zapisane atomowo
+      await db.$transaction(async (tx) => {
+        // 1. Aktualizuj MaterialResponse na 'sent' (tylko jeśli status jest 'sending')
+        const updateResult = await tx.materialResponse.updateMany({
+          where: { 
+            id: response.id, 
+            status: 'sending' // ✅ Tylko jeśli status jest 'sending'
+          },
           data: {
-            campaignId: response.campaignId,
-            leadId: response.leadId,
+            status: 'sent',
+            sentAt: new Date(),
             mailboxId: mailbox.id,
-            messageId: result.messageId,
-            toEmail: response.lead.email, // ✅ Dodaj toEmail dla poprawnego wyświetlania w archiwum i outbox
-            subject: finalSubject, // ✅ Użyj zregenerowanego tematu
-            content: emailContent.substring(0, 500), // Ogranicz do 500 znaków dla logu (pełna treść jest w wysłanym mailu)
-            status: 'sent'
+            messageId: result.messageId
           }
         });
-      } catch (logError: any) {
-        // Nie przerywaj jeśli logowanie się nie powiedzie
-        console.warn(`[MATERIAL SENDER] Nie udało się zapisać do SendLog dla MaterialResponse ${response.id}:`, logError.message);
-      }
+
+        if (updateResult.count === 0) {
+          console.warn(`[MATERIAL SENDER] ⚠️ MaterialResponse ${response.id} nie ma już statusu 'sending' - pomijam aktualizację`);
+          return; // Nie kontynuuj jeśli status się zmienił
+        }
+
+        // 2. Zapisz do SendLog dla śledzenia (w tej samej transakcji)
+        try {
+          await tx.sendLog.create({
+            data: {
+              campaignId: response.campaignId,
+              leadId: response.leadId,
+              mailboxId: mailbox.id,
+              messageId: result.messageId,
+              toEmail: response.lead.email, // ✅ Dodaj toEmail dla poprawnego wyświetlania w archiwum i outbox
+              subject: finalSubject, // ✅ Użyj zregenerowanego tematu
+              content: emailContent.substring(0, 500), // Ogranicz do 500 znaków dla logu (pełna treść jest w wysłanym mailu)
+              status: 'sent'
+            }
+          });
+        } catch (logError: any) {
+          // Jeśli nie udało się zapisać do SendLog, zaloguj błąd ale nie przerywaj
+          console.warn(`[MATERIAL SENDER] Nie udało się zapisać do SendLog dla MaterialResponse ${response.id}:`, logError.message);
+          // Nie rzucaj błędu - mail już został wysłany
+        }
+      });
 
       // Aktualizuj lastUsedAt skrzynki
       await db.mailbox.update({
@@ -746,6 +962,11 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
 
       sentCount++;
       console.log(`[MATERIAL SENDER] ✓ Wysłano materiały do ${response.lead.email} (${materials.length} materiałów)`);
+
+      // ✅ ZABEZPIECZENIE: Opóźnienie między mailami (63 sekundy) - zapobiega masowej wysyłce
+      if (i < scheduledResponses.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 63000)); // 63 sekundy
+      }
 
     } catch (error: any) {
       console.error(`[MATERIAL SENDER] ✗ Błąd wysyłki dla MaterialResponse ID ${response.id}:`, error.message);

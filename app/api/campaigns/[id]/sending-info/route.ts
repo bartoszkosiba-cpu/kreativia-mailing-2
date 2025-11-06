@@ -66,7 +66,7 @@ export async function GET(
       orderBy: {
         createdAt: 'desc'
       },
-      take: 5
+      take: 15
     });
 
     // Oblicz odstępy między mailami (pierwszy jest najnowszy, więc obliczamy odstęp do poprzedniego)
@@ -293,7 +293,7 @@ export async function GET(
     } else {
       // ✅ SPRAWDŹ DOSTĘPNOŚĆ SKRZYNEK (przed delay check)
       const { getNextAvailableMailbox } = await import('@/services/mailboxManager');
-      const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId, campaignId);
+      const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId || 0, campaignId);
       
       if (!availableMailbox) {
         // Brak dostępnych skrzynek - sprawdź które kampanie blokują

@@ -30,21 +30,22 @@ export function createPolishDate(
   minute: number = 0,
   second: number = 0
 ): Date {
-  // Utwórz string w formacie ISO dla polskiego czasu
-  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+  // Utwórz string w formacie ISO z timezone offsetem dla polskiego czasu
+  // Dla listopada (czas zimowy): UTC+1 = +01:00
+  // Dla marca-października (czas letni): UTC+2 = +02:00
+  // Sprawdź czy jest czas letni czy zimowy dla tej daty
+  const testDate = new Date(year, month - 1, day, hour, minute, second);
+  const jan = new Date(year, 0, 1);
+  const jul = new Date(year, 6, 1);
   
-  // Utwórz Date object - JavaScript interpretuje to jako lokalny czas
-  // Musimy przekonwertować na UTC z uwzględnieniem polskiego czasu
-  const tempDate = new Date(dateStr);
+  // Offset dla polskiego czasu (Europe/Warsaw)
+  // Listopad jest w czasie zimowym (UTC+1)
+  const isDST = testDate.getTimezoneOffset() < Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+  const offset = isDST ? '+02:00' : '+01:00';
   
-  // Pobierz offset dla polskiego czasu (Europe/Warsaw) dla tej daty
-  const polandOffset = getTimezoneOffset('Europe/Warsaw', tempDate);
-  const localOffset = tempDate.getTimezoneOffset();
+  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}${offset}`;
   
-  // Oblicz różnicę offsetów i dostosuj datę
-  const offsetDiff = (polandOffset - localOffset) * 60 * 1000;
-  
-  return new Date(tempDate.getTime() - offsetDiff);
+  return new Date(dateStr);
 }
 
 /**
@@ -131,9 +132,14 @@ export function isTodayPL(date: Date | null): boolean {
 
 /**
  * Pobiera datę jako string w polskiej strefie czasowej (do porównań)
+ * Format: YYYY-MM-DD
  */
 export function getTodayPLString(): string {
-  return getStartOfTodayPL().toDateString();
+  const today = getStartOfTodayPL();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**

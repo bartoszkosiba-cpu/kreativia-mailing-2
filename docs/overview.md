@@ -23,11 +23,26 @@ Profesjonalny system do zarządzania kampaniami email B2B z integracją AI do pe
 - **Import**: PapaParse (CSV)
 
 ## Status Projektu
-- **Wersja**: 0.1.0
-- **Status**: Aktywny development
-- **Ostatnia aktualizacja**: 2025-10-23
-- **TypeScript**: 0 błędów (naprawione 67 błędów)
+- **Wersja**: 2.0.0 (V2 System)
+- **Status**: Produkcja
+- **Ostatnia aktualizacja**: 2025-11-05
+- **System wysyłki**: V2 (Option 4 - randomizacja odstępów)
+- **TypeScript**: 0 błędów
 - **Build**: Działa poprawnie
+
+## 📚 Dokumentacja
+
+### Główne Przewodniki:
+- **[Jak działa wysyłka V2](JAK_DZIALA_WYSYLKA_V2.md)** - Kompletny przewodnik po systemie wysyłki
+- **[Przewodnik wdrożenia](deployment-guide.md)** - Instrukcje wdrożenia systemu
+- **[System statusów](system-statusy.md)** - Dokumentacja statusów leadów
+- **[Harmonogram wysyłki](campaign-scheduler.md)** - Jak działa harmonogram
+
+### Historia:
+- **[Changelog](changelog.md)** - Historia zmian
+- **[Decyzje projektowe](decisions.md)** - Ważne decyzje
+
+**Archiwum:** Wszystkie analizy i weryfikacje zostały przeniesione do `docs/archive/`
 - **Aplikacja**: Uruchomiona na http://localhost:3001
 
 ## Struktura Katalogów

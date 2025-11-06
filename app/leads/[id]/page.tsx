@@ -64,8 +64,9 @@ interface Lead {
   }>;
   SendLog: Array<{
     id: number;
-    campaignId: number;
+    campaignId: number | null;
     status: string;
+    subject: string | null;
     createdAt: Date;
   }>;
   replies: Array<{
@@ -90,25 +91,103 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
   const [greetingValue, setGreetingValue] = useState('');
   const [expandedReplyId, setExpandedReplyId] = useState<number | null>(null);
 
-  // Funkcja do wyciągania treści z HTML (jeśli zawiera tagi HTML)
-  const extractHtmlContent = (html: string): string => {
-    if (!html) return '';
+  // Funkcja do wyciągania i formatowania treści z HTML
+  const formatEmailContent = (content: string): string => {
+    if (!content) return '';
+    
+    let html = content;
     
     // Sprawdź czy zawiera tagi HTML
     if (html.includes('<html>') || html.includes('<body>')) {
       // Wyciągnij zawartość z <body>
       const bodyMatch = html.match(/<body[^>]*>(.*?)<\/body>/is);
       if (bodyMatch && bodyMatch[1]) {
-        return bodyMatch[1].trim();
-      }
-      // Jeśli nie ma body, wyciągnij wszystko po <body>
-      const bodyOpenMatch = html.match(/<body[^>]*>(.*)/is);
-      if (bodyOpenMatch && bodyOpenMatch[1]) {
-        return bodyOpenMatch[1].trim();
+        html = bodyMatch[1].trim();
+      } else {
+        // Jeśli nie ma body, wyciągnij wszystko po <body>
+        const bodyOpenMatch = html.match(/<body[^>]*>(.*)/is);
+        if (bodyOpenMatch && bodyOpenMatch[1]) {
+          html = bodyOpenMatch[1].trim();
+        }
       }
     }
     
-    // Jeśli nie ma tagów HTML, zwróć jak jest
+    // Normalizuj przełamania linii
+    html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Ekranuj istniejące tagi HTML (aby nie psuć ich)
+    const htmlPlaceholders: { [key: string]: string } = {};
+    let placeholderIndex = 0;
+    html = html.replace(/<[^>]+>/g, (match) => {
+      const placeholder = `__HTML_PLACEHOLDER_${placeholderIndex++}__`;
+      htmlPlaceholders[placeholder] = match;
+      return placeholder;
+    });
+    
+    // Podziel na linie
+    const lines = html.split('\n');
+    const formattedLines: string[] = [];
+    let inQuotedBlock = false;
+    let quotedBlockStart = -1;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+      
+      // Wykryj początek cytowanego bloku
+      const isQuotedStart = 
+        trimmedLine.startsWith('From:') ||
+        trimmedLine.startsWith('Sent:') ||
+        trimmedLine.startsWith('To:') ||
+        trimmedLine.startsWith('Subject:') ||
+        trimmedLine.match(/^On\s+.*wrote:/i) ||
+        trimmedLine.match(/^Wiadomość napisana przez/i) ||
+        trimmedLine.startsWith('>');
+      
+      if (isQuotedStart && !inQuotedBlock) {
+        // Rozpocznij cytowany blok
+        inQuotedBlock = true;
+        quotedBlockStart = i;
+        formattedLines.push(`<div class="quoted-block">`);
+      }
+      
+      if (inQuotedBlock) {
+        // Jeśli linia jest pusta i następna też, zakończ cytowany blok
+        if (trimmedLine === '' && i < lines.length - 1 && lines[i + 1].trim() === '') {
+          formattedLines.push('</div>');
+          inQuotedBlock = false;
+          quotedBlockStart = -1;
+          continue;
+        }
+        
+        // Dodaj linię do cytowanego bloku
+        const escapedLine = line
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        formattedLines.push(escapedLine + '<br>');
+      } else {
+        // Normalna linia
+        const escapedLine = line
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        formattedLines.push(escapedLine + '<br>');
+      }
+    }
+    
+    // Zamknij cytowany blok jeśli został otwarty
+    if (inQuotedBlock) {
+      formattedLines.push('</div>');
+    }
+    
+    html = formattedLines.join('');
+    
+    // Przywróć placeholdery HTML
+    Object.keys(htmlPlaceholders).forEach(placeholder => {
+      html = html.replace(placeholder, htmlPlaceholders[placeholder]);
+    });
+    
     return html;
   };
 
@@ -570,7 +649,8 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
                               lineHeight: "1.6", 
                               color: "var(--gray-800)",
                               fontFamily: "Arial, sans-serif",
-                              wordBreak: "break-word"
+                              wordBreak: "break-word",
+                              whiteSpace: "pre-wrap"
                             }}
                             dangerouslySetInnerHTML={{ 
                               __html: `
@@ -578,7 +658,7 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
                                   body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
                                   p { margin: 0 0 10px 0; }
                                   br { line-height: 1.6; }
-                                  div { margin: 0 0 10px 0; }
+                                  div:not(.quoted-block):not(.quoted-line) { margin: 0 0 10px 0; }
                                   strong, b { font-weight: bold; }
                                   em, i { font-style: italic; }
                                   ul, ol { margin: 10px 0; padding-left: 20px; }
@@ -588,8 +668,26 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
                                   img { max-width: 100%; height: auto; display: block; margin: 10px 0; }
                                   table { border-collapse: collapse; width: 100%; margin: 10px 0; }
                                   td, th { padding: 8px; border: 1px solid #ddd; }
+                                  .quoted-block { 
+                                    margin: 15px 0; 
+                                    padding: 12px 16px; 
+                                    border-left: 4px solid #ccc; 
+                                    background: #f5f5f5; 
+                                    color: #666;
+                                    font-size: 13px;
+                                    line-height: 1.5;
+                                    border-radius: 4px;
+                                  }
+                                  .quoted-line { 
+                                    margin: 2px 0; 
+                                    padding-left: 16px; 
+                                    border-left: 3px solid #ddd; 
+                                    background: #fafafa; 
+                                    color: #666;
+                                    font-size: 13px;
+                                  }
                                 </style>
-                                ${extractHtmlContent(reply.content)}
+                                ${formatEmailContent(reply.content)}
                               `
                             }}
                           />
@@ -639,24 +737,76 @@ export default function LeadDetailsPage({ params }: { params: { id: string } }) 
                 <thead>
                   <tr style={{ backgroundColor: "var(--gray-100)" }}>
                     <th style={{ padding: 8, textAlign: "left", border: "1px solid var(--gray-300)" }}>Data</th>
+                    <th style={{ padding: 8, textAlign: "left", border: "1px solid var(--gray-300)" }}>Temat</th>
                     <th style={{ padding: 8, textAlign: "left", border: "1px solid var(--gray-300)" }}>Kampania</th>
                     <th style={{ padding: 8, textAlign: "left", border: "1px solid var(--gray-300)" }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lead.SendLog.map((log) => (
-                    <tr key={log.id}>
-                      <td style={{ padding: 8, border: "1px solid var(--gray-300)" }}>
-                        {new Date(log.createdAt).toLocaleString()}
-                      </td>
-                      <td style={{ padding: 8, border: "1px solid var(--gray-300)" }}>
-                        Kampania #{log.campaignId}
-                      </td>
-                      <td style={{ padding: 8, border: "1px solid var(--gray-300)" }}>
-                        <span style={{ color: log.status === "sent" ? "#28a745" : "#dc3545" }}>
-                          {log.status === "sent" ? "Wysłano" : "Błąd"}
+                    <tr 
+                      key={log.id}
+                      style={{ 
+                        cursor: log.campaignId ? "pointer" : "default",
+                        transition: "background-color 0.2s"
+                      }}
+                      onClick={async () => {
+                        if (log.campaignId) {
+                          const returnUrl = encodeURIComponent(`/leads/${leadId}`);
+                          
+                          // ✅ Sprawdź czy to automatyczna odpowiedź (temat zaczyna się od "Re:")
+                          const isAutoReply = log.subject && log.subject.trim().startsWith('Re:');
+                          
+                          if (isAutoReply) {
+                            // ✅ To automatyczna odpowiedź - otwórz widok automatycznych odpowiedzi
+                            // API automatycznie znajdzie odpowiednią odpowiedź po leadId i kampanii
+                            window.open(`/campaigns/${log.campaignId}?autoReplyLeadId=${leadId}&autoReplySubject=${encodeURIComponent(log.subject || '')}&returnUrl=${returnUrl}#automatyczne-wyslane`, '_blank');
+                          } else {
+                            // ✅ To zwykły mail kampanii - otwórz widok wysłanych maili
+                            window.open(`/campaigns/${log.campaignId}?sendLogId=${log.id}&returnUrl=${returnUrl}#wysylka-maile`, '_blank');
+                          }
+                        }
+                      }}
+                      onMouseEnter={(e) => {
+                        if (log.campaignId) {
+                          e.currentTarget.style.backgroundColor = "var(--gray-50)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (log.campaignId) {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }
+                      }}
+                    >
+                    <td style={{ padding: 8, border: "1px solid var(--gray-300)" }}>
+                      {new Date(log.createdAt).toLocaleString()}
+                    </td>
+                    <td style={{ padding: 8, border: "1px solid var(--gray-300)", fontSize: "13px" }}>
+                      {log.subject ? (
+                        <span style={{ 
+                          color: log.subject.startsWith('Re:') ? "#28a745" : "#333",
+                          fontStyle: log.subject.startsWith('Re:') ? "italic" : "normal"
+                        }}>
+                          {log.subject.length > 50 ? `${log.subject.substring(0, 50)}...` : log.subject}
                         </span>
-                      </td>
+                      ) : (
+                        <span style={{ color: "var(--gray-500)", fontStyle: "italic" }}>Brak tematu</span>
+                      )}
+                    </td>
+                    <td style={{ padding: 8, border: "1px solid var(--gray-300)" }}>
+                      {log.campaignId ? (
+                        <span style={{ color: "#0066cc", textDecoration: "underline" }}>
+                          Kampania #{log.campaignId}
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--gray-500)" }}>Automatyczna odpowiedź</span>
+                      )}
+                    </td>
+                    <td style={{ padding: 8, border: "1px solid var(--gray-300)" }}>
+                      <span style={{ color: log.status === "sent" ? "#28a745" : "#dc3545" }}>
+                        {log.status === "sent" ? "Wysłano" : "Błąd"}
+                      </span>
+                    </td>
                     </tr>
                   ))}
                 </tbody>

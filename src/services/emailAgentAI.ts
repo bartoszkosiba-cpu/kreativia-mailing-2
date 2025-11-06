@@ -477,7 +477,7 @@ export class EmailAgentAI {
     // Sprawdź obecny status leada
     const lead = await db.lead.findUnique({
       where: { id: leadId },
-      select: { status: true, isBlocked: true, blockedReason: true, blockedCampaigns: true }
+      select: { status: true, isBlocked: true, blockedReason: true, blockedCampaigns: true, inCRM: true }
     });
 
     const wasBlocked = lead?.isBlocked || lead?.status === 'BLOCKED' || lead?.status === 'BLOKADA';
@@ -514,6 +514,9 @@ export class EmailAgentAI {
         blockedAt: isReactivation ? null : undefined, // Wyczyść datę blokady przy reaktywacji
         reactivatedAt: isReactivation ? new Date() : undefined, // Zapisz datę reaktywacji
         lastReactivation: isReactivation ? (lead?.status || 'BLOCKED') : undefined, // Z jakiego statusu był reaktywowany
+        // ✅ CRM: Automatyczne dodawanie do CRM gdy status jest ZAINTERESOWANY
+        inCRM: isInterested ? true : undefined, // Dodaj do CRM jeśli zainteresowany
+        crmEnteredAt: isInterested && !lead?.inCRM ? new Date() : undefined, // Ustaw datę tylko jeśli nie był już w CRM
         updatedAt: new Date()
       }
     });

@@ -19,13 +19,7 @@ export async function GET(
       );
     }
 
-    // Pobierz parametry paginacji z query string
-    const searchParams = req.nextUrl.searchParams;
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '25');
-    const offset = (page - 1) * limit;
-
-    // Pobierz kampanię
+    // Pobierz kampanię (potrzebna do sprawdzenia sendLogId)
     const campaign = await db.campaign.findUnique({
       where: { id: campaignId },
       select: {
@@ -42,17 +36,174 @@ export async function GET(
       );
     }
 
+    // Pobierz parametry paginacji z query string
+    const searchParams = req.nextUrl.searchParams;
+    const sendLogId = searchParams.get('sendLogId');
+    const searchQuery = searchParams.get('search')?.trim() || null; // ✅ Parametr wyszukiwania
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '25');
+    const offset = (page - 1) * limit;
+    
+    // ✅ Jeśli jest sendLogId, zwróć tylko ten mail
+    if (sendLogId) {
+      const sendLog = await db.sendLog.findUnique({
+        where: {
+          id: parseInt(sendLogId),
+          campaignId // ✅ Upewnij się że mail należy do tej kampanii
+        },
+        select: {
+          id: true,
+          status: true,
+          error: true,
+          createdAt: true,
+          subject: true,
+          content: true,
+          toEmail: true,
+          lead: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              company: true,
+              status: true,
+              isBlocked: true,
+              blockedReason: true
+            }
+          },
+          mailbox: {
+            select: {
+              id: true,
+              email: true,
+              displayName: true
+            }
+          }
+        }
+      });
+      
+      if (!sendLog) {
+        return NextResponse.json(
+          { success: false, error: 'Mail nie został znaleziony' },
+          { status: 404 }
+        );
+      }
+      
+      // Pobierz odpowiedź dla tego maila
+      const reply = await db.inboxReply.findFirst({
+        where: {
+          campaignId,
+          leadId: sendLog.lead?.id || null
+        },
+        select: {
+          id: true,
+          leadId: true,
+          classification: true,
+          receivedAt: true,
+          createdAt: true
+        },
+        orderBy: {
+          receivedAt: 'desc'
+        }
+      });
+      
+      // Pobierz podstawowe statystyki (uproszczone dla sendLogId)
+      const stats = {
+        total: await db.sendLog.count({ where: { campaignId } }),
+        sent: await db.sendLog.count({ where: { campaignId, status: 'sent' } }),
+        failed: await db.sendLog.count({ where: { campaignId, status: 'error' } }),
+        queued: 0,
+        sentToBlocked: await db.sendLog.count({
+          where: {
+            campaignId,
+            status: 'sent',
+            lead: {
+              OR: [
+                { status: 'BLOCKED' },
+                { isBlocked: true }
+              ]
+            }
+          }
+        })
+      };
+      
+      return NextResponse.json({
+        success: true,
+        data: {
+          campaign: {
+            id: campaign.id,
+            name: campaign.name,
+            status: campaign.status
+          },
+          sendLogs: [{
+            ...sendLog,
+            reply: reply || null
+          }],
+          stats,
+          todayStats: { total: 0, sent: 0, failed: 0 },
+          mailboxStats: []
+        },
+        pagination: {
+          total: 1,
+          page: 1,
+          limit: 1,
+          totalPages: 1
+        }
+      });
+    }
+
     // ✅ Data dzisiaj (dla statystyk dzisiejszych)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const endOfDay = new Date(today);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Pobierz całkowitą liczbę wysyłek (dla paginacji)
+    // ✅ Warunek wyszukiwania
+    const searchWhere: any = {
+      campaignId
+    };
+    
+    // ✅ Jeśli jest zapytanie wyszukiwania, dodaj filtrowanie po leadzie
+    if (searchQuery) {
+      // SQLite w Prisma nie obsługuje zagnieżdżonych OR ani mode: 'insensitive'
+      // Używamy prostego OR z contains (case-sensitive, ale działa dla większości przypadków)
+      // Dla pełnego case-insensitive search w SQLite trzeba by użyć Prisma.$queryRaw z LIKE
+      searchWhere.OR = [
+        // Wyszukiwanie po emailu leada
+        {
+          lead: {
+            email: {
+              contains: searchQuery
+            }
+          }
+        },
+        // Wyszukiwanie po imieniu leada
+        {
+          lead: {
+            firstName: {
+              contains: searchQuery
+            }
+          }
+        },
+        // Wyszukiwanie po nazwisku leada
+        {
+          lead: {
+            lastName: {
+              contains: searchQuery
+            }
+          }
+        },
+        // Wyszukiwanie po toEmail (dla maili testowych)
+        {
+          toEmail: {
+            contains: searchQuery
+          }
+        }
+      ];
+    }
+
+    // Pobierz całkowitą liczbę wysyłek (dla paginacji) - z uwzględnieniem wyszukiwania
     const totalCount = await db.sendLog.count({
-      where: {
-        campaignId
-      }
+      where: searchWhere
     });
 
     // ✅ STATYSTYKI DLA WSZYSTKIEJ KAMPANII (nie tylko strona!)
@@ -119,11 +270,9 @@ export async function GET(
       })
     };
 
-    // Pobierz wysyłki z paginacją
+    // Pobierz wysyłki z paginacją - z uwzględnieniem wyszukiwania
     const sendLogs = await db.sendLog.findMany({
-      where: {
-        campaignId
-      },
+      where: searchWhere,
       select: {
         id: true,
         status: true,

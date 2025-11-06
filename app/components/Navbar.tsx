@@ -1,15 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import AIHealthIndicator from "./AIHealthIndicator";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  
+  // Określ aktualny moduł na podstawie ścieżki
+  const currentModule = pathname.startsWith('/crm') ? 'CRM' : 'MAILING';
+  const [selectedModule, setSelectedModule] = useState<'MAILING' | 'CRM'>(currentModule);
 
-  const navItems = [
+  // Synchronizuj wybór modułu ze ścieżką
+  useEffect(() => {
+    const module = pathname.startsWith('/crm') ? 'CRM' : 'MAILING';
+    setSelectedModule(module);
+  }, [pathname]);
+
+  // Menu dla modułu Mailing
+  const mailingNavItems = [
     { 
       href: "/", 
       label: "Dashboard"
@@ -53,6 +65,41 @@ export default function Navbar() {
     }
   ];
 
+  // Menu dla modułu CRM
+  const crmNavItems = [
+    { 
+      href: "/crm", 
+      label: "Dashboard"
+    },
+    { 
+      href: "/crm/leads", 
+      label: "Leady"
+    },
+    { 
+      href: "/crm/sequences", 
+      label: "Sekwencje"
+    },
+    { 
+      href: "/crm/responses", 
+      label: "Odpowiedzi AI"
+    },
+    { 
+      href: "/crm/reports", 
+      label: "Raporty"
+    }
+  ];
+
+  const navItems = selectedModule === 'CRM' ? crmNavItems : mailingNavItems;
+
+  const handleModuleSwitch = (module: 'MAILING' | 'CRM') => {
+    setSelectedModule(module);
+    if (module === 'CRM') {
+      router.push('/crm');
+    } else {
+      router.push('/');
+    }
+  };
+
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
@@ -80,49 +127,102 @@ export default function Navbar() {
         justifyContent: "space-between",
         height: "64px"
       }}>
-        {/* Logo */}
-        <Link href="/" style={{ 
+        {/* Logo + Module Switcher */}
+        <div style={{ 
           display: "flex", 
           alignItems: "center", 
-          gap: "var(--spacing-sm)",
-          textDecoration: "none"
+          gap: "var(--spacing-md)"
         }}>
-          <div style={{
-            width: "40px",
-            height: "40px",
-            background: "var(--color-primary)",
-            borderRadius: "4px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "20px",
-            fontWeight: "700",
-            color: "white",
-            fontFamily: "'Montserrat', sans-serif"
+          <Link href={selectedModule === 'CRM' ? "/crm" : "/"} style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: "var(--spacing-sm)",
+            textDecoration: "none"
           }}>
-            K
-          </div>
-          <div>
-            <div style={{ 
-              fontSize: "18px", 
-              fontWeight: "700", 
-              color: "var(--color-text)",
-              lineHeight: "1.2",
+            <div style={{
+              width: "40px",
+              height: "40px",
+              background: "var(--color-primary)",
+              borderRadius: "4px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "20px",
+              fontWeight: "700",
+              color: "white",
               fontFamily: "'Montserrat', sans-serif"
             }}>
-              Kreativia
+              K
             </div>
-            <div style={{ 
-              fontSize: "10px", 
-              color: "#999",
-              letterSpacing: "1.5px",
-              fontWeight: "500",
-              fontFamily: "'Montserrat', sans-serif"
-            }}>
+            <div>
+              <div style={{ 
+                fontSize: "18px", 
+                fontWeight: "700", 
+                color: "var(--color-text)",
+                lineHeight: "1.2",
+                fontFamily: "'Montserrat', sans-serif"
+              }}>
+                Kreativia
+              </div>
+              <div style={{ 
+                fontSize: "10px", 
+                color: "#999",
+                letterSpacing: "1.5px",
+                fontWeight: "500",
+                fontFamily: "'Montserrat', sans-serif"
+              }}>
+                {selectedModule}
+              </div>
+            </div>
+          </Link>
+
+          {/* Module Switcher */}
+          <div style={{
+            display: "flex",
+            gap: "4px",
+            background: "var(--color-bg-light)",
+            borderRadius: "6px",
+            padding: "4px",
+            border: "1px solid var(--color-border)"
+          }}>
+            <button
+              onClick={() => handleModuleSwitch('MAILING')}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "4px",
+                fontSize: "11px",
+                fontWeight: "600",
+                fontFamily: "'Montserrat', sans-serif",
+                letterSpacing: "0.5px",
+                border: "none",
+                cursor: "pointer",
+                background: selectedModule === 'MAILING' ? "var(--color-primary)" : "transparent",
+                color: selectedModule === 'MAILING' ? "white" : "var(--color-text)",
+                transition: "all 0.2s ease"
+              }}
+            >
               MAILING
-            </div>
+            </button>
+            <button
+              onClick={() => handleModuleSwitch('CRM')}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "4px",
+                fontSize: "11px",
+                fontWeight: "600",
+                fontFamily: "'Montserrat', sans-serif",
+                letterSpacing: "0.5px",
+                border: "none",
+                cursor: "pointer",
+                background: selectedModule === 'CRM' ? "var(--color-primary)" : "transparent",
+                color: selectedModule === 'CRM' ? "white" : "var(--color-text)",
+                transition: "all 0.2s ease"
+              }}
+            >
+              CRM
+            </button>
           </div>
-        </Link>
+        </div>
 
         {/* Navigation */}
         <div style={{ 

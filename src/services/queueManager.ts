@@ -98,7 +98,9 @@ export async function calculateEstimatedDates(
   });
 
   // Znajdź datę rozpoczęcia (po ostatniej aktywnej kampanii)
-  let estimatedStart = new Date();
+  // ✅ Użyj polskiego czasu
+  const { getPolishTime } = await import('@/utils/polishTime');
+  let estimatedStart = getPolishTime();
   
   if (activeCampaigns.length > 0) {
     const lastCampaign = activeCampaigns[activeCampaigns.length - 1];

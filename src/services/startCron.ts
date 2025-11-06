@@ -15,7 +15,7 @@ if (typeof window === 'undefined' && !cronInitialized) {
   console.log('[INIT] Inicjalizacja cron jobs...');
   startEmailCron();
   startWarmupCron(); // NOWY SYSTEM WARMUP
-  startReminderCron(); // System przypomnień o zainteresowanych
+  // startReminderCron(); // ❌ WYŁĄCZONE - System przypomnień o zainteresowanych
 }
 
 export {};

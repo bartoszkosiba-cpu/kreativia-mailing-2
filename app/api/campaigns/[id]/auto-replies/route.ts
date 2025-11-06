@@ -26,16 +26,26 @@ export async function GET(
     };
     if (status && type !== "decision") {
       materialResponseWhere.status = status;
-      // Jeśli filtrujemy po 'sent', upewnijmy się że sentAt jest ustawione
-      if (status === 'sent') {
-        materialResponseWhere.sentAt = { not: null };
-      }
+      // ✅ Jeśli filtrujemy po 'sent', upewnijmy się że sentAt jest ustawione
+      // Ale nie filtrujmy po sentAt - niektórzy MaterialResponse mogą mieć status 'sent' bez sentAt (stare dane)
+      // if (status === 'sent') {
+      //   materialResponseWhere.sentAt = { not: null };
+      // }
     }
 
     const [materialResponses, materialResponsesTotal] = await Promise.all([
       db.materialResponse.findMany({
         where: materialResponseWhere,
-        include: {
+        select: {
+          id: true,
+          subject: true,
+          responseText: true,
+          sentAt: true,
+          status: true,
+          createdAt: true,
+          replyId: true, // ✅ Dodaj replyId (potrzebne do filtrowania)
+          mailboxId: true, // ✅ Dodaj mailboxId
+          messageId: true, // ✅ Dodaj messageId
           lead: {
             select: {
               id: true,
@@ -60,6 +70,12 @@ export async function GET(
               subject: true,
               content: true,
               receivedAt: true
+            }
+          },
+          campaign: {
+            select: {
+              id: true,
+              name: true
             }
           }
         },
@@ -158,11 +174,14 @@ export async function GET(
           materialResponseByReplyId.set(mr.replyId, mr);
         }
       } else {
-        // Jeśli nie ma replyId, dodaj bezpośrednio (może być stare dane)
-        console.warn(`[AUTO-REPLIES API] MaterialResponse ${mr.id} nie ma replyId`);
+        // ✅ Jeśli nie ma replyId, DODAJ do wyników (może być stare dane, ale są ważne)
+        // NIE pomijaj - dodaj bezpośrednio do uniqueMaterialResponses
+        console.warn(`[AUTO-REPLIES API] MaterialResponse ${mr.id} nie ma replyId - dodaję do wyników`);
       }
     });
-    const uniqueMaterialResponses = Array.from(materialResponseByReplyId.values());
+    // ✅ Dodaj MaterialResponse bez replyId do wyników
+    const materialResponsesWithoutReplyId = materialResponses.filter(mr => !mr.replyId);
+    const uniqueMaterialResponses = Array.from(materialResponseByReplyId.values()).concat(materialResponsesWithoutReplyId);
     
     console.log(`[AUTO-REPLIES API] Po filtrowaniu: ${uniqueMaterialResponses.length} unikalnych MaterialResponse`);
 
@@ -183,7 +202,9 @@ export async function GET(
           responseText: mr.responseText,
           error: mr.error,
           material: mr.material,
-          reply: mr.reply
+          reply: mr.reply,
+          mailboxId: mr.mailboxId, // ✅ Dodaj mailboxId
+          messageId: mr.messageId // ✅ Dodaj messageId
         })),
         ...filteredDecisions.map(pd => ({
           id: pd.id,

@@ -63,7 +63,9 @@ export async function advanceWarmupDays(): Promise<{
   try {
     console.log(`[WARMUP TRACKER] 📅 Sprawdzam dni warmup...`);
     
-    const today = new Date();
+    // ✅ Użyj polskiego czasu
+    const { getPolishTime } = await import('@/utils/polishTime');
+    const today = getPolishTime();
     
     // Pobierz wszystkie skrzynki w warmup
     const mailboxes = await db.mailbox.findMany({

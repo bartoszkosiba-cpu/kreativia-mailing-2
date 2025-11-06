@@ -355,21 +355,17 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
       actionsTaken.push("Kontakt zablokowany (UNSUBSCRIBE)");
       actionsTaken.push("Lead usunięty ze wszystkich kampanii");
       
+      // ❌ WYŁĄCZONE: Powiadomienia o zablokowanych kontaktach (można zobaczyć w UI)
       // Wyślij powiadomienie na forwardEmail
-      if (forwardEmail) {
-        await sendNotificationEmail(
-          forwardEmail,
-          "ZABLOKOWANY KONTAKT",
-          `Kontakt został zablokowany (prośba o wypisanie):\n\nEmail: ${currentLead.email}\nFirma: ${currentLead.company || "-"}\n\nTreść odpowiedzi:\n${email.text}`,
-          email
-        );
-        actionsTaken.push(`Wysłano powiadomienie do ${forwardEmail}`);
-        
-        await db.inboxReply.update({
-          where: { id: reply.id },
-          data: { wasForwarded: true, forwardedAt: new Date() }
-        });
-      }
+      // if (forwardEmail) {
+      //   await sendNotificationEmail(
+      //     forwardEmail,
+      //     "ZABLOKOWANY KONTAKT",
+      //     `Kontakt został zablokowany (prośba o wypisanie):\n\nEmail: ${currentLead.email}\nFirma: ${currentLead.company || "-"}\n\nTreść odpowiedzi:\n${email.text}`,
+      //     email
+      //   );
+      //   actionsTaken.push(`Wysłano powiadomienie do ${forwardEmail}`);
+      // }
     }
     
     if (classification.classification === "NOT_INTERESTED" && currentLead) {
@@ -397,21 +393,22 @@ export async function processReply(email: ParsedEmail, toEmail?: string): Promis
       actionsTaken.push("Kontakt zablokowany (NOT_INTERESTED)");
       actionsTaken.push("Lead usunięty ze wszystkich kampanii");
       
+      // ❌ WYŁĄCZONE: Powiadomienia o zablokowanych kontaktach (można zobaczyć w UI)
       // Wyślij powiadomienie na forwardEmail
-      if (forwardEmail) {
-        await sendNotificationEmail(
-          forwardEmail,
-          "ZABLOKOWANY KONTAKT",
-          `Kontakt został zablokowany (nie jest zainteresowany):\n\nEmail: ${currentLead.email}\nFirma: ${currentLead.company || "-"}\n\nTreść odpowiedzi:\n${email.text}`,
-          email
-        );
-        actionsTaken.push(`Wysłano powiadomienie do ${forwardEmail}`);
-        
-        await db.inboxReply.update({
-          where: { id: reply.id },
-          data: { wasForwarded: true, forwardedAt: new Date() }
-        });
-      }
+      // if (forwardEmail) {
+      //   await sendNotificationEmail(
+      //     forwardEmail,
+      //     "ZABLOKOWANY KONTAKT",
+      //     `Kontakt został zablokowany (nie jest zainteresowany):\n\nEmail: ${currentLead.email}\nFirma: ${currentLead.company || "-"}\n\nTreść odpowiedzi:\n${email.text}`,
+      //     email
+      //   );
+      //   actionsTaken.push(`Wysłano powiadomienie do ${forwardEmail}`);
+      //   
+      //   await db.inboxReply.update({
+      //     where: { id: reply.id },
+      //     data: { wasForwarded: true, forwardedAt: new Date() }
+      //   });
+      // }
     }
     
     if (classification.classification === "INTERESTED") {
@@ -904,25 +901,26 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
         data: { newContactsAdded: addedCount }
       });
       
+      // ❌ WYŁĄCZONE: Powiadomienia o nowych kontaktach OOO (można zobaczyć w UI - nowe leady z tagiem "OOO Zastępca")
       // Wyślij powiadomienie o nowych kontaktach
-      if (forwardEmail && addedCount > 0) {
-        // Pobierz tagi oryginalnego leada dla komunikatu
-        const originalTags = await db.leadTag.findMany({
-          where: { leadId: currentLead.id },
-          include: { tag: true }
-        });
-        const tagsInfo = originalTags.length > 0 
-          ? `\n\nSkopiowane tagi: ${originalTags.map(lt => lt.tag.name).join(", ")}`
-          : "";
-        
-        await sendNotificationEmail(
-          forwardEmail,
-          `NOWE KONTAKTY (${addedCount}) - OOO Zastępcy`,
-          `Automatycznie dodano ${addedCount} nowych kontaktów jako zastępców osoby na urlopie:\n\nOryginalny kontakt: ${currentLead.email} (${currentLead.company})\n\nNowe kontakty:\n${classification.extractedEmails.join("\n")}\n\nKontakty zostały oznaczone tagiem "OOO Zastępca" i skopiowały dane firmy.${tagsInfo}`,
-          email
-        );
-        actionsTaken.push(`Wysłano powiadomienie o ${addedCount} nowych kontaktach`);
-      }
+      // if (forwardEmail && addedCount > 0) {
+      //   // Pobierz tagi oryginalnego leada dla komunikatu
+      //   const originalTags = await db.leadTag.findMany({
+      //     where: { leadId: currentLead.id },
+      //     include: { tag: true }
+      //   });
+      //   const tagsInfo = originalTags.length > 0 
+      //     ? `\n\nSkopiowane tagi: ${originalTags.map(lt => lt.tag.name).join(", ")}`
+      //     : "";
+      //   
+      //   await sendNotificationEmail(
+      //     forwardEmail,
+      //     `NOWE KONTAKTY (${addedCount}) - OOO Zastępcy`,
+      //     `Automatycznie dodano ${addedCount} nowych kontaktów jako zastępców osoby na urlopie:\n\nOryginalny kontakt: ${currentLead.email} (${currentLead.company})\n\nNowe kontakty:\n${classification.extractedEmails.join("\n")}\n\nKontakty zostały oznaczone tagiem "OOO Zastępca" i skopiowały dane firmy.${tagsInfo}`,
+      //     email
+      //   );
+      //   actionsTaken.push(`Wysłano powiadomienie o ${addedCount} nowych kontaktach`);
+      // }
     }
     
     return {

@@ -22,15 +22,129 @@ function getDefaultGreetingForLanguage(language: string): string {
 }
 
 /**
- * Funkcja convertToHtml - dokładnie taka sama jak w materialResponseSender.ts
+ * ✅ Funkcja convertToHtml - rozszerzona o formatowanie cytatów (dokładnie taka sama jak w materialResponseSender.ts)
  */
 function convertToHtml(text: string): string {
-  // Najpierw konwertuj logo [LOGO]base64[/LOGO] na <img>
-  let html = text.replace(/\[LOGO\](.+?)\[\/LOGO\]/g, '<img src="$1" alt="Company Logo" style="max-width: 112px; margin: 20px 0;" />');
+  let html = text;
+  
+  // 1. Najpierw obsłuż specjalne tagi systemowe
+  // Konwertuj logo [LOGO]base64[/LOGO] na <img>
+  html = html.replace(/\[LOGO\](.+?)\[\/LOGO\]/g, '<img src="$1" alt="Company Logo" style="max-width: 112px; margin: 20px 0;" />');
+  
   // Konwertuj linki [LINK]text[/LINK:url] na <a href="url">text</a>
   html = html.replace(/\[LINK\](.+?)\[\/LINK:(.+?)\]/g, '<a href="$2" style="color: #0066cc; text-decoration: underline;">$1</a>');
-  // Konwertuj **bold** na <strong>
+  
+  // Formatuj **bold** na <strong>
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  
+  // 2. ✅ Formatuj separator ━━━━━━━━ na <hr>
+  html = html.replace(/━+/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;" />');
+  
+  // 3. ✅ Formatuj sekcję "Wiadomość napisana przez..." + cytat
+  // Znajdź nagłówek i cały blok cytatów po nim
+  html = html.replace(/(Wiadomość napisana przez[^\n\r]+(?:[\r\n]+))((?:>.*[\r\n]*)+)/gi, (match, header, quoteBlock) => {
+    // Formatuj nagłówek (kursywa, szary kolor)
+    const formattedHeader = `<div style="color: #888; font-size: 12px; margin: 16px 0 8px 0; font-style: italic;">${header.trim()}</div>`;
+    
+    // Formatuj blok cytatów - wyciągnij wszystkie linie z ">"
+    // ✅ Zachowaj puste linie (linie z samym ">") jako odstępy
+    const quoteLines = quoteBlock
+      .split(/\r?\n/)
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.startsWith('>'))
+      .map((line: string) => {
+        const withoutPrefix = line.replace(/^>\s*/, '');
+        // Jeśli linia była pusta (tylko ">"), zwróć pusty string (będzie renderowany jako odstęp)
+        return withoutPrefix === '' ? '' : withoutPrefix;
+      });
+    
+    if (quoteLines.length === 0) {
+      return match; // Jeśli nie ma cytatów, zwróć oryginał
+    }
+    
+    // ✅ Połącz linie, ale puste linie (puste stringi) zamień na <br><br> (odstęp)
+    const cleanQuote = quoteLines
+      .map((line: string, index: number) => {
+        if (line === '') {
+          // Pusta linia - dodaj odstęp
+          return '<br>';
+        } else if (index > 0 && quoteLines[index - 1] === '') {
+          // Jeśli poprzednia linia była pusta, to już dodaliśmy <br>, więc dodaj tylko jedną linię
+          return line;
+        } else {
+          return line;
+        }
+      })
+      .join('<br>')
+      .replace(/<br><br>/g, '<br><br>'); // Podwójne <br> to odstęp
+    
+    // Zwróć sformatowany nagłówek i blok cytatów
+    return formattedHeader + `<div style="color: #666; padding: 12px 16px; border-left: 3px solid #ccc; margin: 0 0 16px 0; background: #f9f9f9; border-radius: 4px; font-size: 13px; line-height: 1.6;">${cleanQuote}</div>`;
+  });
+  
+  // 4. ✅ Formatuj pozostałe cytaty (linie z "> " które nie są w sformatowanym bloku)
+  // Znajdź wszystkie ciągłe bloki cytatów (linie zaczynające się od "> ")
+  html = html.replace(/^(>.*(?:\n>.*)*)/gm, (match) => {
+    // Sprawdź czy to nie jest już sformatowany blok
+    if (match.includes('<div style')) return match;
+    
+    // ✅ Usuń "> " z każdej linii, ale zachowaj puste linie jako odstępy
+    const cleanQuote = match
+      .split(/\r?\n/)
+      .map((line: string) => {
+        const withoutPrefix = line.replace(/^>\s*/, '');
+        // Jeśli linia była pusta (tylko ">"), zwróć pusty string dla odstępu
+        return withoutPrefix === '' ? '' : withoutPrefix;
+      })
+      .map((line, index, array) => {
+        if (line === '') {
+          // Pusta linia - zwróć jako odstęp (będzie dodany jako <br><br>)
+          return '';
+        } else if (index > 0 && array[index - 1] === '') {
+          // Jeśli poprzednia linia była pusta, to już będzie <br><br>, więc zwróć tylko linię
+          return line;
+        } else {
+          return line;
+        }
+      })
+      .filter((line, index, array) => {
+        // Jeśli mamy ciąg pustych linii, zostaw tylko jedną
+        if (line === '' && index > 0 && array[index - 1] === '') {
+          return false;
+        }
+        return true;
+      })
+      .join('<br>')
+      .replace(/<br><br>/g, '<br><br>'); // Podwójne <br> to odstęp
+    
+    return `<div style="color: #666; padding: 12px 16px; border-left: 3px solid #ccc; margin: 12px 0; background: #f9f9f9; border-radius: 4px; font-size: 13px; line-height: 1.6;">${cleanQuote}</div>`;
+  });
+  
+  // 5. ✅ Obsługa placeholderów CID dla obrazów (np. [cid:image001.png@01DC4E35.596DBEF0])
+  html = html.replace(/\[cid:([^\]]+)\]/gi, (match, cidContent) => {
+    const fileName = cidContent.split('@')[0] || cidContent;
+    const extension = fileName.split('.').pop()?.toUpperCase() || 'IMAGE';
+    return `<span style="display: inline-block; padding: 4px 8px; background: #fff3cd; border-radius: 4px; font-size: 11px; color: #856404; margin: 4px 0; font-weight: 500; border: 1px solid #ffeaa7;">[OBRAZ: ${extension}]</span>`;
+  });
+  
+  // 6. Konwertuj line breaks na <br> (tylko te które nie są już w sformatowanych blokach)
+  // Najpierw zastąp line breaks w sformatowanych blokach specjalnym placeholderem
+  html = html.replace(/<div style="[^"]*border-left[^"]*">([\s\S]*?)<\/div>/g, (match, content) => {
+    return match.replace(/\r?\n/g, 'QUOTE_LINE_BREAK');
+  });
+  
+  // Teraz zamień line breaks na <br>
+  html = html
+    .replace(/\r\n\r\n/g, '<br><br>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\r\r/g, '<br><br>')
+    .replace(/\r\n/g, '<br>')
+    .replace(/\n/g, '<br>')
+    .replace(/\r/g, '<br>');
+  
+  // Przywróć line breaks w sformatowanych blokach (zostaną one jako <br> w środku bloku)
+  html = html.replace(/QUOTE_LINE_BREAK/g, '<br>');
+  
   return html;
 }
 
@@ -330,16 +444,16 @@ export async function POST(
         }
         
         // Fallback: sprawdź inne lokalizacje
+        const fallbackPaths = [
+          path.join(process.cwd(), 'public', 'materials', fileName),
+          path.join(process.cwd(), 'public', 'materials', fileNameWithoutPath),
+          path.join(process.cwd(), 'materials', fileName),
+          path.join(process.cwd(), 'materials', fileNameWithoutPath),
+          path.join(process.cwd(), fileName),
+          path.join(process.cwd(), fileNameWithoutPath)
+        ];
+        
         if (!foundPath) {
-          const fallbackPaths = [
-            path.join(process.cwd(), 'public', 'materials', fileName),
-            path.join(process.cwd(), 'public', 'materials', fileNameWithoutPath),
-            path.join(process.cwd(), 'materials', fileName),
-            path.join(process.cwd(), 'materials', fileNameWithoutPath),
-            path.join(process.cwd(), fileName),
-            path.join(process.cwd(), fileNameWithoutPath)
-          ];
-          
           for (const fallbackPath of fallbackPaths) {
             if (fs.existsSync(fallbackPath)) {
               foundPath = fallbackPath;
@@ -361,7 +475,12 @@ export async function POST(
           console.log(`[MATERIAL TEST] ✅ Dodano załącznik: ${attachmentFileName} (z ${foundPath})`);
         } else {
           console.error(`[MATERIAL TEST] ❌❌❌ PLIK NIE ISTNIEJE w żadnej z lokalizacji dla: ${fileName}`);
-          console.error(`[MATERIAL TEST] Sprawdzane ścieżki:`, possiblePaths.map(p => `  - ${p}`).join('\n'));
+          const allCheckedPaths = [
+            path.join(process.cwd(), 'uploads', 'materials', fileName),
+            path.join(process.cwd(), 'uploads', 'materials', fileNameWithoutPath),
+            ...fallbackPaths
+          ];
+          console.error(`[MATERIAL TEST] Sprawdzane ścieżki:`, allCheckedPaths.map((p: string) => `  - ${p}`).join('\n'));
           
           // Sprawdź czy katalog uploads/materials istnieje
           const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
@@ -424,9 +543,15 @@ export async function POST(
         minute: '2-digit' 
       });
       
+      // ✅ Wyczyść treść odpowiedzi leada z HTML, ale ZACHOWAJ formatowanie (puste linie, odstępy)
       let leadReplyText = decision.reply.content
-        .replace(/<[^>]+>/g, '')
-        .replace(/\n+/g, '\n')
+        .replace(/<[^>]+>/g, '') // Usuń HTML tagi
+        .replace(/&nbsp;/g, ' ') // Zamień &nbsp; na spacje
+        .replace(/&amp;/g, '&') // Przywróć &
+        .replace(/&lt;/g, '<') // Przywróć <
+        .replace(/&gt;/g, '>') // Przywróć >
+        .replace(/&quot;/g, '"') // Przywróć "
+        // ✅ NIE usuń wielokrotnych \n - zachowaj puste linie dla formatowania
         .trim();
       
       const lines = leadReplyText.split('\n');
@@ -447,10 +572,13 @@ export async function POST(
           break;
         }
         
+        // ✅ Zachowaj pustą linię jeśli istnieje (dla formatowania)
         directReplyLines.push(line);
       }
       
-      const cleanReplyText = directReplyLines.join('\n').trim();
+      // ✅ Usuń puste linie tylko na początku i końcu, ale ZACHOWAJ w środku
+      let cleanReplyText = directReplyLines.join('\n');
+      cleanReplyText = cleanReplyText.replace(/^\n+/, '').replace(/\n+$/, '');
       
       if (cleanReplyText) {
         const languageLabels = {
@@ -469,8 +597,15 @@ export async function POST(
         emailContent += `${label} ${leadName} w dniu ${dateStr}, o godz. ${timeStr}:\n`;
         emailContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         
-        // ✅ Dodaj prefix "> " do każdej linii cytatu (standardowe oznaczenie cytatu)
-        const quotedLines = cleanReplyText.split('\n').map(line => line.trim() ? `> ${line}` : '');
+        // ✅ Dodaj prefix "> " do każdej linii cytatu, ZACHOWAJ puste linie (są ważne dla formatowania!)
+        const quotedLines = cleanReplyText.split('\n').map(line => {
+          if (line.trim() === '') {
+            // Pusta linia - zachowaj jako pustą linię (będzie renderowana jako odstęp w HTML)
+            return '>';
+          } else {
+            return `> ${line}`;
+          }
+        });
         emailContent += quotedLines.join('\n');
         emailContent += '\n\n';
       }
@@ -482,16 +617,8 @@ export async function POST(
     textContent = textContent.replace(/\[LINK\](.+?)\[\/LINK:(.+?)\]/g, '$1');
     textContent = textContent.replace(/\[LOGO\].+?\[\/LOGO\]/g, '[Logo firmy]');
     
-    // Wersja HTML - dodatkowe formatowanie dla cytatu
+    // ✅ Wersja HTML - convertToHtml już formatuje cytaty poprawnie
     let htmlContent = convertToHtml(emailContent);
-    
-    // ✅ Oznacz cytat wizualnie w HTML (szary kolor, wcięcie, border)
-    // Zastąp linie z prefiksem "> " na formatowane bloki cytatu
-    htmlContent = htmlContent.replace(/^(&gt; .+)$/gm, '<div style="color: #666; padding-left: 20px; border-left: 3px solid #ccc; margin: 5px 0;">$1</div>');
-    // Zastąp separator "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" na linię poziomą
-    htmlContent = htmlContent.replace(/━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;">');
-    
-    htmlContent = htmlContent.replace(/\n/g, '<br>');
 
     // Pobierz pierwszą dostępną skrzynkę mailową
     const mailbox = decision.campaign.virtualSalesperson?.mailboxes?.[0];

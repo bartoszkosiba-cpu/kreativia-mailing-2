@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { initializeCampaignQueue } from "@/services/campaignEmailQueue";
+import { initializeQueueV2 } from "@/services/campaignEmailQueueV2";
 
 /**
  * POST /api/campaigns/[id]/reinit-queue
@@ -91,13 +91,12 @@ export async function POST(
       });
     }
 
-    // ✅ NOWE: Jeśli są leady bez wpisów w kolejce, dodaj je
+    // ✅ V2: Jeśli są leady bez wpisów w kolejce, dodaj je
     const bufferSize = leadsWithoutQueue > 0 ? Math.min(leadsWithoutQueue, 20) : 10;
     
-    // Inicjalizuj kolejkę (doda tylko te które nie mają wpisów)
-    const initialized = await initializeCampaignQueue(
+    // Inicjalizuj kolejkę V2 (doda tylko te które nie mają wpisów)
+    const initialized = await initializeQueueV2(
       campaignId,
-      campaign.delayBetweenEmails || 90,
       bufferSize
     );
 

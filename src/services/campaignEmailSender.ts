@@ -93,23 +93,13 @@ export async function sendNextScheduledCampaignEmail(): Promise<{
     console.log(`[CAMPAIGN SENDER]   → Do: ${nextEmail.campaignLead.lead?.email}`);
 
     // KROK 2: Sprawdź czy kampania jest nadal aktywna
-    // ✅ WAŻNE: Pobierz najnowszy status kampanii z bazy (może się zmienić od czasu fetchowania)
-    const currentCampaign = await db.campaign.findUnique({
-      where: { id: nextEmail.campaignId },
-      select: { status: true }
-    });
-
-    if (!currentCampaign || currentCampaign.status !== "IN_PROGRESS") {
-      const status = currentCampaign?.status || "UNKNOWN";
-      console.log(`[CAMPAIGN SENDER] ⚠️  Kampania ${nextEmail.campaign.name} (ID: ${nextEmail.campaignId}) nie jest już aktywna (status: ${status}) - anuluję mail`);
+    if (nextEmail.campaign.status !== "IN_PROGRESS") {
+      console.log(`[CAMPAIGN SENDER] ⏭️  Kampania ${nextEmail.campaign.name} nie jest już aktywna (status: ${nextEmail.campaign.status}) - pomijam`);
 
       // Oznacz jako cancelled
       await db.campaignEmailQueue.update({
         where: { id: nextEmail.id },
-        data: {
-          status: "cancelled",
-          error: `Kampania nie jest aktywna (status: ${status})`
-        }
+        data: { status: "cancelled" }
       });
 
       return { success: true, mailSent: false };

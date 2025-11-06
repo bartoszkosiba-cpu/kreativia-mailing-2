@@ -77,9 +77,11 @@ export interface AvailableMailbox {
 
 /**
  * Pobiera następną dostępną skrzynkę dla wirtualnego handlowca (round-robin)
+ * Wyklucza skrzynki używane przez inne aktywne kampanie (jeśli campaignId podane)
  */
 export async function getNextAvailableMailbox(
-  virtualSalespersonId: number
+  virtualSalespersonId: number,
+  campaignId?: number
 ): Promise<AvailableMailbox | null> {
   console.log(`[MAILBOX] Szukam dostępnej skrzynki dla handlowca ID: ${virtualSalespersonId}`);
 
@@ -139,8 +141,50 @@ export async function getNextAvailableMailbox(
     }
   }
 
+  // Jeśli campaignId podane, wyklucz skrzynki używane przez inne aktywne kampanie
+  let availableMailboxes = mailboxes;
+  if (campaignId) {
+    // Sprawdź które skrzynki są używane przez inne aktywne kampanie tego samego handlowca
+    // (sprawdzamy przez SendLog - ostatnie maile wysłane dzisiaj z innych kampanii)
+    const { getStartOfTodayPL } = await import('@/utils/polishTime');
+    const startOfTodayPL = getStartOfTodayPL();
+    
+    const otherCampaigns = await db.campaign.findMany({
+      where: {
+        status: 'IN_PROGRESS',
+        id: { not: campaignId },
+        virtualSalespersonId
+      },
+      select: { id: true }
+    });
+    
+    if (otherCampaigns.length > 0) {
+      const otherCampaignIds = otherCampaigns.map(c => c.id);
+      const recentMails = await db.sendLog.findMany({
+        where: {
+          campaignId: { in: otherCampaignIds },
+          createdAt: { gte: startOfTodayPL },
+          mailboxId: { not: null }
+        },
+        select: { mailboxId: true },
+        distinct: ['mailboxId']
+      });
+      
+      const lockedMailboxIds = new Set(
+        recentMails
+          .map(m => m.mailboxId)
+          .filter((id): id is number => id !== null)
+      );
+      
+      if (lockedMailboxIds.size > 0) {
+        availableMailboxes = mailboxes.filter(m => !lockedMailboxIds.has(m.id));
+        console.log(`[MAILBOX] ⚠️  Wykluczono ${lockedMailboxIds.size} skrzynek używanych przez inne kampanie`);
+      }
+    }
+  }
+
   // Znajdź pierwszą skrzynkę która ma wolne miejsce
-  for (const mailbox of mailboxes) {
+  for (const mailbox of availableMailboxes) {
     // Ustaw właściwy limit w zależności od statusu warmup
     let effectiveLimit: number;
     let currentSent: number;

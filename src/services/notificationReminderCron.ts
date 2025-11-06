@@ -23,6 +23,10 @@ export async function sendReminders(): Promise<void> {
     const maxReminderCount = settings.maxReminderCount || 2;
     
     // Pobierz powiadomienia do przypomnienia
+    // ✅ ZABEZPIECZENIE: Wyklucz powiadomienia które były przetwarzane w ostatnich 5 minutach (zapobiega duplikatom)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const reminderIntervalDate = new Date(Date.now() - reminderIntervalDays * 24 * 60 * 60 * 1000);
+    
     const notifications = await db.interestedLeadNotification.findMany({
       where: {
         status: 'PENDING',
@@ -30,12 +34,26 @@ export async function sendReminders(): Promise<void> {
         reminderCount: {
           lt: maxReminderCount // Mniej niż maksymalna liczba przypomnień
         },
-        OR: [
-          { lastReminderAt: null }, // Nigdy nie przypomniane
+        // ✅ Warunki dla lastReminderAt:
+        // 1. Albo null (nigdy nie przypomniane)
+        // 2. Albo starsze niż reminderIntervalDays (czas na kolejne przypomnienie)
+        // 3. I jednocześnie NIE było przetwarzane w ostatnich 5 minutach (zapobiega duplikatom)
+        AND: [
           {
-            lastReminderAt: {
-              lte: new Date(Date.now() - reminderIntervalDays * 24 * 60 * 60 * 1000) // Starsze niż X dni
-            }
+            OR: [
+              { lastReminderAt: null }, // Nigdy nie przypomniane
+              {
+                lastReminderAt: {
+                  lte: reminderIntervalDate // Starsze niż X dni (czas na kolejne przypomnienie)
+                }
+              }
+            ]
+          },
+          {
+            OR: [
+              { lastReminderAt: null }, // Null = OK (nigdy nie przetwarzane)
+              { lastReminderAt: { lt: fiveMinutesAgo } } // NIE było przetwarzane w ostatnich 5 minutach
+            ]
           }
         ]
       },
@@ -53,12 +71,17 @@ export async function sendReminders(): Promise<void> {
     
     console.log(`[REMINDER CRON] Znaleziono ${notifications.length} powiadomień do przypomnienia`);
     
-    // Wysyłaj przypomnienia
-    for (const notification of notifications) {
+    // ✅ Wysyłaj przypomnienia z opóźnieniem (2 sekundy między każdym) - zapobiega masowej wysyłce
+    for (let i = 0; i < notifications.length; i++) {
       try {
-        await sendSingleReminder(notification, settings);
+        await sendSingleReminder(notifications[i], settings);
+        
+        // Opóźnienie między mailami (tylko jeśli nie jest to ostatni mail)
+        if (i < notifications.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 sekundy
+        }
       } catch (error: any) {
-        console.error(`[REMINDER CRON] Błąd wysyłki przypomnienia dla notyfikacji ${notification.id}:`, error.message);
+        console.error(`[REMINDER CRON] Błąd wysyłki przypomnienia dla notyfikacji ${notifications[i].id}:`, error.message);
       }
     }
     
@@ -79,26 +102,81 @@ async function sendSingleReminder(notification: any, settings: any): Promise<voi
     return;
   }
   
+  // ✅ ATOMOWE ZABLOKOWANIE: Zaktualizuj lastReminderAt PRZED wysyłką (zapobiega race condition)
+  // Sprawdź czy powiadomienie nie zostało już zablokowane przez inny proces
+  const now = new Date();
+  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+  
+  try {
+    // Atomowo sprawdź i zablokuj w transakcji
+    const updated = await db.$transaction(async (tx) => {
+      const currentNotification = await tx.interestedLeadNotification.findUnique({
+        where: { id: notification.id }
+      });
+      
+      if (!currentNotification || currentNotification.status !== 'PENDING') {
+        return null; // Nie można przetworzyć
+      }
+      
+      // Jeśli było przetwarzane w ostatnich 5 minutach, pomiń
+      if (currentNotification.lastReminderAt && currentNotification.lastReminderAt >= fiveMinutesAgo) {
+        return null; // Już przetwarzane
+      }
+      
+      // Atomowo zablokuj przed wysyłką
+      return await tx.interestedLeadNotification.update({
+        where: { id: notification.id },
+        data: {
+          lastReminderAt: now // Zablokuj przed wysyłką
+        }
+      });
+    });
+    
+    if (!updated) {
+      console.log(`[REMINDER CRON] ⏭️ Powiadomienie ${notification.id} już jest przetwarzane lub nie jest PENDING - pomijam`);
+      return;
+    }
+    
+    console.log(`[REMINDER CRON] 🔒 Zablokowano powiadomienie ${notification.id} przed wysyłką`);
+  } catch (error: any) {
+    // Jeśli błąd to prawdopodobnie ktoś inny już zaktualizował - pomiń
+    console.log(`[REMINDER CRON] ⏭️ Powiadomienie ${notification.id} - błąd blokowania (${error.message}) - pomijam`);
+    return; // Nie kontynuuj jeśli nie udało się zablokować
+  }
+  
   // Pobierz skrzynkę do wysyłki
   const mailbox = await getNotificationMailbox(campaign);
   if (!mailbox) {
     console.error(`[REMINDER CRON] Brak dostępnej skrzynki dla notyfikacji ${notification.id}`);
+    // Odblokuj jeśli brak skrzynki
+    await db.interestedLeadNotification.update({
+      where: { id: notification.id },
+      data: { lastReminderAt: null }
+    });
     return;
   }
   
-  // Określ odbiorców
+  // Określ odbiorców (unikaj duplikatów - jeśli handlowiec i forwardEmail to ten sam email, wyślij tylko raz)
   const recipients: string[] = [];
+  const recipientSet = new Set<string>();
   
-  if (notification.salespersonEmail) {
+  if (notification.salespersonEmail && !recipientSet.has(notification.salespersonEmail)) {
     recipients.push(notification.salespersonEmail);
+    recipientSet.add(notification.salespersonEmail);
   }
   
-  if (settings.forwardEmail) {
+  if (settings.forwardEmail && !recipientSet.has(settings.forwardEmail)) {
     recipients.push(settings.forwardEmail);
+    recipientSet.add(settings.forwardEmail);
   }
   
   if (recipients.length === 0) {
     console.log(`[REMINDER CRON] Brak odbiorców dla notyfikacji ${notification.id}`);
+    // Odblokuj jeśli brak odbiorców
+    await db.interestedLeadNotification.update({
+      where: { id: notification.id },
+      data: { lastReminderAt: null }
+    });
     return;
   }
   
@@ -213,16 +291,16 @@ async function sendSingleReminder(notification: any, settings: any): Promise<voi
     }
   }
   
-  // Zaktualizuj powiadomienie
+  // Zaktualizuj powiadomienie (reminderCount już zwiększony, lastReminderAt już ustawiony przy blokowaniu)
   await db.interestedLeadNotification.update({
     where: { id: notification.id },
     data: {
-      reminderCount: notification.reminderCount + 1,
-      lastReminderAt: new Date()
+      reminderCount: notification.reminderCount + 1
+      // lastReminderAt już został ustawiony przy blokowaniu
     }
   });
   
-  console.log(`[REMINDER CRON] ✅ Przypomnienie zapisane dla notyfikacji ${notification.id}`);
+  console.log(`[REMINDER CRON] ✅ Przypomnienie zakończone dla notyfikacji ${notification.id} (wysłano do ${recipients.length} odbiorców)`);
 }
 
 /**
@@ -270,7 +348,7 @@ export function startReminderCron() {
     return;
   }
   
-  // Cron: codziennie o 12:00
+  // Cron: codziennie o 12:00 (polski czas)
   reminderCronJob = cron.schedule('0 12 * * *', async () => {
     if (isReminderCronTaskRunning) {
       console.log('[REMINDER CRON] ⏭️ Cron już działa - pomijam');
@@ -285,6 +363,8 @@ export function startReminderCron() {
     } finally {
       isReminderCronTaskRunning = false;
     }
+  }, {
+    timezone: 'Europe/Warsaw'
   });
   
   console.log('[REMINDER CRON] ✓ Cron przypomnień uruchomiony (codziennie o 12:00)');

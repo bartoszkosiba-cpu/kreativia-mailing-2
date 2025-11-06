@@ -96,6 +96,9 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'sent' | 'failed' | 'blocked'>('all');
   
+  // ✅ WYSZUKIWANIE
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
   // ✅ PAGINACJA
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -104,14 +107,56 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
   const [selectedLog, setSelectedLog] = useState<OutboxData['sendLogs'][0] | null>(null);
   const [showModal, setShowModal] = useState(false);
 
+  // ✅ Resetuj do pierwszej strony przy zmianie wyszukiwania (dodanie lub usunięcie)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+  
   useEffect(() => {
     fetchOutbox();
-  }, [campaignId, currentPage, itemsPerPage]);
+  }, [campaignId, currentPage, itemsPerPage, searchQuery]); // ✅ Dodaj searchQuery do zależności
+
+  // ✅ Otwórz konkretny mail jeśli jest sendLogId w URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sendLogId = urlParams.get('sendLogId');
+    
+    if (sendLogId && !showModal) {
+      const sendLogIdNum = parseInt(sendLogId);
+      
+      // Najpierw sprawdź czy mail jest w obecnych danych
+      if (data && data.sendLogs.length > 0) {
+        const log = data.sendLogs.find(l => l.id === sendLogIdNum);
+        
+        if (log) {
+          setSelectedLog(log);
+          setShowModal(true);
+          return;
+        }
+      }
+      
+      // Jeśli nie ma w obecnych danych, pobierz go bezpośrednio z API
+      fetch(`/api/campaigns/${campaignId}/outbox?sendLogId=${sendLogIdNum}`)
+        .then(res => res.json())
+        .then(result => {
+          if (result.success && result.data.sendLogs.length > 0) {
+            const log = result.data.sendLogs[0];
+            setSelectedLog(log);
+            setShowModal(true);
+          }
+        })
+        .catch(err => {
+          console.error('Błąd pobierania maila:', err);
+        });
+    }
+  }, [data, showModal, campaignId]);
 
   const fetchOutbox = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/campaigns/${campaignId}/outbox?page=${currentPage}&limit=${itemsPerPage}`);
+      // ✅ Dodaj parametr search do URL jeśli jest zapytanie
+      const searchParam = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '';
+      const response = await fetch(`/api/campaigns/${campaignId}/outbox?page=${currentPage}&limit=${itemsPerPage}${searchParam}`);
       const result = await response.json();
       
       if (result.success) {
@@ -161,9 +206,11 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
     );
   }
 
-  // Filtrowanie logów
+  // ✅ Filtrowanie logów - tylko po statusie (wyszukiwanie jest już wykonane po stronie serwera)
   const filteredLogs = data.sendLogs.filter(log => {
     const lead = log.lead as any;
+    
+    // ✅ Filtrowanie po statusie
     if (filter === 'sent') return log.status === 'sent' && !!lead && !lead.isBlocked && lead.status !== 'BLOCKED';
     if (filter === 'failed') return log.status === 'error';
     if (filter === 'blocked') return log.status === 'sent' && !!lead && (lead.isBlocked || lead.status === 'BLOCKED');
@@ -254,6 +301,50 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
           )}
         </>
       )}
+
+      {/* Wyszukiwanie */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            placeholder="Szukaj po imieniu, nazwisku lub adresie email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              flex: '1 1 300px',
+              maxWidth: '500px',
+              padding: '10px 16px',
+              borderRadius: 6,
+              border: '1px solid #dee2e6',
+              fontSize: '14px',
+              outline: 'none',
+              transition: 'border-color 0.2s'
+            }}
+            onFocus={(e) => e.currentTarget.style.borderColor = '#0066cc'}
+            onBlur={(e) => e.currentTarget.style.borderColor = '#dee2e6'}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                padding: '10px 16px',
+                borderRadius: 6,
+                border: '1px solid #dee2e6',
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Wyczyść
+            </button>
+          )}
+          {searchQuery && data?.pagination && (
+            <span style={{ fontSize: '14px', color: '#666' }}>
+              Znaleziono: {data.pagination.total} wynik{(data.pagination.total || 0) !== 1 ? 'ów' : ''} na wszystkich stronach
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Filtry */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
@@ -708,6 +799,32 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
                           {selectedLog.lead.company}
                         </div>
                       )}
+                      <div style={{ marginTop: 12 }}>
+                        <a
+                          href={`/leads/${selectedLog.lead.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: "inline-block",
+                            padding: "6px 12px",
+                            backgroundColor: "#0066cc",
+                            color: "white",
+                            textDecoration: "none",
+                            borderRadius: 6,
+                            fontSize: 13,
+                            fontWeight: "600",
+                            transition: "background-color 0.2s"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#0052a3";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "#0066cc";
+                          }}
+                        >
+                          → Przejdź do Lead
+                        </a>
+                      </div>
                     </>
                   ) : selectedLog.toEmail ? (
                     <>
@@ -802,8 +919,39 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
               </div>
             )}
 
-            {/* Przycisk zamknięcia */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
+            {/* Przyciski */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
+              {/* Przycisk Powrót - jeśli jest returnUrl w URL */}
+              {(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const returnUrl = urlParams.get('returnUrl');
+                
+                if (returnUrl) {
+                  const decodedReturnUrl = decodeURIComponent(returnUrl);
+                  return (
+                    <button
+                      onClick={() => {
+                        window.location.href = decodedReturnUrl;
+                      }}
+                      style={{
+                        padding: "10px 20px",
+                        backgroundColor: "#0066cc",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: 14,
+                        fontWeight: "bold"
+                      }}
+                    >
+                      ← Powrót
+                    </button>
+                  );
+                }
+                return null;
+              })()}
+              
+              {/* Przycisk zamknięcia */}
               <button
                 onClick={closeModal}
                 style={{
@@ -814,7 +962,8 @@ export default function CampaignOutbox({ campaignId, showStats = true }: { campa
                   borderRadius: 6,
                   cursor: "pointer",
                   fontSize: 14,
-                  fontWeight: "bold"
+                  fontWeight: "bold",
+                  marginLeft: "auto"
                 }}
               >
                 Zamknij

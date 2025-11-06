@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sendNextScheduledCampaignEmail } from "@/services/campaignEmailSender";
+import { sendNextEmailFromQueue } from "@/services/campaignEmailSenderV2";
 import { addMinutes } from "date-fns";
 
 /**
@@ -74,15 +74,15 @@ export async function POST(
       };
     }
 
-    // Wymuś wysłanie maila
+    // ✅ V2: Wymuś wysłanie maila z kolejki V2
     console.log(`[FORCE-SEND] 🔧 Wymuszam wysłanie maila dla kampanii ${campaignId}`);
-    const result = await sendNextScheduledCampaignEmail();
+    const result = await sendNextEmailFromQueue(campaignId);
 
     return NextResponse.json({
       success: result.success,
       mailSent: result.mailSent,
       error: result.error,
-      campaignId: result.campaignId,
+      campaignId: campaignId,
       message: result.mailSent 
         ? "Mail został wysłany" 
         : result.error 

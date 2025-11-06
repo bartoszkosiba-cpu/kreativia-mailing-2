@@ -27,7 +27,15 @@ export async function GET(
         },
         SendLog: {
           orderBy: { createdAt: "desc" },
-          take: 10
+          take: 50, // ✅ Zwiększono limit aby pokazać wszystkie maile (w tym automatyczne odpowiedzi)
+          select: {
+            id: true,
+            campaignId: true,
+            leadId: true,
+            status: true,
+            subject: true,
+            createdAt: true
+          }
         },
         replies: {
           orderBy: { receivedAt: "desc" },

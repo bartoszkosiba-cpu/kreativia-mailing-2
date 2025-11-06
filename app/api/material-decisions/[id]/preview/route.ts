@@ -287,13 +287,18 @@ export async function GET(
         minute: '2-digit' 
       });
       
-      // Wyczyść treść odpowiedzi leada z HTML i zagnieżdżonych cytatów
+      // ✅ Wyczyść treść odpowiedzi leada z HTML, ale ZACHOWAJ formatowanie (puste linie, odstępy)
       let leadReplyText = decision.reply.content
-        .replace(/<[^>]+>/g, '')
-        .replace(/\n+/g, '\n')
+        .replace(/<[^>]+>/g, '') // Usuń HTML tagi
+        .replace(/&nbsp;/g, ' ') // Zamień &nbsp; na spacje
+        .replace(/&amp;/g, '&') // Przywróć &
+        .replace(/&lt;/g, '<') // Przywróć <
+        .replace(/&gt;/g, '>') // Przywróć >
+        .replace(/&quot;/g, '"') // Przywróć "
+        // ✅ NIE usuń wielokrotnych \n - zachowaj puste linie dla formatowania
         .trim();
       
-      // Wyciągnij TYLKO bezpośrednią odpowiedź leada
+      // ✅ Wyciągnij TYLKO bezpośrednią odpowiedź leada (usuń zagnieżdżone cytaty)
       const lines = leadReplyText.split('\n');
       let directReplyLines: string[] = [];
       
@@ -312,10 +317,13 @@ export async function GET(
           break;
         }
         
+        // ✅ Zachowaj pustą linię jeśli istnieje (dla formatowania)
         directReplyLines.push(line);
       }
       
-      const cleanReplyText = directReplyLines.join('\n').trim();
+      // ✅ Usuń puste linie tylko na początku i końcu, ale ZACHOWAJ w środku
+      let cleanReplyText = directReplyLines.join('\n');
+      cleanReplyText = cleanReplyText.replace(/^\n+/, '').replace(/\n+$/, '');
       
       if (cleanReplyText) {
         const languageLabels = {
@@ -334,8 +342,15 @@ export async function GET(
         emailContent += `${label} ${leadName} w dniu ${dateStr}, o godz. ${timeStr}:\n`;
         emailContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         
-        // ✅ Dodaj prefix "> " do każdej linii cytatu (standardowe oznaczenie cytatu)
-        const quotedLines = cleanReplyText.split('\n').map(line => line.trim() ? `> ${line}` : '');
+        // ✅ Dodaj prefix "> " do każdej linii cytatu, ZACHOWAJ puste linie (są ważne dla formatowania!)
+        const quotedLines = cleanReplyText.split('\n').map(line => {
+          if (line.trim() === '') {
+            // Pusta linia - zachowaj jako pustą linię (będzie renderowana jako odstęp w HTML)
+            return '>';
+          } else {
+            return `> ${line}`;
+          }
+        });
         emailContent += quotedLines.join('\n');
         emailContent += '\n\n';
       }

@@ -1,6 +1,283 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+
+// ✅ Funkcja formatująca treść emaila (obsługuje HTML, line breaks, base64, [LOGO], [LINK], CID placeholders)
+function formatEmailContent(content: string): string {
+  if (!content) return '';
+  
+  let formatted = content;
+  
+  // 1. Najpierw obsłuż specjalne tagi systemowe PRZED innym formatowaniem
+  // Konwertuj [LOGO]base64[/LOGO] lub [LOGO] [LOGO: PNG] [/LOGO] na znacznik
+  formatted = formatted.replace(/\[LOGO\]([\s\S]*?)\[\/LOGO\]/g, (match, logoContent) => {
+    // Jeśli zawiera base64, wyciągnij typ
+    if (logoContent.includes('data:image')) {
+      const imageTypeMatch = logoContent.match(/data:image\/([^;]+)/);
+      const imageType = imageTypeMatch ? imageTypeMatch[1] : 'image';
+      return `<span style="display: inline-block; padding: 4px 8px; background: #e3f2fd; border-radius: 4px; font-size: 11px; color: #1976d2; margin: 4px 0; font-weight: 500;">[LOGO: ${imageType.toUpperCase()}]</span>`;
+    }
+    // Jeśli zawiera [LOGO: PNG] to już jest znacznik
+    if (logoContent.includes('[LOGO:')) {
+      return `<span style="display: inline-block; padding: 4px 8px; background: #e3f2fd; border-radius: 4px; font-size: 11px; color: #1976d2; margin: 4px 0; font-weight: 500;">${logoContent.trim()}</span>`;
+    }
+    return `<span style="display: inline-block; padding: 4px 8px; background: #e3f2fd; border-radius: 4px; font-size: 11px; color: #1976d2; margin: 4px 0; font-weight: 500;">[LOGO]</span>`;
+  });
+  
+  // Konwertuj [LINK]text[/LINK:url] na <a href="url">text</a>
+  formatted = formatted.replace(/\[LINK\](.+?)\[\/LINK:(.+?)\]/g, '<LINK_PLACEHOLDER href="$2">$1</LINK_PLACEHOLDER>');
+  
+  // Ukryj długie ciągi base64 (logo/images) - zamień na krótką informację
+  const base64Pattern = /data:image\/[^;]+;base64,[A-Za-z0-9+/=\s]{100,}/g;
+  formatted = formatted.replace(base64Pattern, (match) => {
+    const imageTypeMatch = match.match(/data:image\/([^;]+)/);
+    const imageType = imageTypeMatch ? imageTypeMatch[1] : 'image';
+    return `<span style="display: inline-block; padding: 4px 8px; background: #e3f2fd; border-radius: 4px; font-size: 11px; color: #1976d2; margin: 4px 0; font-weight: 500;">[LOGO: ${imageType.toUpperCase()}]</span>`;
+  });
+  
+  // ✅ Obsługa placeholderów CID dla obrazów (np. [cid:image001.png@01DC4E35.596DBEF0])
+  formatted = formatted.replace(/\[cid:([^\]]+)\]/gi, (match, cidContent) => {
+    const fileName = cidContent.split('@')[0] || cidContent;
+    const extension = fileName.split('.').pop()?.toUpperCase() || 'IMAGE';
+    return `<span style="display: inline-block; padding: 4px 8px; background: #fff3cd; border-radius: 4px; font-size: 11px; color: #856404; margin: 4px 0; font-weight: 500; border: 1px solid #ffeaa7;">[OBRAZ: ${extension}]</span>`;
+  });
+  
+  // ✅ Formatuj sekcję "Wiadomość napisana przez..." przed formatowaniem cytatów
+  // Znajdź nagłówek cytatu i cały blok cytatów po nim (może być wiele linii)
+  formatted = formatted.replace(/(Wiadomość napisana przez[^\n\r]+(?:[\r\n]+))((?:>.*[\r\n]*)+)/gi, (match, header, quoteBlock) => {
+    // Formatuj nagłówek (escape HTML, ale nie dodawaj tagów HTML jeszcze)
+    const headerText = header.trim();
+    
+    // Formatuj blok cytatów - wyciągnij wszystkie linie z ">"
+    // ✅ Zachowaj puste linie (linie z samym ">") jako odstępy
+    const quoteLines = quoteBlock
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.startsWith('>'))
+      .map(line => {
+        const withoutPrefix = line.replace(/^>\s*/, '');
+        // Jeśli linia była pusta (tylko ">"), zwróć pusty string (będzie renderowany jako odstęp)
+        return withoutPrefix === '' ? '' : withoutPrefix;
+      });
+    
+    if (quoteLines.length === 0) {
+      return match; // Jeśli nie ma cytatów, zwróć oryginał
+    }
+    
+    // ✅ Połącz linie, ale puste linie (puste stringi) zamień na <br><br> (odstęp)
+    const cleanQuote = quoteLines
+      .map((line, index) => {
+        if (line === '') {
+          // Pusta linia - dodaj odstęp
+          return '<br>';
+        } else if (index > 0 && quoteLines[index - 1] === '') {
+          // Jeśli poprzednia linia była pusta, to już dodaliśmy <br>, więc dodaj tylko jedną linię
+          return line;
+        } else {
+          return line;
+        }
+      })
+      .join('<br>')
+      .replace(/<br><br>/g, '<br><br>'); // Podwójne <br> to odstęp
+    
+    // Zwróć sformatowany nagłówek i blok cytatów (escape HTML zostanie zrobiony później)
+    return `<QUOTE_HEADER>${headerText}</QUOTE_HEADER><QUOTE_CONTENT>${cleanQuote}</QUOTE_CONTENT>`;
+  });
+  
+  // 2. Sprawdź czy to HTML (zawiera tagi HTML)
+  const hasHtmlTags = /<[a-z][\s\S]*>/i.test(formatted);
+  
+  if (!hasHtmlTags) {
+    // To zwykły tekst - konwertuj na HTML
+    // 1. Najpierw formatuj specjalne elementy PRZED escape HTML
+    
+    // Formatuj **bold** (PRZED escape HTML) - obsługuj wielokrotne wystąpienia
+    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<STRONG_PLACEHOLDER>$1</STRONG_PLACEHOLDER>');
+    
+    // Formatuj cytaty (linie zaczynające się od "> ") - PRZED escape HTML
+    // Obsługuj wieloliniowe cytaty - znajdź wszystkie ciągłe bloki cytatów (które nie zostały już sformatowane)
+    formatted = formatted.replace(/^(?!.*<div style.*border-left.*>.*<\/div>)(>.*(?:\n>.*)*)/gm, (match) => {
+      // Sprawdź czy to nie jest już sformatowany blok
+      if (match.includes('<div style')) return match;
+      
+      // ✅ Usuń "> " z każdej linii, ale zachowaj puste linie jako odstępy
+      const cleanQuote = match
+        .split(/\r?\n/)
+        .map(line => {
+          const withoutPrefix = line.replace(/^>\s*/, '');
+          // Jeśli linia była pusta (tylko ">"), zwróć pusty string dla odstępu
+          return withoutPrefix === '' ? '' : withoutPrefix;
+        })
+        .map((line, index, array) => {
+          if (line === '') {
+            // Pusta linia - zwróć jako odstęp (będzie dodany jako <br><br>)
+            return '';
+          } else if (index > 0 && array[index - 1] === '') {
+            // Jeśli poprzednia linia była pusta, to już będzie <br><br>, więc zwróć tylko linię
+            return line;
+          } else {
+            return line;
+          }
+        })
+        .filter((line, index, array) => {
+          // Jeśli mamy ciąg pustych linii, zostaw tylko jedną
+          if (line === '' && index > 0 && array[index - 1] === '') {
+            return false;
+          }
+          return true;
+        })
+        .join('<br>')
+        .replace(/<br><br>/g, '<br><br>'); // Podwójne <br> to odstęp
+      
+      return `<QUOTE_BLOCK>${cleanQuote}</QUOTE_BLOCK>`;
+    });
+    
+    // Formatuj separator linii (━━━━━━)
+    formatted = formatted.replace(/━+/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;" />');
+    
+    // 2. Escape HTML specjalnych znaków (aby uniknąć XSS)
+    formatted = formatted
+      .replace(/&/g, '&amp;') // Najpierw &, potem reszta
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    
+    // 3. Przywróć placeholdery jako prawdziwe tagi HTML
+    // Najpierw przywróć <br> wewnątrz QUOTE_CONTENT i QUOTE_BLOCK (zostały escape jako &lt;br&gt;)
+    formatted = formatted.replace(/&lt;QUOTE_CONTENT&gt;([\s\S]*?)&lt;\/QUOTE_CONTENT&gt;/g, (match, content) => {
+      // Przywróć <br> wewnątrz cytatu
+      const restoredContent = content.replace(/&lt;br&gt;/g, '<br>');
+      return `&lt;QUOTE_CONTENT&gt;${restoredContent}&lt;/QUOTE_CONTENT&gt;`;
+    });
+    
+    formatted = formatted.replace(/&lt;QUOTE_BLOCK&gt;([\s\S]*?)&lt;\/QUOTE_BLOCK&gt;/g, (match, content) => {
+      // Przywróć <br> wewnątrz cytatu
+      const restoredContent = content.replace(/&lt;br&gt;/g, '<br>');
+      return `&lt;QUOTE_BLOCK&gt;${restoredContent}&lt;/QUOTE_BLOCK&gt;`;
+    });
+    
+    // Teraz zamień placeholdery na prawdziwe tagi HTML
+    formatted = formatted
+      .replace(/&lt;STRONG_PLACEHOLDER&gt;/g, '<strong>')
+      .replace(/&lt;\/STRONG_PLACEHOLDER&gt;/g, '</strong>')
+      .replace(/&lt;QUOTE_HEADER&gt;/g, '<div style="color: #888; font-size: 12px; margin: 16px 0 8px 0; font-style: italic;">')
+      .replace(/&lt;\/QUOTE_HEADER&gt;/g, '</div>')
+      .replace(/&lt;QUOTE_CONTENT&gt;/g, '<div style="color: #666; padding: 12px 16px; border-left: 3px solid #ccc; margin: 0 0 16px 0; background: #f9f9f9; border-radius: 4px; font-size: 13px; line-height: 1.6;">')
+      .replace(/&lt;\/QUOTE_CONTENT&gt;/g, '</div>')
+      .replace(/&lt;QUOTE_BLOCK&gt;/g, '<div style="color: #666; padding: 12px 16px; border-left: 3px solid #ccc; margin: 12px 0; background: #f9f9f9; border-radius: 4px; font-size: 13px; line-height: 1.6;">')
+      .replace(/&lt;\/QUOTE_BLOCK&gt;/g, '</div>')
+      .replace(/&lt;LINK_PLACEHOLDER href="([^"]+)"&gt;/g, '<a href="$1" target="_blank" style="color: #0066cc; text-decoration: underline;">')
+      .replace(/&lt;\/LINK_PLACEHOLDER&gt;/g, '</a>');
+    
+    // 4. Konwertuj line breaks na <br> (zachowaj podwójne entery jako odstępy)
+    // Najpierw zastąp line breaks w sformatowanych blokach specjalnym placeholderem
+    formatted = formatted.replace(/<div style="[^"]*border-left[^"]*">([\s\S]*?)<\/div>/g, (match, content) => {
+      return match.replace(/\r?\n/g, 'QUOTE_LINE_BREAK');
+    });
+    
+    // Teraz zamień line breaks na <br>
+    formatted = formatted
+      .replace(/\r\n\r\n/g, '<br><br>') // Podwójne Windows line breaks
+      .replace(/\n\n/g, '<br><br>') // Podwójne Unix line breaks
+      .replace(/\r\r/g, '<br><br>') // Podwójne Mac line breaks
+      .replace(/\r\n/g, '<br>') // Pojedyncze Windows line breaks
+      .replace(/\n/g, '<br>') // Pojedyncze Unix line breaks
+      .replace(/\r/g, '<br>'); // Pojedyncze Mac line breaks
+    
+    // Przywróć line breaks w sformatowanych blokach (zostaną one jako <br> w środku bloku)
+    formatted = formatted.replace(/QUOTE_LINE_BREAK/g, '<br>');
+    
+    // 5. Formatuj linki (http/https) - po escape HTML
+    formatted = formatted.replace(/(https?:\/\/[^\s&lt;&gt;&quot;']+)/gi, (match) => {
+      const decoded = match.replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+      return `<a href="${decoded}" target="_blank" style="color: #0066cc; text-decoration: underline;">${match}</a>`;
+    });
+    
+    // 6. Formatuj emaile
+    formatted = formatted.replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<a href="mailto:$1" style="color: #0066cc; text-decoration: underline;">$1</a>');
+  } else {
+    // To już HTML - ale może zawierać też markdown, więc formatuj markdown nawet w HTML
+    
+    // Formatuj **bold** markdown nawet jeśli jest HTML
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    // Formatuj cytaty w HTML (linie z "> " które nie są w tagach HTML)
+    // Najpierw znajdź tekstowe cytaty (poza tagami HTML) - ale tylko jeśli nie zostały już sformatowane
+    if (!formatted.includes('border-left: 3px solid #ccc')) {
+      // Prostsza metoda - znajdź wszystkie bloki z ">" i sformatuj je
+      formatted = formatted.replace(/((?:^|>)[^<]*?)((?:>.*[\r\n]*)+)/gm, (match, before, quoteBlock) => {
+        // Jeśli przed cytatem nie ma tagu HTML i to nie jest już sformatowany blok
+        if (!before.includes('<div') && !before.includes('<span') && !match.includes('border-left')) {
+          // ✅ Formatuj blok cytatów - zachowaj puste linie jako odstępy
+          const quoteLines = quoteBlock
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(line => line.startsWith('>'))
+            .map(line => {
+              const withoutPrefix = line.replace(/^>\s*/, '');
+              // Jeśli linia była pusta (tylko ">"), zwróć pusty string (będzie renderowany jako odstęp)
+              return withoutPrefix === '' ? '' : withoutPrefix;
+            });
+          
+          if (quoteLines.length === 0) {
+            return match; // Jeśli nie ma cytatów, zwróć oryginał
+          }
+          
+          // ✅ Połącz linie, ale puste linie (puste stringi) zamień na <br><br> (odstęp)
+          const cleanQuote = quoteLines
+            .map((line, index) => {
+              if (line === '') {
+                // Pusta linia - dodaj odstęp
+                return '<br>';
+              } else if (index > 0 && quoteLines[index - 1] === '') {
+                // Jeśli poprzednia linia była pusta, to już dodaliśmy <br>, więc dodaj tylko jedną linię
+                return line;
+              } else {
+                return line;
+              }
+            })
+            .join('<br>')
+            .replace(/<br><br>/g, '<br><br>'); // Podwójne <br> to odstęp
+          
+          return `${before}<div style="color: #666; padding: 12px 16px; border-left: 3px solid #ccc; margin: 12px 0; background: #f9f9f9; border-radius: 4px; font-size: 13px; line-height: 1.6;">${cleanQuote}</div>`;
+        }
+        return match;
+      });
+    }
+    
+    // Obsługa placeholderów CID nawet w HTML (jeśli nie zostały jeszcze przetworzone)
+    formatted = formatted.replace(/\[cid:([^\]]+)\]/gi, (match, cidContent) => {
+      const fileName = cidContent.split('@')[0] || cidContent;
+      const extension = fileName.split('.').pop()?.toUpperCase() || 'IMAGE';
+      return `<span style="display: inline-block; padding: 4px 8px; background: #fff3cd; border-radius: 4px; font-size: 11px; color: #856404; margin: 4px 0; font-weight: 500; border: 1px solid #ffeaa7;">[OBRAZ: ${extension}]</span>`;
+    });
+    
+    // ✅ Formatuj separator ━━ na <hr> (jeśli jeszcze nie został sformatowany)
+    formatted = formatted.replace(/━+/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;" />');
+    
+    // ✅ Konwertuj line breaks na <br> dla całej treści
+    // Najpierw zachowaj line breaks w sformatowanych blokach cytatów
+    formatted = formatted.replace(/<div style="[^"]*border-left[^"]*">([\s\S]*?)<\/div>/g, (match, content) => {
+      return match.replace(/\r?\n/g, 'QUOTE_LINE_BREAK');
+    });
+    
+    // Teraz zamień wszystkie line breaks na <br> (dla całej treści)
+    formatted = formatted
+      .replace(/\r\n\r\n/g, '<br><br>') // Podwójne Windows line breaks
+      .replace(/\n\n/g, '<br><br>') // Podwójne Unix line breaks
+      .replace(/\r\r/g, '<br><br>') // Podwójne Mac line breaks
+      .replace(/\r\n/g, '<br>') // Pojedyncze Windows line breaks
+      .replace(/\n/g, '<br>') // Pojedyncze Unix line breaks
+      .replace(/\r/g, '<br>'); // Pojedyncze Mac line breaks
+    
+    // Przywróć line breaks w sformatowanych blokach cytatów (zostaną one jako <br> w środku bloku)
+    formatted = formatted.replace(/QUOTE_LINE_BREAK/g, '<br>');
+  }
+  
+  return formatted;
+}
 
 interface Decision {
   id: number;
@@ -144,7 +421,9 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
             subject: item.subject || '',
             responseText: item.responseText || '',
             sentAt: item.sentAt || item.createdAt,
-            status: item.status || 'sent'
+            status: item.status || 'sent',
+            mailboxId: item.mailboxId || null, // ✅ Dodaj mailboxId
+            messageId: item.messageId || null // ✅ Dodaj messageId
           }));
         console.log(`[CAMPAIGN MATERIAL DECISIONS] Załadowano ${materialResponses.length} wysłanych odpowiedzi`);
         setSentMaterialResponses(materialResponses);
@@ -159,9 +438,90 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
     }
   };
 
+  const searchParams = useSearchParams();
+  
   useEffect(() => {
     fetchData();
   }, [campaignId, showOnlyRejected]);
+  
+  // ✅ Automatycznie otwórz odpowiedź jeśli podano parametry URL
+  useEffect(() => {
+    if (!showOnlyHistory || !searchParams) return;
+    
+    const autoReplyLeadId = searchParams.get('autoReplyLeadId');
+    const autoReplySubject = searchParams.get('autoReplySubject');
+    
+    if (autoReplyLeadId && sentMaterialResponses.length > 0) {
+      // Znajdź odpowiedź która pasuje do leadId i tematu
+      const matchingResponse = sentMaterialResponses.find((mr: MaterialResponse) => {
+        const leadIdMatch = mr.lead.id === parseInt(autoReplyLeadId);
+        const subjectMatch = !autoReplySubject || 
+          (mr.subject && autoReplySubject && mr.subject.trim() === decodeURIComponent(autoReplySubject).trim());
+        return leadIdMatch && subjectMatch;
+      });
+      
+      if (matchingResponse) {
+        // Otwórz podgląd odpowiedzi - użyj funkcji zdefiniowanej później
+        setTimeout(() => {
+          // handleResponseClick jest zdefiniowane później, więc użyjemy bezpośrednio logiki
+          setSelectedDecision(null);
+          setDecisionPreviewData(null);
+          setLoadingDecisionPreview(true);
+          
+          // Pobierz pełną treść odpowiedzi (logika z handleResponseClick)
+          fetch(`/api/campaigns/${campaignId}/materials`)
+            .then(materialsResponse => materialsResponse.json())
+            .then(materialsData => {
+              const materials = materialsData.success && materialsData.data 
+                ? materialsData.data.filter((m: any) => m.isActive).map((m: any) => ({
+                    id: m.id,
+                    name: m.name,
+                    type: m.type,
+                    url: m.url || null,
+                    fileName: m.fileName || null
+                  }))
+                : [];
+              
+              // Pobierz pełną treść z SendLog jeśli MaterialResponse ma mailboxId
+              let fullContent = matchingResponse.responseText || 'Brak treści';
+              let fullSubject = matchingResponse.subject || 'Brak tematu';
+              
+              if (matchingResponse.mailboxId) {
+                const sendLogUrl = matchingResponse.messageId 
+                  ? `/api/campaigns/${campaignId}/send-log?mailboxId=${matchingResponse.mailboxId}&messageId=${encodeURIComponent(matchingResponse.messageId)}`
+                  : `/api/campaigns/${campaignId}/send-log?mailboxId=${matchingResponse.mailboxId}&leadId=${matchingResponse.lead.id}`;
+                
+                return fetch(sendLogUrl)
+                  .then(sendLogResponse => sendLogResponse.json())
+                  .then(sendLogData => {
+                    if (sendLogData.success && sendLogData.data) {
+                      fullContent = sendLogData.data.content || fullContent;
+                      fullSubject = sendLogData.data.subject || fullSubject;
+                    }
+                    return { fullContent, fullSubject, materials };
+                  });
+              }
+              
+              return { fullContent, fullSubject, materials };
+            })
+            .then(({ fullContent, fullSubject, materials }) => {
+              setDecisionPreviewData({
+                materials,
+                responseContent: fullContent,
+                responseSubject: fullSubject,
+                lead: matchingResponse.lead,
+                reply: matchingResponse.reply
+              });
+              setLoadingDecisionPreview(false);
+            })
+            .catch(error => {
+              console.error('Błąd pobierania podglądu:', error);
+              setLoadingDecisionPreview(false);
+            });
+        }, 500); // Małe opóźnienie aby lista się załadowała
+      }
+    }
+  }, [sentMaterialResponses, searchParams, showOnlyHistory, campaignId]);
 
   const handleShowPreview = async (decision: Decision) => {
     setSelectedDecision(decision);
@@ -238,6 +598,7 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
 
   const handleCloseDecisionPreview = () => {
     setSelectedDecision(null);
+    setSelectedMaterialResponse(null);
     setDecisionPreviewData(null);
     setLoadingDecisionPreview(false);
   };
@@ -313,8 +674,12 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
     }
   };
 
+  const [selectedMaterialResponse, setSelectedMaterialResponse] = useState<MaterialResponse | null>(null);
+  const [restoringResponse, setRestoringResponse] = useState(false);
+
   const handleResponseClick = async (response: MaterialResponse) => {
     setSelectedDecision(null);
+    setSelectedMaterialResponse(response);
     setDecisionPreviewData(null);
     setLoadingDecisionPreview(true);
     
@@ -373,6 +738,39 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
       alert(`Błąd pobierania podglądu: ${error.message}`);
     } finally {
       setLoadingDecisionPreview(false);
+    }
+  };
+
+  const handleRestoreMaterialResponse = async (materialResponseId: number) => {
+    if (!confirm("Czy na pewno chcesz przenieść ten email z powrotem do oczekujących na decyzję?")) {
+      return;
+    }
+
+    setRestoringResponse(true);
+    try {
+      const response = await fetch(`/api/material-responses/${materialResponseId}/restore`, {
+        method: "POST"
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        alert("✓ Email został przeniesiony do oczekujących na decyzję");
+        // Zamknij modal i odśwież listę
+        setSelectedMaterialResponse(null);
+        setDecisionPreviewData(null);
+        await fetchData();
+        // Przekieruj do zakładki "oczekujące"
+        if (typeof window !== 'undefined') {
+          window.location.hash = '#automatyczne-oczekujace';
+        }
+      } else {
+        alert(`Błąd: ${data.error}`);
+      }
+    } catch (error: any) {
+      console.error("Błąd przywracania:", error);
+      alert(`Błąd przywracania: ${error.message}`);
+    } finally {
+      setRestoringResponse(false);
     }
   };
 
@@ -929,7 +1327,7 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
       )}
 
       {/* Modal z podglądem decyzji lub historii */}
-      {(selectedDecision || decisionPreviewData) && (
+      {(selectedDecision || selectedMaterialResponse || decisionPreviewData) && (
         <div
           style={{
             position: "fixed",
@@ -962,7 +1360,7 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
             {/* Header - stały */}
             <div style={{ padding: "30px 30px 20px 30px", borderBottom: "1px solid #eee" }}>
               <h2 style={{ marginTop: 0, marginBottom: 0 }}>
-                Podgląd odpowiedzi - {selectedDecision ? `${selectedDecision.lead.firstName} ${selectedDecision.lead.lastName}` : 'Historia'}
+                Podgląd odpowiedzi - {selectedDecision ? `${selectedDecision.lead.firstName} ${selectedDecision.lead.lastName}` : selectedMaterialResponse ? `${selectedMaterialResponse.lead.firstName} ${selectedMaterialResponse.lead.lastName}` : 'Historia'}
               </h2>
             </div>
 
@@ -994,14 +1392,19 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
                       border: "1px solid #ddd", 
                       borderRadius: "4px", 
                       backgroundColor: "#fafafa", 
-                      whiteSpace: "pre-wrap", 
-                      height: "200px",
+                      maxHeight: "500px",
                       overflowY: "auto",
                       overflowX: "hidden",
-                      wordWrap: "break-word"
-                    }}>
-                      {decisionPreviewData.content}
-                    </div>
+                      wordWrap: "break-word",
+                      fontSize: "14px",
+                      lineHeight: "1.6",
+                      fontFamily: "Arial, sans-serif",
+                      color: "#333"
+                    }}
+                    dangerouslySetInnerHTML={{ 
+                      __html: formatEmailContent(decisionPreviewData.content)
+                    }}
+                    />
                   </div>
 
                 {/* Materiały */}
@@ -1099,10 +1502,28 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
                     Zatwierdź i wyślij
                   </button>
                 </>
+              ) : selectedMaterialResponse ? (
+                <button
+                  onClick={() => handleRestoreMaterialResponse(selectedMaterialResponse.id)}
+                  disabled={restoringResponse}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: restoringResponse ? "#ccc" : "#ff9800",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: restoringResponse ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    fontSize: "14px"
+                  }}
+                >
+                  {restoringResponse ? "Przywracanie..." : "🔄 Przywróć do oczekujących"}
+                </button>
               ) : null}
               <button
                 onClick={() => {
                   setSelectedDecision(null);
+                  setSelectedMaterialResponse(null);
                   setDecisionPreviewData(null);
                 }}
                 style={{

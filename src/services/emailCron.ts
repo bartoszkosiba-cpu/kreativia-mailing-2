@@ -2,12 +2,12 @@
 import * as cron from 'node-cron';
 import { fetchUnreadEmails } from '@/integrations/imap/client';
 import { processReply } from '@/integrations/inbox/processor';
-import { processScheduledCampaign } from './scheduledSender';
 import { processScheduledEmailsV2 } from './campaignEmailSenderV2'; // NOWY SYSTEM V2
 import { prefetchHolidays, checkAndPrefetchHolidays } from './holidays';
 import { autoCreateFollowUps } from './followUpManager';
 import { processAutoFollowUps } from './autoFollowUpManager';
 import { sendDailyReportEmail } from './dailyReportEmail';
+import { db } from '@/lib/db';
 
 let emailCronJob: cron.ScheduledTask | null = null;
 let campaignCronJob: cron.ScheduledTask | null = null;
@@ -133,47 +133,20 @@ export function startEmailCron() {
 
   console.log('[CRON] ✓ Email cron uruchomiony (pobieranie co 15 minut)');
   
-  // ✅ NOWY SYSTEM: Cron do wysyłki z CampaignEmailQueue (co 30 sekund - precyzyjne planowanie)
-  // Używa kolejki z precyzyjnymi czasami scheduledAt
-  // node-cron nie wspiera sekund, więc używamy co 1 minutę, ale w funkcji sprawdzamy czy czas minął
-  campaignCronJob = cron.schedule('* * * * *', async () => {
-    // Kolejkowanie - zapobiega nakładaniu się zadań
-    if (isCampaignCronTaskRunning) {
-      console.log('[CRON] ⏭️ Campaign cron już działa - pomijam');
+  // ❌ V1 SYSTEM WYŁĄCZONY - wszystkie kampanie używają V2
+  // Oryginalny cron V1 był tutaj, ale został wyłączony bo wszystkie kampanie są w V2
+  // campaignCronJob = cron.schedule('* * * * *', async () => { ... });
+  
+  // Wyślij zaplanowane odpowiedzi z materiałami (to NIE jest V1, więc zostaje)
+  let isMaterialResponseCronRunning = false;
+  const materialResponseCron = cron.schedule('*/2 * * * *', async () => {
+    // ✅ ZABEZPIECZENIE: Zapobiega równoległemu uruchomieniu (duplikaty)
+    if (isMaterialResponseCronRunning) {
+      console.log('[CRON] ⚠️ Material Response cron już działa - pomijam');
       return;
     }
     
-    isCampaignCronTaskRunning = true;
-    const cronStartTime = new Date();
-    console.log(`[CRON] 📧 Sprawdzam kolejkę kampanii... (start: ${cronStartTime.toISOString()})`);
-    try {
-      // NOWY SYSTEM: Wysyłaj z kolejki (CampaignEmailQueue)
-      const { sendScheduledCampaignEmails } = await import('./campaignEmailSender');
-      const result = await sendScheduledCampaignEmails();
-      
-      if (result.sent > 0) {
-        console.log(`[CRON] ✅ Wysłano ${result.sent} mail(i) z kolejki`);
-      }
-      if (result.skipped > 0) {
-        console.log(`[CRON] ⏭️  Pominięto ${result.skipped} mail(i) (opóźniony/brak skrzynek/okno czasowe)`);
-      }
-      if (result.failed > 0) {
-        console.error(`[CRON] ❌ Błędy: ${result.failed}`, result.errors);
-      }
-      if (result.sent === 0 && result.skipped === 0 && result.failed === 0) {
-        console.log(`[CRON] ℹ️  Brak maili do wysłania w tym momencie`);
-      }
-      
-      const cronEndTime = new Date();
-      const cronDuration = Math.floor((cronEndTime.getTime() - cronStartTime.getTime()) / 1000);
-      if (cronDuration > 10) {
-        console.log(`[CRON] ⚠️ SendScheduledCampaignEmails trwał ${cronDuration}s (dłużej niż 10s)`);
-      }
-    } catch (error: any) {
-      console.error('[CRON] ✗ Błąd wysyłki kampanii z kolejki:', error.message);
-    }
-    
-    // Wyślij zaplanowane odpowiedzi z materiałami
+    isMaterialResponseCronRunning = true;
     try {
       const { sendScheduledMaterialResponses } = await import('./materialResponseSender');
       const sentCount = await sendScheduledMaterialResponses();
@@ -183,16 +156,16 @@ export function startEmailCron() {
     } catch (error: any) {
       console.error('[CRON] ✗ Błąd wysyłki materiałów:', error.message);
     } finally {
-      isCampaignCronTaskRunning = false;
+      isMaterialResponseCronRunning = false;
     }
   });
   
-  console.log('[CRON] ✓ Campaign cron uruchomiony (sprawdzanie kolejki co 1 minutę)');
+  console.log('[CRON] ✓ V1 cron wyłączony - wszystkie kampanie używają V2');
   
   // ============================================================================
-  // ✅ NOWY SYSTEM V2: Cron do wysyłki z CampaignEmailQueue V2 (co 30 sekund)
-  // Testowo tylko dla kampanii ID: 4
-  // Równolegle ze starym systemem - bezpieczna migracja
+  // ✅ OPCJA 4: Cron do wysyłki z CampaignEmailQueue V2 (co 30 sekund)
+  // Cron uruchamia setTimeout dla gotowych maili → idealna randomizacja (72-108s)
+  // Obciążenie: ~1 zapytanie/30s w praktyce (minimalne)
   // ============================================================================
   campaignCronJobV2 = cron.schedule('*/30 * * * * *', async () => {
     // Kolejkowanie - zapobiega nakładaniu się zadań
@@ -222,7 +195,6 @@ export function startEmailCron() {
       isCampaignCronTaskRunningV2 = false;
     }
   }, {
-    scheduled: true,
     timezone: 'Europe/Warsaw'
   });
   
@@ -268,25 +240,38 @@ export function startEmailCron() {
   console.log('[CRON] ✓ Holiday & Follow-up & AUTO_FOLLOWUP cron uruchomiony (o 00:05)');
   
   // ============================================================================
-  // 02:00 - CLEANUP STARYCH WPISÓW Z CAMPAIGN EMAIL QUEUE (polski czas)
+  // 02:00 - CLEANUP STARYCH WPISÓW Z CAMPAIGN EMAIL QUEUE V2 (polski czas)
   // ============================================================================
   const cleanupCronJob = cron.schedule('0 2 * * *', async () => {
-    console.log('[CRON] 🗑️ 02:00 (PL) - Cleanup starych wpisów z CampaignEmailQueue');
+    console.log('[CRON] 🗑️ 02:00 (PL) - Cleanup starych wpisów z CampaignEmailQueueV2');
     try {
-      const { cleanupCampaignQueue } = await import('./campaignEmailQueue');
-      const deleted = await cleanupCampaignQueue();
-      if (deleted > 0) {
-        console.log(`[CRON] ✅ Usunięto ${deleted} starych wpisów z kolejki`);
+      // ✅ Użyj polskiego czasu dla obliczenia "wczoraj"
+      const { getStartOfTodayPL } = await import('@/utils/polishTime');
+      const startOfTodayPL = getStartOfTodayPL();
+      const yesterdayPL = new Date(startOfTodayPL);
+      yesterdayPL.setDate(yesterdayPL.getDate() - 1);
+      yesterdayPL.setHours(0, 0, 0, 0);
+
+      const result = await db.campaignEmailQueue.deleteMany({
+        where: {
+          status: { in: ["sent", "failed", "cancelled"] },
+          sentAt: {
+            lt: yesterdayPL
+          }
+        }
+      });
+
+      if (result.count > 0) {
+        console.log(`[CRON] ✅ Usunięto ${result.count} starych wpisów z kolejki V2`);
       }
     } catch (error: any) {
-      console.error('[CRON] ✗ Błąd cleanup CampaignEmailQueue:', error.message);
+      console.error('[CRON] ✗ Błąd cleanup CampaignEmailQueueV2:', error.message);
     }
   }, {
-    scheduled: true,
     timezone: 'Europe/Warsaw'
   });
   
-  console.log('[CRON] ✓ Cleanup CampaignEmailQueue uruchomiony (o 02:00 PL)');
+  console.log('[CRON] ✓ Cleanup CampaignEmailQueueV2 uruchomiony (o 02:00 PL)');
   
   // Uruchom cron do dziennego raportu (o 18:00 codziennie)
   if (dailyReportCronJob) {
@@ -294,31 +279,36 @@ export function startEmailCron() {
     return;
   }
   
-  dailyReportCronJob = cron.schedule('0 18 * * *', async () => {
-    // Kolejkowanie - zapobiega nakładaniu się zadań
-    if (isDailyReportCronTaskRunning) {
-      console.log('[CRON] ⏭️ Daily report cron już działa - pomijam');
-      return;
-    }
-    
-    isDailyReportCronTaskRunning = true;
-    console.log('[CRON] 📊 Wysyłam dzienny raport...');
-    try {
-      await sendDailyReportEmail();
-    } catch (error: any) {
-      console.error('[CRON] ✗ Błąd wysyłki raportu:', error.message);
-    } finally {
-      isDailyReportCronTaskRunning = false;
-    }
-  }, {
-    scheduled: true,
-    timezone: 'Europe/Warsaw'
-  });
+  // ❌ WYŁĄCZONE: Dzienny raport (można zobaczyć w UI - dashboard i statystyki)
+  // dailyReportCronJob = cron.schedule('0 18 * * *', async () => {
+  //   // Kolejkowanie - zapobiega nakładaniu się zadań
+  //   if (isDailyReportCronTaskRunning) {
+  //     console.log('[CRON] ⏭️ Daily report cron już działa - pomijam');
+  //     return;
+  //   }
+  //   
+  //   isDailyReportCronTaskRunning = true;
+  //   console.log('[CRON] 📊 Wysyłam dzienny raport...');
+  //   try {
+  //     await sendDailyReportEmail();
+  //   } catch (error: any) {
+  //     console.error('[CRON] ✗ Błąd wysyłki raportu:', error.message);
+  //   } finally {
+  //     isDailyReportCronTaskRunning = false;
+  //   }
+  // }, {
+  //   timezone: 'Europe/Warsaw'
+  // });
   
-  console.log('[CRON] ✓ Daily Report cron uruchomiony (o 18:00)');
+  // console.log('[CRON] ✓ Daily Report cron uruchomiony (o 18:00)');
   
   // Prefetch świąt tylko jeśli nie ma danych w cache
   checkAndPrefetchHolidays().catch(err => console.error('[CRON] Błąd initial prefetch:', err));
+  
+  // OPCJA 4: Recovery zablokowanych maili po restarcie
+  import('./campaignEmailSenderV2').then(({ recoverStuckEmailsAfterRestart }) => {
+    recoverStuckEmailsAfterRestart().catch(err => console.error('[CRON] Błąd recovery po restarcie:', err));
+  });
 }
 
 /**

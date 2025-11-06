@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isValidSendTime } from "@/services/campaignScheduler";
-import { processScheduledCampaign } from "@/services/scheduledSender";
 
 /**
  * START KAMPANII - Uruchom według harmonogramu
@@ -206,9 +205,16 @@ export async function PUT(
       data: { status: "PAUSED" }
     });
 
-    // Anuluj wszystkie pending/sending wpisy w kolejce
-    const { cancelCampaignQueue } = await import('@/services/campaignEmailQueue');
-    await cancelCampaignQueue(campaignId);
+    // ✅ V2: Anuluj wszystkie pending/sending wpisy w kolejce V2
+    await db.campaignEmailQueue.updateMany({
+      where: {
+        campaignId,
+        status: { in: ['pending', 'sending'] }
+      },
+      data: {
+        status: 'cancelled'
+      }
+    });
 
     return NextResponse.json({ 
       success: true, 

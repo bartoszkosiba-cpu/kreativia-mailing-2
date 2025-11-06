@@ -265,9 +265,12 @@ export async function sendSingleEmail(
 }
 
 /**
- * Przetwarza zaplanowaną kampanię i wysyła maile z uwzględnieniem harmonogramu
+ * ❌ V1 SYSTEM - USUNIĘTY
+ * Funkcja processScheduledCampaign() została usunięta - wszystkie kampanie używają V2
+ * 
+ * @deprecated Nie używaj - wszystkie kampanie używają V2 przez campaignEmailSenderV2.ts
  */
-export async function processScheduledCampaign(): Promise<void> {
+export async function processScheduledCampaign_DEPRECATED(): Promise<void> {
   const processStartTime = new Date();
   console.log(`[SCHEDULED SENDER] ⏰ Rozpoczynam processScheduledCampaign (${processStartTime.toISOString()})`);
   
