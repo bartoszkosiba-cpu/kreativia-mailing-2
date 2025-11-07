@@ -6,6 +6,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+# Logi aplikacji (zachowaj katalog, ale ignoruj pliki)
+logs/*.log
+!logs/.gitkeep
 .DS_Store
 .env
 .env.local

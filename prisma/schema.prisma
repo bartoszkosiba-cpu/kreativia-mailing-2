@@ -917,99 +917,143 @@ model PendingMaterialDecision {
 // ============================================================================
 
 model Company {
-  id              Int      @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   // Podstawowe dane z CSV
-  name            String   // Nazwa firmy
-  industry        String?  // Branża (np. "Targi")
-  country         String?  // Kraj (np. "Polska")
-  city            String?  // Miasto
-  postalCode      String?  // Kod pocztowy
-  street          String?  // Ulica
-  buildingNumber  String?  // Numer budynku
-  website         String?  // Strona www (URL)
-  description     String?  // Opis firmy (długi tekst z CSV)
+  name                String // Nazwa firmy
+  industry            String? // Branża (np. "Targi")
+  country             String? // Kraj (np. "Polska")
+  city                String? // Miasto
+  postalCode          String? // Kod pocztowy
+  street              String? // Ulica
+  buildingNumber      String? // Numer budynku
+  website             String? // Strona www (URL)
+  description         String? // Opis firmy (długi tekst z CSV)
   activityDescription String? // Opis działalności (krótki opis)
-  
+
   // Dane prawne
-  nip             String?  // NIP
-  regon           String?  // REGON
-  krs             String?  // KRS
-  legalForm       String?  // Forma prawna
+  nip               String? // NIP
+  regon             String? // REGON
+  krs               String? // KRS
+  legalForm         String? // Forma prawna
   establishmentDate DateTime? // Data założenia
-  
+
   // Dane biznesowe
-  companySize     String?  // Wielkość firmy (Duża, Średnia, Mała)
-  employeeCount   String?  // Liczba pracowników (zakres, np. "50-99")
-  revenue         String?  // Przychody (zakres, np. "20-50 mln PLN")
-  netProfit       String?  // Zysk netto (zakres)
-  locationCount   Int?     // Liczba lokalizacji
-  ratingPoints    Int?     // Punkty oceny
-  
+  companySize   String? // Wielkość firmy (Duża, Średnia, Mała)
+  employeeCount String? // Liczba pracowników (zakres, np. "50-99")
+  revenue       String? // Przychody (zakres, np. "20-50 mln PLN")
+  netProfit     String? // Zysk netto (zakres)
+  locationCount Int? // Liczba lokalizacji
+  ratingPoints  Int? // Punkty oceny
+
   // Kody branżowe
-  sicCode         String?  // Kod SIC
-  naceCode        String?  // Kod NACE
-  
+  sicCode  String? // Kod SIC
+  naceCode String? // Kod NACE
+
   // Status weryfikacji
-  verificationStatus String @default("PENDING") // PENDING | VERIFYING | QUALIFIED | REJECTED | NEEDS_REVIEW | ERROR
-  verificationResult String? // JSON z wynikiem weryfikacji AI
-  verificationScore  Float?  // 0.0 - 1.0 (pewność AI)
-  verificationReason String? // Uzasadnienie decyzji AI
+  verificationStatus  String  @default("PENDING") // PENDING | VERIFYING | QUALIFIED | REJECTED | NEEDS_REVIEW | BLOCKED | ERROR
+  verificationResult  String? // JSON z wynikiem weryfikacji AI
+  verificationScore   Float? // 0.0 - 1.0 (pewność AI)
+  verificationReason  String? // Uzasadnienie decyzji AI
   verificationComment String? // Komentarz weryfikacji (z CSV lub ręczny)
-  
+
   // Progi pewności (z konfiguracji)
   confidenceThreshold Float? // Próg pewności użyty do kwalifikacji
-  
+
   // Metadane weryfikacji
-  verifiedAt      DateTime? // Kiedy zweryfikowano
-  verifiedBy      String?   // "AI" | "MANUAL" | "CSV"
+  verifiedAt         DateTime? // Kiedy zweryfikowano
+  verifiedBy         String? // "AI" | "MANUAL" | "CSV"
   verificationSource String? // "DESCRIPTION" | "WEBSITE" | "MANUAL" | "CSV"
-  
+
   // Dodatkowe dane ze strony (scraping)
-  scrapedContent  String?   // Zawartość ze strony (cache)
-  scrapedAt       DateTime? // Kiedy pobrano zawartość
-  
+  scrapedContent String? // Zawartość ze strony (cache)
+  scrapedAt      DateTime? // Kiedy pobrano zawartość
+
   // Notatki użytkownika
-  notes           String?
-  tags            String?   // JSON array of tags
-  
+  notes String?
+  tags  String? // JSON array of tags
+
   // Dane z CSV (jeśli były ręcznie zweryfikowane)
-  csvVerificationDate DateTime? // Data weryfikacji z CSV
+  csvVerificationDate   DateTime? // Data weryfikacji z CSV
   csvVerificationStatus String? // Status weryfikacji z CSV (np. "Zweryfikowany")
-  csvModificationDate DateTime? // Data ostatniej modyfikacji z CSV
-  csvModifiedBy   String?   // Użytkownik modyfikujący z CSV
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+  csvModificationDate   DateTime? // Data ostatniej modyfikacji z CSV
+  csvModifiedBy         String? // Użytkownik modyfikujący z CSV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   verificationLogs CompanyVerificationLog[]
-  
+
   @@index([verificationStatus])
   @@index([verifiedAt])
   @@index([industry])
   @@index([country])
 }
 
+model BlockedCompany {
+  id          Int      @id @default(autoincrement())
+  companyName String // Nazwa firmy do blokowania (może być częściowa)
+  reason      String? // Powód blokady (opcjonalny)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String? // Kto dodał (opcjonalnie)
+
+  @@unique([companyName])
+  @@index([companyName])
+}
+
 model CompanyVerificationLog {
-  id              Int      @id @default(autoincrement())
-  companyId       Int
-  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
+  id        Int     @id @default(autoincrement())
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   // Szczegóły weryfikacji
-  status          String   // PENDING | VERIFYING | QUALIFIED | REJECTED | ERROR
-  score           Float?   // 0.0 - 1.0
-  reason          String?  // Uzasadnienie
-  source          String?  // "DESCRIPTION" | "WEBSITE" | "MANUAL" | "CSV"
-  content         String?  // Treść użyta do weryfikacji (opis lub zawartość strony)
-  
+  status  String // PENDING | VERIFYING | QUALIFIED | REJECTED | NEEDS_REVIEW | ERROR
+  score   Float? // 0.0 - 1.0
+  reason  String? // Uzasadnienie
+  source  String? // "DESCRIPTION" | "WEBSITE" | "MANUAL" | "CSV"
+  content String? // Treść użyta do weryfikacji (opis lub zawartość strony)
+
   // AI Metadata
-  aiModel         String?  // "gpt-4o" | "gpt-4o-mini"
-  aiTokens        Int?     // Liczba tokenów użytych
-  aiCost          Float?   // Szacowany koszt
-  
-  createdAt       DateTime  @default(now())
-  
+  aiModel  String? // "gpt-4o" | "gpt-4o-mini"
+  aiTokens Int? // Liczba tokenów użytych
+  aiCost   Float? // Szacowany koszt
+
+  createdAt DateTime @default(now())
+
   @@index([companyId])
   @@index([status])
   @@index([createdAt])
+}
+
+// Konfiguracja kryteriów weryfikacji (z czatu z agentem)
+model CompanyVerificationCriteria {
+  id          Int     @id @default(autoincrement())
+  name        String // Nazwa konfiguracji (np. "Firmy targowe - zabudowy")
+  description String? // Opis kryteriów
+
+  // Kryteria (wygenerowane przez AI z czatu)
+  criteriaText      String // Pełny tekst kryteriów (prompt dla AI)
+  qualifiedKeywords String? // JSON array - słowa kluczowe dla QUALIFIED
+  rejectedKeywords  String? // JSON array - słowa kluczowe dla REJECTED
+
+  // Progi pewności
+  qualifiedThreshold Float @default(0.8) // >= 0.8 = QUALIFIED
+  rejectedThreshold  Float @default(0.3) // <= 0.3 = REJECTED
+  // 0.3 < score < 0.8 = NEEDS_REVIEW
+
+  // Historia czatu z agentem
+  chatHistory     String? // JSON array - historia rozmowy z agentem
+  lastUserMessage String? // Ostatnia wiadomość użytkownika
+  lastAIResponse  String? // Ostatnia odpowiedź AI
+
+  // Status
+  isActive  Boolean @default(true)
+  isDefault Boolean @default(false) // Domyślna konfiguracja
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([isDefault])
 }

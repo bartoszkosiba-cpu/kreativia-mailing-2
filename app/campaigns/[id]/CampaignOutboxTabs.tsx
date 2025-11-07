@@ -309,8 +309,10 @@ function CampaignOutboxStatusTab({
 function CampaignOutboxInfoTab({ campaignId, campaignStatus }: { campaignId: number; campaignStatus: string }) {
   const [info, setInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [mailboxes, setMailboxes] = useState<any>(null);
   const [mailboxesLoading, setMailboxesLoading] = useState(true);
+  const [mailboxesRefreshing, setMailboxesRefreshing] = useState(false);
 
   // Funkcja do formatowania statusu kampanii (ta sama co w CampaignOutboxStatusTab)
   const getStatusLabel = (status: string) => {
@@ -328,54 +330,77 @@ function CampaignOutboxInfoTab({ campaignId, campaignStatus }: { campaignId: num
   const statusInfo = getStatusLabel(campaignStatus);
 
   useEffect(() => {
-    const fetchInfo = async () => {
+    const fetchInfo = async (isInterval = false) => {
       try {
-        setLoading(true);
+        if (isInterval) {
+          setIsRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
         const response = await fetch(`/api/campaigns/${campaignId}/sending-info`);
         const result = await response.json();
-        
+
         if (result.success && result.data) {
           setInfo(result.data);
         } else {
           console.error('Błąd pobierania informacji:', result.error || 'Nieznany błąd');
-          setInfo(null);
+          if (!isInterval) {
+            setInfo(null);
+          }
         }
       } catch (error) {
         console.error('Błąd pobierania informacji:', error);
-        setInfo(null);
+        if (!isInterval) {
+          setInfo(null);
+        }
       } finally {
-        setLoading(false);
+        if (isInterval) {
+          setIsRefreshing(false);
+        } else {
+          setLoading(false);
+        }
       }
     };
 
-    fetchInfo();
-    // Odświeżaj co 30 sekund
-    const interval = setInterval(fetchInfo, 30000);
-    
-    // Pobierz informacje o skrzynkach
-    const fetchMailboxes = async () => {
+    const fetchMailboxes = async (isInterval = false) => {
       try {
-        setMailboxesLoading(true);
+        if (isInterval) {
+          setMailboxesRefreshing(true);
+        } else {
+          setMailboxesLoading(true);
+        }
+
         const response = await fetch(`/api/campaigns/${campaignId}/mailboxes`);
         const result = await response.json();
         if (result.success) {
           setMailboxes(result.data);
         } else {
           console.error('Błąd pobierania skrzynek:', result.error || 'Nieznany błąd');
-          setMailboxes(null);
+          if (!isInterval) {
+            setMailboxes(null);
+          }
         }
       } catch (error) {
         console.error('Błąd pobierania skrzynek:', error);
-        setMailboxes(null);
+        if (!isInterval) {
+          setMailboxes(null);
+        }
       } finally {
-        setMailboxesLoading(false);
+        if (isInterval) {
+          setMailboxesRefreshing(false);
+        } else {
+          setMailboxesLoading(false);
+        }
       }
     };
-    
-    fetchMailboxes();
-    // Odświeżaj skrzynki co 60 sekund
-    const mailboxesInterval = setInterval(fetchMailboxes, 60000);
-    
+
+    fetchInfo(false);
+    const interval = setInterval(() => fetchInfo(true), 30000);
+
+    fetchMailboxes(false);
+    const mailboxesInterval = setInterval(() => fetchMailboxes(true), 60000);
+
     return () => {
       clearInterval(interval);
       clearInterval(mailboxesInterval);
@@ -484,7 +509,22 @@ function CampaignOutboxInfoTab({ campaignId, campaignStatus }: { campaignId: num
       </div>
 
       {/* Statystyki dzisiejsze */}
-      <div style={{ marginBottom: 24, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8 }}>
+      <div style={{ marginBottom: 24, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8, position: 'relative' }}>
+        {isRefreshing && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: 'rgba(255,255,255,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 12,
+            color: '#666',
+            borderRadius: 8
+          }}>
+            Odświeżanie danych...
+          </div>
+        )}
         <h4 style={{ marginTop: 0 }}>Dzisiaj</h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
           <div>
@@ -577,7 +617,22 @@ function CampaignOutboxInfoTab({ campaignId, campaignStatus }: { campaignId: num
 
       {/* Skrzynki mailowe */}
       {!mailboxesLoading && mailboxes && (
-        <div style={{ marginBottom: 24, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8, border: '1px solid #dee2e6' }}>
+        <div style={{ marginBottom: 24, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8, border: '1px solid #dee2e6', position: 'relative' }}>
+          {mailboxesRefreshing && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'rgba(255,255,255,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              color: '#666',
+              borderRadius: 8
+            }}>
+              Aktualizuję skrzynki...
+            </div>
+          )}
           <h4 style={{ marginTop: 0, marginBottom: 8 }}>Skrzynki mailowe</h4>
           <p style={{ margin: '0 0 16px 0', fontSize: 12, color: '#666', fontStyle: 'italic' }}>
             Dane pokazują globalną liczbę maili wysłanych dzisiaj ze skrzynki (wszystkie kampanie), nie tylko z tej kampanii.

@@ -11,13 +11,23 @@ export default function Navbar() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   
   // Określ aktualny moduł na podstawie ścieżki
-  const currentModule = pathname.startsWith('/crm') ? 'CRM' : 'MAILING';
-  const [selectedModule, setSelectedModule] = useState<'MAILING' | 'CRM'>(currentModule);
+  const getCurrentModule = () => {
+    if (pathname.startsWith('/crm')) return 'CRM';
+    if (pathname.startsWith('/company-selection')) return 'LEAD_SELECTION';
+    return 'MAILING';
+  };
+  const currentModule = getCurrentModule();
+  const [selectedModule, setSelectedModule] = useState<'MAILING' | 'CRM' | 'LEAD_SELECTION'>(currentModule);
 
   // Synchronizuj wybór modułu ze ścieżką
   useEffect(() => {
-    const module = pathname.startsWith('/crm') ? 'CRM' : 'MAILING';
-    setSelectedModule(module);
+    if (pathname.startsWith('/crm')) {
+      setSelectedModule('CRM');
+    } else if (pathname.startsWith('/company-selection')) {
+      setSelectedModule('LEAD_SELECTION');
+    } else {
+      setSelectedModule('MAILING');
+    }
   }, [pathname]);
 
   // Menu dla modułu Mailing
@@ -89,12 +99,46 @@ export default function Navbar() {
     }
   ];
 
-  const navItems = selectedModule === 'CRM' ? crmNavItems : mailingNavItems;
+  // Menu dla modułu Wyboru Leadów
+  const leadSelectionNavItems = [
+    { 
+      href: "/company-selection", 
+      label: "Dashboard"
+    },
+    { 
+      href: "/company-selection/import", 
+      label: "Import CSV"
+    },
+    { 
+      href: "/company-selection/verify", 
+      label: "Weryfikacja"
+    },
+    { 
+      href: "/company-selection/criteria", 
+      label: "Kryteria"
+    },
+    { 
+      href: "/company-selection/blocked", 
+      label: "Zablokowane firmy"
+    },
+    { 
+      href: "/company-selection/logs", 
+      label: "Logi"
+    }
+  ];
 
-  const handleModuleSwitch = (module: 'MAILING' | 'CRM') => {
+  const navItems = selectedModule === 'CRM' 
+    ? crmNavItems 
+    : selectedModule === 'LEAD_SELECTION'
+    ? leadSelectionNavItems
+    : mailingNavItems;
+
+  const handleModuleSwitch = (module: 'MAILING' | 'CRM' | 'LEAD_SELECTION') => {
     setSelectedModule(module);
     if (module === 'CRM') {
       router.push('/crm');
+    } else if (module === 'LEAD_SELECTION') {
+      router.push('/company-selection');
     } else {
       router.push('/');
     }
@@ -133,7 +177,7 @@ export default function Navbar() {
           alignItems: "center", 
           gap: "var(--spacing-md)"
         }}>
-          <Link href={selectedModule === 'CRM' ? "/crm" : "/"} style={{ 
+          <Link href={selectedModule === 'CRM' ? "/crm" : selectedModule === 'LEAD_SELECTION' ? "/company-selection" : "/"} style={{ 
             display: "flex", 
             alignItems: "center", 
             gap: "var(--spacing-sm)",
@@ -171,7 +215,7 @@ export default function Navbar() {
                 fontWeight: "500",
                 fontFamily: "'Montserrat', sans-serif"
               }}>
-                {selectedModule}
+                {selectedModule === 'LEAD_SELECTION' ? 'WYBÓR LEADÓW' : selectedModule}
               </div>
             </div>
           </Link>
@@ -220,6 +264,24 @@ export default function Navbar() {
               }}
             >
               CRM
+            </button>
+            <button
+              onClick={() => handleModuleSwitch('LEAD_SELECTION')}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "4px",
+                fontSize: "11px",
+                fontWeight: "600",
+                fontFamily: "'Montserrat', sans-serif",
+                letterSpacing: "0.5px",
+                border: "none",
+                cursor: "pointer",
+                background: selectedModule === 'LEAD_SELECTION' ? "var(--color-primary)" : "transparent",
+                color: selectedModule === 'LEAD_SELECTION' ? "white" : "var(--color-text)",
+                transition: "all 0.2s ease"
+              }}
+            >
+              WYBÓR LEADÓW
             </button>
           </div>
         </div>
