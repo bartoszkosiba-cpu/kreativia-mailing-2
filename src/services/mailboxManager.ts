@@ -81,9 +81,17 @@ export interface AvailableMailbox {
  */
 export async function getNextAvailableMailbox(
   virtualSalespersonId: number,
-  campaignId?: number
+  campaignId?: number,
+  options?: { readOnly?: boolean }
 ): Promise<AvailableMailbox | null> {
-  console.log(`[MAILBOX] Szukam dostępnej skrzynki dla handlowca ID: ${virtualSalespersonId}`);
+  const readOnly = options?.readOnly ?? false;
+  const log = (...args: any[]) => {
+    if (!readOnly) {
+      console.log(...args);
+    }
+  };
+
+  log(`[MAILBOX] Szukam dostępnej skrzynki dla handlowca ID: ${virtualSalespersonId}`);
 
   // Pobierz handlowca z główną skrzynką
   const salesperson = await db.virtualSalesperson.findUnique({
@@ -92,7 +100,7 @@ export async function getNextAvailableMailbox(
   });
 
   if (!salesperson) {
-    console.log(`[MAILBOX] ❌ Handlowiec ID: ${virtualSalespersonId} nie istnieje`);
+    log(`[MAILBOX] ❌ Handlowiec ID: ${virtualSalespersonId} nie istnieje`);
     return null;
   }
 
@@ -115,16 +123,16 @@ export async function getNextAvailableMailbox(
       // Przenieś główną skrzynkę na początek
       const mainMailbox = mailboxes.splice(mainMailboxIndex, 1)[0];
       mailboxes.unshift(mainMailbox);
-      console.log(`[MAILBOX] 🎯 Ustawiono główną skrzynkę: ${mainMailbox.email} (ID: ${mainMailbox.id})`);
+      log(`[MAILBOX] 🎯 Ustawiono główną skrzynkę: ${mainMailbox.email} (ID: ${mainMailbox.id})`);
     }
   }
 
   if (mailboxes.length === 0) {
-    console.log(`[MAILBOX] ❌ Brak aktywnych skrzynek dla handlowca ID: ${virtualSalespersonId}`);
+    log(`[MAILBOX] ❌ Brak aktywnych skrzynek dla handlowca ID: ${virtualSalespersonId}`);
     return null;
   }
 
-  console.log(`[MAILBOX] Znaleziono ${mailboxes.length} aktywnych skrzynek`);
+  log(`[MAILBOX] Znaleziono ${mailboxes.length} aktywnych skrzynek`);
 
   // Pobierz datę w polskim czasie
   const { getTodayPLString, isTodayPL } = await import('@/utils/polishTime');
@@ -136,8 +144,28 @@ export async function getNextAvailableMailbox(
     const needsReset = !mailbox.lastResetDate || !isTodayPL(mailbox.lastResetDate);
     
     if (needsReset) {
-      await resetMailboxCounter(mailbox.id, mailbox.warmupStatus);
-      console.log(`[MAILBOX] ✓ Zresetowano licznik dla ${mailbox.email} (lastReset: ${mailbox.lastResetDate ? mailbox.lastResetDate.toISOString() : 'brak'}, dzisiaj PL: ${todayPL})`);
+      if (readOnly) {
+        mailbox.currentDailySent = 0;
+        mailbox.warmupTodaySent = 0;
+      } else {
+        await resetMailboxCounter(mailbox.id, mailbox.warmupStatus);
+        log(`[MAILBOX] ✓ Zresetowano licznik dla ${mailbox.email} (lastReset: ${mailbox.lastResetDate ? mailbox.lastResetDate.toISOString() : 'brak'}, dzisiaj PL: ${todayPL})`);
+
+        const refreshed = await db.mailbox.findUnique({
+          where: { id: mailbox.id },
+          select: {
+            currentDailySent: true,
+            warmupTodaySent: true,
+            lastResetDate: true
+          }
+        });
+
+        if (refreshed) {
+          mailbox.currentDailySent = refreshed.currentDailySent;
+          mailbox.warmupTodaySent = refreshed.warmupTodaySent ?? 0;
+          mailbox.lastResetDate = refreshed.lastResetDate;
+        }
+      }
     }
   }
 
@@ -178,7 +206,7 @@ export async function getNextAvailableMailbox(
       
       if (lockedMailboxIds.size > 0) {
         availableMailboxes = mailboxes.filter(m => !lockedMailboxIds.has(m.id));
-        console.log(`[MAILBOX] ⚠️  Wykluczono ${lockedMailboxIds.size} skrzynek używanych przez inne kampanie`);
+        log(`[MAILBOX] ⚠️  Wykluczono ${lockedMailboxIds.size} skrzynek używanych przez inne kampanie`);
       }
     }
   }
@@ -224,7 +252,7 @@ export async function getNextAvailableMailbox(
         ? `(warmup: pozostało: ${remaining}/${effectiveLimit})`
         : `(pozostało: ${remaining}/${effectiveLimit})`;
       
-      console.log(`[MAILBOX] ✅ Wybrano skrzynkę: ${mailbox.email} ${statusInfo}`);
+      log(`[MAILBOX] ✅ Wybrano skrzynkę: ${mailbox.email} ${statusInfo}`);
       
       return {
         id: mailbox.id,
@@ -240,11 +268,11 @@ export async function getNextAvailableMailbox(
         smtpSecure: mailbox.smtpSecure
       };
     } else {
-      console.log(`[MAILBOX] ⏭️  Skrzynka ${mailbox.email} wyczerpana (${currentSent}/${effectiveLimit})`);
+      log(`[MAILBOX] ⏭️  Skrzynka ${mailbox.email} wyczerpana (${currentSent}/${effectiveLimit})`);
     }
   }
 
-  console.log(`[MAILBOX] ❌ Wszystkie skrzynki wyczerpane na dzisiaj`);
+  log(`[MAILBOX] ❌ Wszystkie skrzynki wyczerpane na dzisiaj`);
   return null;
 }
 
