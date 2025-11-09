@@ -10,13 +10,13 @@ import CampaignStartButton from "./CampaignStartButton";
 import CampaignTextEditor from "./CampaignTextEditor";
 import FollowUpManager from "./FollowUpManager";
 import CampaignSender from "./CampaignSender";
-import CampaignOutbox from "./CampaignOutbox";
 import CampaignOutboxTabs from "./CampaignOutboxTabs";
 import DeleteCampaign from "./DeleteCampaign";
 import CampaignInboxPage from "./inbox/page";
 import AutoReplySettings from "./AutoReplySettings";
 import CampaignAutoRepliesTabs from "./CampaignAutoRepliesTabs";
 import NextEmailTime from "./NextEmailTime";
+import CampaignAgendaTab from "./CampaignAgendaTab";
 
 type LeadLite = {
   id: number;
@@ -26,6 +26,23 @@ type LeadLite = {
   company: string | null;
   language: string;
   hasSentEmail: boolean;
+};
+
+type PersonaRoleConfigUI = {
+  label: string;
+  matchType?: string;
+  keywords?: string[];
+  departments?: string[];
+  minSeniority?: string;
+  confidence?: number;
+};
+
+type PersonaConditionalRuleUI = {
+  rule: "include" | "exclude";
+  whenAll?: string[];
+  whenAny?: string[];
+  unless?: string[];
+  notes?: string;
 };
 
 interface Props {
@@ -77,8 +94,21 @@ interface AutoReplySettingsProps {
     autoReplyGuardianIntroText?: string | null; // ✅ NOWE
 }
 
-export default function CampaignTabs(props: Props & { autoReply?: AutoReplySettingsProps }) {
-      type TabId = "raport" | "handlowiec" | "leady" | "harmonogram" | "tresc" | "followupy" | "wysylka" | "inbox" | "automatyczne";
+interface AgendaProps {
+  personaCriteria: {
+    id: number;
+    companyCriteriaId: number;
+    name: string;
+    description?: string | null;
+    language?: string | null;
+    positiveRoles: PersonaRoleConfigUI[];
+    negativeRoles: PersonaRoleConfigUI[];
+    conditionalRules: PersonaConditionalRuleUI[];
+  } | null;
+}
+
+export default function CampaignTabs(props: Props & { autoReply?: AutoReplySettingsProps; agenda?: AgendaProps }) {
+      type TabId = "raport" | "handlowiec" | "leady" | "harmonogram" | "tresc" | "followupy" | "wysylka" | "inbox" | "automatyczne" | "agenda";
       
       // Mapowanie hash -> tab ID
       const hashToTab: Record<string, TabId> = {
@@ -90,7 +120,8 @@ export default function CampaignTabs(props: Props & { autoReply?: AutoReplySetti
         "#followupy": "followupy",
         "#wysylka": "wysylka",
         "#inbox": "inbox",
-        "#automatyczne": "automatyczne"
+        "#automatyczne": "automatyczne",
+        "#agenda": "agenda",
       };
       
       // Mapowanie tab ID -> hash
@@ -103,7 +134,8 @@ export default function CampaignTabs(props: Props & { autoReply?: AutoReplySetti
         "followupy": "#followupy",
         "wysylka": "#wysylka",
         "inbox": "#inbox",
-        "automatyczne": "#automatyczne"
+        "automatyczne": "#automatyczne",
+        "agenda": "#agenda",
       };
       
       // ✅ Zawsze zaczynaj od "raport" (dla SSR) - hash zostanie sprawdzony w useEffect
@@ -230,6 +262,7 @@ export default function CampaignTabs(props: Props & { autoReply?: AutoReplySetti
         <TabButton id="wysylka" label="Wysyłka" />
         <TabButton id="automatyczne" label="Automatyczne odpowiedzi" />
         <TabButton id="inbox" label="Inbox" />
+        <TabButton id="agenda" label="Agenda AI" />
       </div>
 
           {active === "raport" && (
@@ -322,6 +355,13 @@ export default function CampaignTabs(props: Props & { autoReply?: AutoReplySetti
             autoReplyGuardianIntroText: props.autoReply?.autoReplyGuardianIntroText || null
           }}
           campaignSubject={props.content?.subject || null}
+        />
+      )}
+
+      {active === "agenda" && (
+        <CampaignAgendaTab
+          campaignId={props.campaignId}
+          personaCriteria={props.agenda?.personaCriteria ?? null}
         />
       )}
 

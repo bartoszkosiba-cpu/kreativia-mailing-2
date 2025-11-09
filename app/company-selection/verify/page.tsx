@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 
 interface Company {
@@ -14,6 +14,7 @@ interface Company {
   verificationReason: string | null;
   description: string | null;
   activityDescription: string | null;
+  website?: string | null;
 }
 
 interface CompanyStats {
@@ -25,11 +26,28 @@ interface CompanyStats {
   total: number;
 }
 
+const PERSONA_SENIORITY_ORDER = [
+  "intern",
+  "entry",
+  "junior",
+  "mid",
+  "senior",
+  "manager",
+  "director",
+  "vp",
+  "c_suite",
+  "founder",
+  "owner",
+  "partner",
+  "principal",
+  "executive",
+];
+
 export default function CompanyVerifyPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+  const [selectedStatus, setSelectedStatus] = useState<string>("QUALIFIED");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
@@ -60,10 +78,59 @@ export default function CompanyVerifyPage() {
   const [loadingApollo, setLoadingApollo] = useState(false);
   const [selectedTitles, setSelectedTitles] = useState<string[]>([]);
   const [selectedPeopleIds, setSelectedPeopleIds] = useState<string[]>([]);
+  const [personaVerification, setPersonaVerification] = useState<any>(null);
+  const [personaLoading, setPersonaLoading] = useState(false);
+  const [savingTitles, setSavingTitles] = useState(false);
+  const [personaError, setPersonaError] = useState<string | null>(null);
+  const [verifiedCompanies, setVerifiedCompanies] = useState<Array<{
+    id: number;
+    companyId: number;
+    company: { id: number; name: string; website: string | null; industry: string | null };
+    positiveCount: number;
+    negativeCount: number;
+    unknownCount: number;
+    totalCount: number;
+    verifiedAt: string;
+  }>>([]);
+  const [personaCriteria, setPersonaCriteria] = useState<any>(null);
+
+  const verifiedLookup = useMemo(() => {
+    const map = new Map<number, (typeof verifiedCompanies)[number]>();
+    verifiedCompanies.forEach((item) => map.set(item.companyId, item));
+    return map;
+  }, [verifiedCompanies]);
+
+  const globalTitlesSet = useMemo(() => {
+    const titles = new Set<string>();
+
+    (personaCriteria?.positiveRoles ?? []).forEach((rule: any) => {
+      if (rule?.label) titles.add(rule.label.toLowerCase());
+      (rule?.keywords ?? []).forEach((kw: string) => titles.add(kw.toLowerCase()));
+    });
+    (personaCriteria?.negativeRoles ?? []).forEach((rule: any) => {
+      if (rule?.label) titles.add(rule.label.toLowerCase());
+      (rule?.keywords ?? []).forEach((kw: string) => titles.add(kw.toLowerCase()));
+    });
+
+    return titles;
+  }, [personaCriteria]);
+
+  const totalQualifiedPersonas = useMemo(() => {
+    if (!companies.length) {
+      return 0;
+    }
+
+    return companies.reduce((sum, company) => {
+      const stats = verifiedLookup.get(company.id);
+      return sum + (stats?.positiveCount ?? 0);
+    }, 0);
+  }, [companies, verifiedLookup]);
 
   useEffect(() => {
     loadStats();
     loadCompanies();
+    loadVerifiedCompanies();
+    loadPersonas();
   }, []);
 
   useEffect(() => {
@@ -196,7 +263,14 @@ export default function CompanyVerifyPage() {
       const response = await fetch(url);
       const data = await response.json();
       console.log("[Verify] Otrzymane dane:", { companies: data.companies?.length, total: data.pagination?.total });
-      setCompanies(data.companies || []);
+      const normalizedCompanies = (data.companies || []).map((company: any) => ({
+        ...company,
+        website:
+          typeof company?.website === "string"
+            ? company.website.trim()
+            : company?.website ?? null,
+      }));
+      setCompanies(normalizedCompanies);
       setTotal(data.pagination?.total || 0);
     } catch (error) {
       console.error("Błąd ładowania firm:", error);
@@ -205,8 +279,26 @@ export default function CompanyVerifyPage() {
     }
   };
 
+  const loadVerifiedCompanies = async () => {
+    try {
+      const response = await fetch("/api/company-selection/persona-verification?limit=200");
+      const data = await response.json();
+      if (data.success) {
+        setVerifiedCompanies(data.data || []);
+      }
+    } catch (error) {
+      console.error("Błąd ładowania weryfikacji person:", error);
+    }
+  };
+
   const handleVerifySingle = async (companyId: number) => {
     try {
+      const company = companies.find((c) => c.id === companyId);
+      if (!hasCompanyWebsite(company)) {
+        alert("Ta firma nie ma uzupełnionej strony www. Uzupełnij ją przed weryfikacją.");
+        return;
+      }
+
       setVerifying(true);
       const response = await fetch("/api/company-selection/verify", {
         method: "POST",
@@ -280,36 +372,122 @@ export default function CompanyVerifyPage() {
     }
   };
 
-  const handleCheckApolloEmployees = async (companyId: number, companyName: string) => {
-    try {
-      setLoadingApollo(true);
-      setSelectedCompanyForApollo(companyId);
-      setApolloEmployees(null);
-      setSelectedTitles([]);
+  type PersonaVerificationAction = "reuse" | "refresh" | "reverify";
 
-      const response = await fetch(`/api/company-selection/apollo/employees?companyId=${companyId}`);
+  const handlePersonaVerification = async (
+    companyId: number,
+    action: PersonaVerificationAction = "reuse"
+  ) => {
+    try {
+      const companyRecord =
+        companies.find((c) => c.id === companyId) ??
+        verifiedCompanies.find((item) => item.companyId === companyId)?.company;
+      if (!hasCompanyWebsite(companyRecord)) {
+        alert("Ta firma nie ma uzupełnionej strony www. Dodaj ją, aby pobrać pracowników z Apollo.");
+        return;
+      }
+
+      setPersonaLoading(true);
+      setPersonaError(null);
+      setSelectedCompanyForApollo(companyId);
+
+      const response = await fetch("/api/company-selection/persona-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, action }),
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-
-      // Zawsze pokazuj modal, nawet jeśli nie znaleziono pracowników
-      // (data.success może być true, ale z pustą listą pracowników)
-      setApolloEmployees(data);
-      
       if (!data.success) {
-        // Jeśli to błąd, pokaż alert
-        const errorMessage = data.error || data.details || "Nie udało się pobrać danych z Apollo";
-        console.error("Apollo API error:", data);
-        // Nie pokazuj alertu - modal i tak się wyświetli z komunikatem błędu
+        throw new Error(data.error || "Nie udało się przeprowadzić weryfikacji person");
       }
-    } catch (error) {
-      alert("Błąd pobierania danych z Apollo: " + (error instanceof Error ? error.message : String(error)));
+
+      const detail = data.data || {};
+      const people = detail.people || [];
+
+      const positiveIds = Array.from(
+        new Set<string>(
+          people
+            .filter((person: any) => person.personaMatchStatus === "positive" && person.id)
+            .map((person: any) => String(person.id))
+        )
+      );
+
+      const positiveTitles = Array.from(
+        new Set<string>(
+          people
+            .filter((person: any) => person.personaMatchStatus === "positive")
+            .map((person: any) => (person.title || "").trim())
+            .filter((title: string) => title.length > 0)
+        )
+      );
+
+      setSelectedPeopleIds(positiveIds);
+      setSelectedTitles(positiveTitles);
+
+      setPersonaVerification({
+        companyId,
+        fromCache: data.fromCache,
+        verificationId: data.verificationId,
+        counts: data.counts,
+        verifiedAt: data.verifiedAt,
+        warning: data.warning,
+        summary: detail.summary
+          ? {
+              positive: detail.summary.positiveCount ?? 0,
+              negative: detail.summary.negativeCount ?? 0,
+              unknown: detail.summary.unknownCount ?? 0,
+            }
+          : {
+              positive: data.counts?.positive ?? 0,
+              negative: data.counts?.negative ?? 0,
+              unknown: data.counts?.unknown ?? 0,
+            },
+      });
+
+      setApolloEmployees({
+        company: detail.company ?? detail.metadata?.company ?? null,
+        apolloOrganization: detail.apolloOrganization ?? detail.metadata?.apolloOrganization ?? null,
+        statistics: detail.statistics ?? detail.metadata?.statistics ?? null,
+        uniqueTitles: detail.uniqueTitles ?? [],
+        creditsInfo: detail.creditsInfo ?? detail.metadata?.creditsInfo ?? null,
+        people,
+      });
+
+      setVerifiedCompanies((prev) => {
+        const sanitizedId = Number.isFinite(data.verificationId) ? data.verificationId : Date.now();
+        const companyInfo = detail.company ?? company ?? { id: companyId, name: company?.name ?? "", website: company?.website ?? null, industry: null };
+        const nextEntry = {
+          id: sanitizedId,
+          companyId,
+          company: companyInfo,
+          positiveCount: data.counts?.positive ?? 0,
+          negativeCount: data.counts?.negative ?? 0,
+          unknownCount: data.counts?.unknown ?? 0,
+          totalCount: data.counts?.total ?? 0,
+          verifiedAt: data.verifiedAt ?? new Date().toISOString(),
+        };
+
+        const filtered = prev.filter((item) => item.companyId !== companyId);
+        return [nextEntry, ...filtered].slice(0, 200);
+      });
+
+      await loadVerifiedCompanies();
+      loadStats();
+    } catch (err) {
+      setPersonaError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoadingApollo(false);
+      setPersonaLoading(false);
     }
+  };
+
+  const handleReevaluatePersonVerification = async (companyId: number) => {
+    await handlePersonaVerification(companyId, "reverify");
+    alert("Ponowna weryfikacja person została wykonana na podstawie aktualnych reguł.");
   };
 
   const handleEnrichSelectedPeople = async (personIds: string[]) => {
@@ -325,6 +503,24 @@ export default function CompanyVerifyPage() {
 
     try {
       setLoadingApollo(true);
+      const targetPeople =
+        apolloEmployees?.people?.filter((person: any) =>
+          personIds.includes(String(person.id ?? ""))
+        ) ?? [];
+
+      const lockedCount = targetPeople.filter(
+        (person: any) => !person.emailUnlocked
+      ).length;
+
+      const confirmMessage =
+        lockedCount > 0
+          ? `Wybrano ${personIds.length} osób. Maile trzeba odblokować dla ${lockedCount}, co może zużyć maksymalnie ${lockedCount} kredytów Apollo.\n\nCzy kontynuować pobieranie?`
+          : `Wybrano ${personIds.length} osób. Wszystkie mają już odblokowane adresy – ponowne pobranie nie zużyje kredytów.\n\nCzy chcesz odświeżyć dane?`;
+
+      if (!confirm(confirmMessage)) {
+        return;
+      }
+
       const response = await fetch("/api/company-selection/apollo/enrich", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -349,7 +545,9 @@ export default function CompanyVerifyPage() {
             people: updatedPeople,
           });
         }
-        alert(`Pobrano emaile dla ${data.people.length} osób.\nZużyto ${data.creditsUsed} kredytów Apollo.`);
+        alert(
+          `Pobrano emaile dla ${data.people.length} osób.\nZużyto ${data.creditsUsed} kredytów Apollo.`
+        );
       } else {
         alert(`Błąd: ${data.error || "Nie udało się pobrać emaili"}`);
       }
@@ -409,65 +607,41 @@ export default function CompanyVerifyPage() {
 
   const handleVerifyBatch = async () => {
     if (selectedCompanies.length === 0) {
-      alert("Wybierz firmy do weryfikacji");
-      return;
-    }
-
-    if (
-      !confirm(
-        `Czy na pewno chcesz zweryfikować ${selectedCompanies.length} firm?`
-      )
-    ) {
+      alert("Zaznacz firmy do weryfikacji");
       return;
     }
 
     try {
       setVerifying(true);
-      setProgress(null);
 
-      // Utwórz progressId
-      const progressResponse = await fetch("/api/company-selection/verify/progress", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ total: selectedCompanies.length }),
+      const selectableIds = selectedCompanies.filter((companyId) => {
+        const company = companies.find((c) => c.id === companyId);
+        return hasCompanyWebsite(company);
       });
 
-      const progressData = await progressResponse.json();
-      if (!progressData.success || !progressData.progressId) {
-        alert("Błąd tworzenia postępu weryfikacji");
+      if (selectableIds.length === 0) {
+        alert("Żadna z zaznaczonych firm nie ma uzupełnionej strony www. Uzupełnij dane przed weryfikacją.");
         setVerifying(false);
         return;
       }
 
-      const newProgressId = progressData.progressId;
-      console.log(`[Progress] Utworzono progressId: ${newProgressId}`);
+      if (selectableIds.length !== selectedCompanies.length) {
+        alert("Pominięto firmy bez adresu www.");
+        setSelectedCompanies(selectableIds);
+      }
+
+      // Utwórz nowe ID postępu
+      const newProgressId = `progress-${Date.now()}`;
       setProgressId(newProgressId);
-      console.log(`[Progress] Ustawiono progressId w state: ${newProgressId}`);
 
-      // Ustaw początkowy progress, aby był widoczny od razu
-      setProgress({
-        total: selectedCompanies.length,
-        processed: 0,
-        percentage: 0,
-        qualified: 0,
-        rejected: 0,
-        needsReview: 0,
-        errors: 0,
-        status: 'processing',
-        currentCompanyName: undefined,
-        estimatedTimeRemaining: undefined,
-      });
-
-      // Rozpocznij weryfikację
+      // Uruchom weryfikację batch
       const response = await fetch("/api/company-selection/verify", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ 
-          companyIds: selectedCompanies,
+          companyIds: selectableIds,
           progressId: newProgressId,
         }),
       });
@@ -488,6 +662,12 @@ export default function CompanyVerifyPage() {
   };
 
   const toggleCompanySelection = (companyId: number) => {
+    const company = companies.find((c) => c.id === companyId);
+    if (!hasCompanyWebsite(company)) {
+      alert("Firma nie ma uzupełnionego adresu www. Dodaj stronę, aby móc ją zweryfikować.");
+      return;
+    }
+
     setSelectedCompanies((prev) =>
       prev.includes(companyId)
         ? prev.filter((id) => id !== companyId)
@@ -496,10 +676,21 @@ export default function CompanyVerifyPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedCompanies.length === companies.length) {
+    const selectableIds = companies.filter((c) => hasCompanyWebsite(c)).map((c) => c.id);
+
+    if (selectableIds.length === 0) {
+      alert("Brak firm ze zdefiniowaną stroną www. Uzupełnij dane, aby móc rozpocząć weryfikację.");
+      setSelectedCompanies([]);
+      return;
+    }
+
+    if (selectedCompanies.length === selectableIds.length) {
       setSelectedCompanies([]);
     } else {
-      setSelectedCompanies(companies.map((c) => c.id));
+      if (selectableIds.length < companies.length) {
+        alert("Pominięto firmy bez adresu www.");
+      }
+      setSelectedCompanies(selectableIds);
     }
   };
 
@@ -537,6 +728,50 @@ export default function CompanyVerifyPage() {
     }
   };
 
+  const hasCompanyWebsite = (company?: any) => {
+    const website = company?.website;
+    return typeof website === "string" && website.trim().length > 0;
+  };
+
+  const handleStatusFilterChange = (status: string) => {
+    setSelectedStatus(status);
+    setPage(1);
+  };
+
+  const loadPersonas = async () => {
+    try {
+      const criteriaRes = await fetch("/api/company-selection/criteria");
+      if (!criteriaRes.ok) {
+        setPersonaCriteria(null);
+        return;
+      }
+
+      const criteriaJson = await criteriaRes.json();
+      const criteriaId = criteriaJson?.criteria?.id;
+
+      if (!criteriaId) {
+        setPersonaCriteria(null);
+        return;
+      }
+
+      const personaRes = await fetch(`/api/company-selection/criteria/${criteriaId}/personas`);
+      if (!personaRes.ok) {
+        setPersonaCriteria(null);
+        return;
+      }
+
+      const personaJson = await personaRes.json();
+      if (personaJson.success && personaJson.data) {
+        setPersonaCriteria(personaJson.data);
+      } else {
+        setPersonaCriteria(null);
+      }
+    } catch (err) {
+      console.error("[Verify] Błąd ładowania kryteriów person", err);
+      setPersonaCriteria(null);
+    }
+  };
+
   return (
     <div style={{ padding: "2rem", maxWidth: "1400px", margin: "0 auto" }}>
       <div style={{ marginBottom: "2rem" }}>
@@ -556,112 +791,291 @@ export default function CompanyVerifyPage() {
         </h1>
       </div>
 
-      {/* Statystyki */}
       <div
         style={{
+          display: "flex",
+          gap: "1rem",
+          flexWrap: "wrap",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <div
+          style={{
+            flex: "1 1 240px",
+            minWidth: "220px",
+            padding: "1rem 1.25rem",
+            backgroundColor: "#F9FAFB",
+            border: "1px solid #E5E7EB",
+            borderRadius: "0.75rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+          }}
+        >
+          <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1F2937" }}>Kryteria firm</div>
+          <div style={{ fontSize: "0.8rem", color: "#6B7280" }}>
+            Zdefiniuj zasady oceny firm i pola wymagane przed wysyłką.
+          </div>
+          <Link
+            href="/company-selection/criteria"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.35rem",
+              padding: "0.5rem 0.75rem",
+              backgroundColor: "#3B82F6",
+              color: "white",
+              borderRadius: "0.5rem",
+              fontSize: "0.82rem",
+              fontWeight: 600,
+              textDecoration: "none",
+              transition: "background-color 0.2s ease",
+            }}
+          >
+            Otwórz kryteria firm
+          </Link>
+        </div>
+        <div
+          style={{
+            flex: "1 1 240px",
+            minWidth: "220px",
+            padding: "1rem 1.25rem",
+            backgroundColor: "#F9FAFB",
+            border: "1px solid #E5E7EB",
+            borderRadius: "0.75rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+          }}
+        >
+          <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1F2937" }}>Kryteria person (AI)</div>
+          <div style={{ fontSize: "0.8rem", color: "#6B7280" }}>
+            Zarządzaj stanowiskami i briefem, który prowadzi weryfikację kontaktów.
+          </div>
+          <Link
+            href="/company-selection/personas"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.35rem",
+              padding: "0.5rem 0.75rem",
+              backgroundColor: "#10B981",
+              color: "white",
+              borderRadius: "0.5rem",
+              fontSize: "0.82rem",
+              fontWeight: 600,
+              textDecoration: "none",
+              transition: "background-color 0.2s ease",
+            }}
+          >
+            Otwórz kryteria person
+          </Link>
+          </div>
+        </div>
+
+      {/* Statystyki */}
+      {(() => {
+        const cards = [
+          {
+            status: "PENDING",
+            label: "Do weryfikacji",
+            value: stats.pending,
+            bg: "#E0F2FE",
+            border: "#BAE6FD",
+            textColor: "#0369A1",
+          },
+          {
+            status: "QUALIFIED",
+            label: "Zakwalifikowane",
+            value: stats.qualified,
+            bg: "#DCFCE7",
+            border: "#BBF7D0",
+            textColor: "#15803D",
+          },
+          {
+            status: "REJECTED",
+            label: "Odrzucone",
+            value: stats.rejected,
+            bg: "#FEE2E2",
+            border: "#FECACA",
+            textColor: "#B91C1C",
+          },
+          {
+            status: "NEEDS_REVIEW",
+            label: "Wymagają przeglądu",
+            value: stats.needsReview,
+            bg: "#FEF3C7",
+            border: "#FDE68A",
+            textColor: "#B45309",
+          },
+          {
+            status: "BLOCKED",
+            label: "Zablokowane",
+            value: stats.blocked,
+            bg: "#F3E8FF",
+            border: "#E9D5FF",
+            textColor: "#7C3AED",
+          },
+          {
+            status: "ALL",
+            label: "Łącznie",
+            value: stats.total,
+            bg: "#E5E7EB",
+            border: "#D1D5DB",
+            textColor: "#111827",
+          },
+        ];
+
+        return (
+        <div
+          style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
           gap: "1rem",
           marginBottom: "2rem",
         }}
       >
+        {cards.map((card) => {
+          const isActive = selectedStatus === card.status;
+          const activeStyles = isActive
+            ? {
+                boxShadow: "0 6px 12px rgba(59,130,246,0.25)",
+                transform: "translateY(-2px)",
+                border: `2px solid ${card.textColor}`,
+              }
+            : {};
+
+          return (
+            <button
+              type="button"
+              key={card.status}
+              onClick={() => handleStatusFilterChange(card.status)}
+          style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                gap: "0.35rem",
+                padding: "1.25rem",
+                backgroundColor: card.bg,
+                borderRadius: "0.75rem",
+                border: `1px solid ${card.border}`,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                cursor: "pointer",
+                transition: "all 0.2s ease-in-out",
+                color: card.textColor,
+                outline: "none",
+                ...activeStyles,
+              }}
+            >
+              <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>{card.label}</span>
+              <span style={{ fontSize: "1.75rem", fontWeight: 700 }}>{card.value}</span>
+              <span style={{ fontSize: "0.75rem", color: isActive ? card.textColor : "#4B5563" }}>
+                {card.status === "ALL"
+                  ? "Kliknij, aby zobaczyć wszystkie firmy"
+                  : `Filtruj status: ${card.label.toLowerCase()}`}
+              </span>
+            </button>
+          );
+        })}
+          </div>
+        );
+      })()}
+
+      {personaVerification?.summary && (
         <div
           style={{
+            marginBottom: "1.5rem",
             padding: "1rem",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
-            border: "1px solid #E5E7EB",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            borderRadius: "0.75rem",
+            backgroundColor: "#ECFDF5",
+            border: "1px solid #BBF7D0",
+            color: "#166534",
           }}
         >
-          <div style={{ fontSize: "0.875rem", color: "#6B7280", marginBottom: "0.5rem" }}>
-            Do weryfikacji
+          <div style={{ fontWeight: 700, marginBottom: "0.35rem" }}>Weryfikacja person (AI)</div>
+          <div style={{ fontSize: "0.9rem" }}>
+            Pasuje: <strong>{personaVerification.summary.positive}</strong> • Odrzucone:{" "}
+            <strong>{personaVerification.summary.negative}</strong> • Niepewne:{" "}
+            <strong>{personaVerification.summary.unknown}</strong>
           </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#6B7280" }}>
-            {stats.pending}
+          <div style={{ fontSize: "0.75rem", marginTop: "0.35rem" }}>
+            W tabeli poniżej osoby dopasowane oznaczone są zielonym tłem, a odrzucone – czerwonym. Zaznaczenia checkboxów wstępnie obejmują tylko dopasowane osoby.
           </div>
+          {personaVerification.warning && (
+            <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#92400E" }}>
+              {personaVerification.warning}
         </div>
+          )}
+          </div>
+      )}
+
+      {personaError && (
         <div
           style={{
+            marginBottom: "1.5rem",
             padding: "1rem",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
-            border: "1px solid #E5E7EB",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            borderRadius: "0.75rem",
+            backgroundColor: "#FEF3C7",
+            border: "1px solid #FDE68A",
+            color: "#92400E",
+            fontSize: "0.85rem",
           }}
         >
-          <div style={{ fontSize: "0.875rem", color: "#6B7280", marginBottom: "0.5rem" }}>
-            Zakwalifikowane
+          {personaError}
           </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#10B981" }}>
-            {stats.qualified}
-          </div>
-        </div>
+      )}
+
+      {verifiedCompanies.length > 0 && (
         <div
           style={{
+            marginBottom: "1.5rem",
             padding: "1rem",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
+            borderRadius: "0.75rem",
+            backgroundColor: "#F9FAFB",
             border: "1px solid #E5E7EB",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
           }}
         >
-          <div style={{ fontSize: "0.875rem", color: "#6B7280", marginBottom: "0.5rem" }}>
-            Odrzucone
+          <div style={{ fontWeight: 600, marginBottom: "0.75rem", color: "#1F2937" }}>
+            Ostatnie weryfikacje person
           </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#EF4444" }}>
-            {stats.rejected}
-          </div>
-        </div>
-        <div
+          <div style={{ display: "flex", gap: "0.75rem", overflowX: "auto" }}>
+            {verifiedCompanies.slice(0, 8).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handlePersonaVerification(item.companyId, "reuse")}
           style={{
-            padding: "1rem",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
-            border: "1px solid #E5E7EB",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          }}
-        >
-          <div style={{ fontSize: "0.875rem", color: "#6B7280", marginBottom: "0.5rem" }}>
-            Wymagają przeglądu
+                  minWidth: "220px",
+                  padding: "0.75rem",
+                  borderRadius: "0.6rem",
+                  border: "1px solid #D1D5DB",
+                  backgroundColor:
+                    personaVerification?.companyId === item.companyId ? "#EFF6FF" : "white",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <div style={{ fontWeight: 600, color: "#1F2937", marginBottom: "0.35rem" }}>
+                  {item.company.name}
           </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#F59E0B" }}>
-            {stats.needsReview}
-          </div>
+                <div style={{ fontSize: "0.8rem", color: "#4B5563" }}>
+                  Pasuje: <strong>{item.positiveCount}</strong> / {item.totalCount}
         </div>
-        <div
-          style={{
-            padding: "1rem",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
-            border: "1px solid #E5E7EB",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          }}
-        >
-          <div style={{ fontSize: "0.875rem", color: "#6B7280", marginBottom: "0.5rem" }}>
-            Zablokowane
-          </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#DC2626" }}>
-            {stats.blocked}
-          </div>
-        </div>
-        <div
-          style={{
-            padding: "1rem",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
-            border: "1px solid #E5E7EB",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          }}
-        >
-          <div style={{ fontSize: "0.875rem", color: "#6B7280", marginBottom: "0.5rem" }}>
-            Łącznie
-          </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#374151" }}>
-            {stats.total}
-          </div>
-        </div>
+                <div style={{ fontSize: "0.75rem", color: "#6B7280" }}>
+                  Warunkowo: <strong>{item.unknownCount}</strong>
       </div>
+                <div style={{ fontSize: "0.75rem", color: "#9CA3AF", marginTop: "0.35rem" }}>
+                  {new Date(item.verifiedAt).toLocaleString("pl-PL")}
+        </div>
+              </button>
+            ))}
+      </div>
+        </div>
+      )}
 
       {/* Wyszukiwanie i filtry */}
       <div
@@ -693,10 +1107,7 @@ export default function CompanyVerifyPage() {
         {/* Filtr statusu */}
         <select
           value={selectedStatus}
-          onChange={(e) => {
-            setSelectedStatus(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) => handleStatusFilterChange(e.target.value)}
           style={{
             padding: "0.5rem 1rem",
             borderRadius: "0.5rem",
@@ -743,6 +1154,9 @@ export default function CompanyVerifyPage() {
           flexWrap: "wrap",
         }}
       >
+        <div style={{ flexBasis: "100%", textAlign: "center", fontWeight: 600, color: "#1F2937", fontSize: "1rem" }}>
+          Zakwalifikowane persony (bieżąca lista): <span style={{ color: "#10B981" }}>{totalQualifiedPersonas}</span>
+        </div>
 
         {selectedCompanies.length > 0 && (
           <button
@@ -999,11 +1413,26 @@ export default function CompanyVerifyPage() {
                   >
                     Powód decyzji
                   </th>
+                  <th
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      textAlign: "left",
+                      fontSize: "0.8125rem",
+                      fontWeight: "600",
+                      color: "#374151",
+                      width: "10%",
+                    }}
+                  >
+                    Persony (AI)
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {companies.map((company, index) => {
                   const companyActivity = company.activityDescription || company.description || "Brak opisu działalności";
+                  const companyHasWebsite = hasCompanyWebsite(company);
+                  const personaButtonDisabled =
+                    !companyHasWebsite || (personaLoading && selectedCompanyForApollo === company.id);
                   const isSelected = selectedCompanies.includes(company.id);
                   
                   return (
@@ -1012,7 +1441,7 @@ export default function CompanyVerifyPage() {
                       style={{
                         backgroundColor: isSelected ? "#EFF6FF" : index % 2 === 0 ? "white" : "#F9FAFB",
                         borderBottom: "1px solid #E5E7EB",
-                        cursor: "pointer",
+                        cursor: companyHasWebsite ? "pointer" : "not-allowed",
                       }}
                       onMouseEnter={(e) => {
                         if (!isSelected) {
@@ -1024,7 +1453,13 @@ export default function CompanyVerifyPage() {
                           e.currentTarget.style.backgroundColor = index % 2 === 0 ? "white" : "#F9FAFB";
                         }
                       }}
-                      onClick={() => toggleCompanySelection(company.id)}
+                      onClick={() => {
+                        if (!companyHasWebsite) {
+                          alert("Firma nie ma uzupełnionej strony www. Uzupełnij ją przed weryfikacją.");
+                          return;
+                        }
+                        toggleCompanySelection(company.id);
+                      }}
                     >
                       <td
                         style={{
@@ -1038,6 +1473,12 @@ export default function CompanyVerifyPage() {
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleCompanySelection(company.id)}
+                          disabled={!companyHasWebsite}
+                          title={
+                            companyHasWebsite
+                              ? undefined
+                              : "Brak strony www – uzupełnij, aby móc zaznaczyć firmę"
+                          }
                           style={{ marginTop: "0.25rem" }}
                         />
                       </td>
@@ -1088,6 +1529,18 @@ export default function CompanyVerifyPage() {
                               <span>• {company.country}</span>
                             )}
                           </div>
+                          {!companyHasWebsite && (
+                            <div
+                              style={{
+                                marginTop: "0.35rem",
+                                fontSize: "0.75rem",
+                                color: "#B91C1C",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Brak adresu www – uzupełnij, aby zweryfikować
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td
@@ -1181,25 +1634,46 @@ export default function CompanyVerifyPage() {
                               </button>
                             )}
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleCheckApolloEmployees(company.id, company.name);
+                                handlePersonaVerification(company.id, "reuse");
                               }}
-                              disabled={loadingApollo}
+                              disabled={personaButtonDisabled}
                               style={{
-                                padding: "0.125rem 0.375rem",
-                                backgroundColor: loadingApollo ? "#9CA3AF" : "#3B82F6",
+                                padding: "0.125rem 0.5rem",
+                                backgroundColor:
+                                  personaButtonDisabled
+                                    ? "#9CA3AF"
+                                    : verifiedLookup.has(company.id)
+                                    ? "#10B981"
+                                    : "#3B82F6",
                                 color: "white",
                                 border: "none",
-                                borderRadius: "0.25rem",
-                                cursor: loadingApollo ? "not-allowed" : "pointer",
+                                borderRadius: "0.35rem",
+                                cursor:
+                                  personaButtonDisabled
+                                     ? "not-allowed"
+                                     : "pointer",
                                 fontSize: "0.625rem",
-                                fontWeight: "500",
+                                fontWeight: "600",
                                 lineHeight: "1",
+                                boxShadow: verifiedLookup.has(company.id)
+                                  ? "0 2px 6px rgba(16,185,129,0.35)"
+                                  : "none",
+                                transition: "transform 0.15s ease",
                               }}
-                              title="Sprawdź pracowników w Apollo"
+                              title={
+                                !companyHasWebsite
+                                  ? "Brak strony www – uzupełnij, aby pobrać pracowników z Apollo"
+                                  : verifiedLookup.has(company.id)
+                                  ? "Weryfikacja już wykonana – kliknij, aby otworzyć wyniki"
+                                  : "Weryfikacja person (pobierz pracowników z Apollo)"
+                              }
                             >
-                              {loadingApollo ? "..." : "Apollo"}
+                              {personaLoading && selectedCompanyForApollo === company.id
+                                ? "Weryfikuję..."
+                                : "Weryfikacja person"}
                             </button>
                           </div>
                           {company.verificationScore !== null && (
@@ -1223,18 +1697,23 @@ export default function CompanyVerifyPage() {
                                 e.stopPropagation();
                                 handleVerifySingle(company.id);
                               }}
-                              disabled={verifying}
+                              disabled={verifying || !companyHasWebsite}
                               style={{
                                 padding: "0.25rem 0.5rem",
-                                backgroundColor: "#3B82F6",
+                                backgroundColor: !companyHasWebsite ? "#9CA3AF" : "#3B82F6",
                                 color: "white",
                                 border: "none",
                                 borderRadius: "0.25rem",
-                                cursor: verifying ? "not-allowed" : "pointer",
+                                cursor: verifying || !companyHasWebsite ? "not-allowed" : "pointer",
                                 fontSize: "0.6875rem",
                                 width: "100%",
                                 marginTop: "0.125rem",
                               }}
+                              title={
+                                !companyHasWebsite
+                                  ? "Brak strony www – uzupełnij, aby rozpocząć weryfikację"
+                                  : undefined
+                              }
                             >
                               Weryfikuj
                             </button>
@@ -1278,6 +1757,39 @@ export default function CompanyVerifyPage() {
                             Brak uzasadnienia
                           </div>
                         )}
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          verticalAlign: "top",
+                          fontSize: "0.8125rem",
+                          color: "#1F2937",
+                        }}
+                      >
+                        {(() => {
+                          const personaStats = verifiedLookup.get(company.id);
+                          if (!personaStats) {
+                            return (
+                              <span style={{ color: "#9CA3AF", fontStyle: "italic" }}>
+                                brak danych
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                              <span>
+                                <strong>{personaStats.positiveCount}</strong> / {personaStats.totalCount}
+                              </span>
+                              <span style={{ fontSize: "0.75rem", color: "#6B7280" }}>
+                                Warunkowo: {personaStats.unknownCount}
+                              </span>
+                              <span style={{ fontSize: "0.75rem", color: "#6B7280" }}>
+                                Weryfikowano: {new Date(personaStats.verifiedAt).toLocaleString("pl-PL")}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -1392,6 +1904,46 @@ export default function CompanyVerifyPage() {
               </button>
             </div>
 
+            {selectedCompanyForApollo && verifiedLookup.has(selectedCompanyForApollo) && (
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handlePersonaVerification(selectedCompanyForApollo, "refresh")
+                  }
+                  disabled={loadingApollo}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: loadingApollo ? "#9CA3AF" : "#2563EB",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "0.35rem",
+                    cursor: loadingApollo ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  {loadingApollo ? "..." : "Ponowne wyszukiwanie person"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReevaluatePersonVerification(selectedCompanyForApollo)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#10B981",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "0.35rem",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  Ponowna weryfikacja
+                </button>
+              </div>
+            )}
+
             {apolloEmployees.apolloOrganization && (
               <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#F9FAFB", borderRadius: "0.5rem" }}>
                 <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>
@@ -1401,20 +1953,6 @@ export default function CompanyVerifyPage() {
                   {apolloEmployees.apolloOrganization.domain && `Domena: ${apolloEmployees.apolloOrganization.domain} • `}
                   {apolloEmployees.apolloOrganization.employees &&
                     `Szacowana liczba pracowników: ${apolloEmployees.apolloOrganization.employees.toLocaleString()}`}
-                </div>
-              </div>
-            )}
-
-            {apolloEmployees.creditsInfo && (
-              <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#EFF6FF", borderRadius: "0.5rem", border: "1px solid #BFDBFE" }}>
-                <div style={{ fontSize: "0.875rem", color: "#1E40AF", fontWeight: "600", marginBottom: "0.25rem" }}>
-                  Informacja o kredytach Apollo
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "#1E3A8A" }}>
-                  {apolloEmployees.creditsInfo.message}
-                  {apolloEmployees.creditsInfo.searchCreditsUsed !== undefined && (
-                    <span> • Zużyto kredytów za wyszukiwanie: {apolloEmployees.creditsInfo.searchCreditsUsed}</span>
-                  )}
                 </div>
               </div>
             )}
@@ -1518,6 +2056,7 @@ export default function CompanyVerifyPage() {
                         </th>
                         <th style={{ padding: "0.5rem", textAlign: "left" }}>Imię i nazwisko</th>
                         <th style={{ padding: "0.5rem", textAlign: "left" }}>Stanowisko</th>
+                        <th style={{ padding: "0.5rem", textAlign: "left" }}>Dopasowanie person</th>
                         <th style={{ padding: "0.5rem", textAlign: "left" }}>Email</th>
                         <th style={{ padding: "0.5rem", textAlign: "left" }}>Status</th>
                         <th style={{ padding: "0.5rem", textAlign: "left" }}>LinkedIn</th>
@@ -1529,9 +2068,39 @@ export default function CompanyVerifyPage() {
                         const emailUnlocked = person.emailUnlocked !== false;
                         const emailStatus = person.emailStatus || person.email_status || "unknown";
                         const isSelected = selectedPeopleIds.includes(person.id);
+                        const personaStatusRaw = (person.personaMatchStatus || "unknown").toString().toLowerCase();
+                        const personaStatus = ["positive", "negative", "conditional"].includes(personaStatusRaw)
+                          ? personaStatusRaw
+                          : "unknown";
+                        const personaReason = person.personaMatchReason;
+                        const aiReason = person.aiReason;
+                        const aiDecision = person.aiDecision;
+                        const aiScore = typeof person.aiScore === "number" ? person.aiScore : null;
+                        const wasOverridden = Boolean(person.personaMatchOverridden);
+
+                        let rowBackground = "transparent";
+                        if (personaStatus === "positive") {
+                          rowBackground = "#ECFDF5";
+                        } else if (personaStatus === "negative") {
+                          rowBackground = "#FEE2E2";
+                        } else if (personaStatus === "conditional") {
+                          rowBackground = "#FEF9C3";
+                        }
+                        if (isSelected) {
+                          rowBackground = "#EFF6FF";
+                        }
+
+                        const personaBadge =
+                          personaStatus === "positive"
+                            ? { label: "Pasuje", bg: "#DCFCE7", color: "#15803D" }
+                            : personaStatus === "negative"
+                            ? { label: "Odrzucone", bg: "#FEE2E2", color: "#B91C1C" }
+                            : personaStatus === "conditional"
+                            ? { label: "Warunkowo", bg: "#FEF3C7", color: "#92400E" }
+                            : { label: "Brak danych", bg: "#E5E7EB", color: "#374151" };
                         
                         return (
-                          <tr key={person.id || index} style={{ borderBottom: "1px solid #E5E7EB", backgroundColor: isSelected ? "#EFF6FF" : "transparent" }}>
+                          <tr key={person.id || index} style={{ borderBottom: "1px solid #E5E7EB", backgroundColor: rowBackground }}>
                             <td style={{ padding: "0.5rem" }}>
                               <input
                                 type="checkbox"
@@ -1547,6 +2116,47 @@ export default function CompanyVerifyPage() {
                             </td>
                             <td style={{ padding: "0.5rem" }}>{person.name}</td>
                             <td style={{ padding: "0.5rem" }}>{person.title || "-"}</td>
+                            <td style={{ padding: "0.5rem", verticalAlign: "top" }}>
+                              <div
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.25rem",
+                                  padding: "0.2rem 0.6rem",
+                                  borderRadius: "9999px",
+                                  backgroundColor: personaBadge.bg,
+                                  color: personaBadge.color,
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {personaBadge.label}
+                              </div>
+                              <div style={{ marginTop: "0.45rem", fontSize: "0.74rem", color: "#4B5563", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                                <div>
+                                  <strong>AI:</strong> {aiDecision ? aiDecision.toUpperCase() : "BRAK"}
+                                  {aiScore !== null && ` • Ocena: ${(aiScore * 100).toFixed(0)}%`}
+                                </div>
+                                <div>
+                                  <strong>Notatka AI:</strong> {aiReason || "AI nie podał szczegółowego uzasadnienia."}
+                                </div>
+                                <div>
+                                  <strong>Decyzja końcowa:</strong> {personaBadge.label}
+                                </div>
+                                <div>
+                                  {personaReason ? (
+                                    <span>{personaReason}</span>
+                                  ) : (
+                                    <span style={{ fontStyle: "italic", color: "#9CA3AF" }}>Brak dodatkowych uwag.</span>
+                                  )}
+                                </div>
+                                {wasOverridden && (
+                                  <div style={{ color: "#166534" }}>
+                                    (Dostosowane przez reguły person.)
+                                  </div>
+                                )}
+                              </div>
+                            </td>
                             <td style={{ padding: "0.5rem" }}>
                               {hasEmail ? (
                                 <span style={{ color: "#10B981", fontWeight: "500" }}>{person.email}</span>
@@ -1582,9 +2192,16 @@ export default function CompanyVerifyPage() {
                   </table>
                 </div>
                 {selectedPeopleIds.length > 0 && (
+                  (() => {
+                    const lockedCount = apolloEmployees.people.filter(
+                      (p: any) => selectedPeopleIds.includes(p.id) && !(p.email && p.email !== "email_not_unlocked@domain.com")
+                    ).length;
+                    return (
                   <div style={{ marginTop: "0.75rem", padding: "0.75rem", backgroundColor: "#FEF3C7", borderRadius: "0.25rem", fontSize: "0.875rem", color: "#92400E" }}>
-                    Wybrano {selectedPeopleIds.length} osób. Pobranie emaili zużyje {selectedPeopleIds.length} kredytów Apollo.
+                        Wybrano {selectedPeopleIds.length} osób. Pobranie może zużyć do {lockedCount} kredytów Apollo (tylko dla osób bez odblokowanych adresów).
                   </div>
+                    );
+                  })()
                 )}
               </div>
             )}
@@ -1623,22 +2240,124 @@ export default function CompanyVerifyPage() {
                 <div style={{ fontSize: "0.875rem", color: "#6B7280", marginBottom: "1rem" }}>
                   {selectedTitles.join(", ")}
                 </div>
+                {(() => {
+                  const newSelectedTitlesCount = selectedTitles.filter((title) => !globalTitlesSet.has(title.toLowerCase())).length;
+                  return (
+                    <div style={{ fontSize: "0.8rem", color: "#4B5563", marginBottom: "0.5rem" }}>
+                      Łącznie zaznaczone: <strong>{selectedTitles.length}</strong> • Już zapisane w regułach: <strong>{selectedTitles.length - newSelectedTitlesCount}</strong> • Nowe do dodania: <strong>{newSelectedTitlesCount}</strong>
+                    </div>
+                  );
+                })()}
+                <div
+                  style={{
+                    backgroundColor: "#ECFDF5",
+                    border: "1px solid #BBF7D0",
+                    borderRadius: "0.75rem",
+                    padding: "0.85rem 1rem",
+                    marginBottom: "1rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.45rem",
+                    fontSize: "0.82rem",
+                    color: "#065F46",
+                  }}
+                >
+                  <strong style={{ fontSize: "0.9rem" }}>Po co zapisywać tytuły?</strong>
+                  <span>
+                    Kliknięcie poniżej doda wybrane stanowiska do globalnej listy reguł. Od tej chwili każda nowa weryfikacja potraktuje je automatycznie (zanim zapytamy AI).
+                  </span>
+                  <span>
+                    Warto zapisywać częste role decyzyjne: sprzedażowe ("sales", "account", "business development"), C-level ("CEO", "COO", "CMO"), dyrektorów ("director", "head") lub osoby odpowiedzialne za projekty ("project manager", "creative director").
+                  </span>
+                  <span>
+                    Jeśli widzisz tu nowe stanowiska, które system jeszcze nie rozpoznaje, dodanie ich oszczędzi czas przy kolejnych firmach. Zapisane reguły znajdziesz w zakładce „Kryteria person (AI)”.
+                  </span>
+                </div>
                 <button
-                  onClick={() => {
-                    // Tutaj można zapisać wybrane stanowiska (np. do bazy danych lub stanu)
-                    alert(`Wybrano ${selectedTitles.length} stanowisk:\n\n${selectedTitles.join("\n")}\n\n(Funkcjonalność zapisywania zostanie dodana później)`);
+                  onClick={async () => {
+                    if (savingTitles) {
+                      return;
+                    }
+
+                    const titlesToSave = selectedTitles.map((title) => title.trim()).filter(Boolean);
+                    if (!titlesToSave.length) {
+                      alert("Brak stanowisk do zapisania.");
+                      return;
+                    }
+
+                    try {
+                      setSavingTitles(true);
+                      const response = await fetch(
+                        "/api/company-selection/persona-verification/save-titles",
+                        {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ titles: titlesToSave }),
+                        }
+                      );
+
+                      const data = await response.json();
+                      if (!response.ok || !data.success) {
+                        throw new Error(data.error || "Nie udało się zapisać stanowisk.");
+                      }
+
+                      if (data.added?.length) {
+                        alert(
+                          `Zapisano ${data.added.length} nowych stanowisk:\n\n${data.added.join("\n")}`
+                        );
+                        setPersonaCriteria((prev: any) => {
+                          if (!prev) {
+                            return prev;
+                          }
+                          const existing = new Set(
+                            (prev.positiveRoles ?? [])
+                              .map((role: any) => (role?.label ? role.label.toLowerCase() : null))
+                              .filter(Boolean)
+                          );
+                          const updatedRoles = [...(prev.positiveRoles ?? [])];
+                          data.added.forEach((label: string) => {
+                            const normalized = label.toLowerCase();
+                            if (!existing.has(normalized)) {
+                              updatedRoles.push({
+                                label,
+                                matchType: "contains",
+                                keywords: [label],
+                                departments: [],
+                                confidence: 0.8,
+                              });
+                            }
+                          });
+                          return {
+                            ...prev,
+                            positiveRoles: updatedRoles,
+                          };
+                        });
+                       } else {
+                         alert("Wszystkie wybrane stanowiska były już zapisane.");
+                       }
+
+                       await loadPersonas();
+                    } catch (error) {
+                      alert(
+                        "Błąd zapisywania stanowisk: " +
+                          (error instanceof Error ? error.message : String(error))
+                      );
+                    } finally {
+                      setSavingTitles(false);
+                    }
                   }}
                   style={{
                     padding: "0.5rem 1rem",
-                    backgroundColor: "#10B981",
+                    backgroundColor: savingTitles ? "#6EE7B7" : "#10B981",
                     color: "white",
                     border: "none",
                     borderRadius: "0.25rem",
-                    cursor: "pointer",
+                    cursor: savingTitles ? "not-allowed" : "pointer",
                     fontWeight: "500",
                   }}
+                  disabled={savingTitles}
                 >
-                  Zapisz wybrane stanowiska
+                  {savingTitles ? "Zapisuję..." : "Zapisz wybrane stanowiska"}
                 </button>
               </div>
             )}

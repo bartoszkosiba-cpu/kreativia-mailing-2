@@ -14,20 +14,6 @@ async function testMaterialResponse() {
   // 1. Znajdź leada
   const lead = await db.lead.findFirst({
     where: { email: 'adam.majewski@kreativia.pl' },
-    include: {
-      campaigns: {
-        where: { id: 2 },
-        include: {
-          campaign: {
-            include: {
-              materials: {
-                where: { isActive: true }
-              }
-            }
-          }
-        }
-      }
-    }
   });
 
   if (!lead) {

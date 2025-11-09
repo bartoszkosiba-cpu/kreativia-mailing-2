@@ -62,7 +62,8 @@ async function testGeneration() {
         name: "Kampania mebli biurowych",
         autoReplyContext: "Oferujemy meble biurowe. W treści maila pytamy: 'Czy mogę przesłać katalog i cennik?'",
         autoReplyRules: null,
-        virtualSalespersonLanguage: "pl"
+        virtualSalespersonLanguage: "pl",
+        autoReplyContent: null,
       },
       [
         {
@@ -109,7 +110,7 @@ async function testDatabase() {
     });
 
     // Sprawdź materiały
-    const allMaterials = await db.campaignMaterial.findMany({
+    const allMaterials = await db.material.findMany({
       where: { isActive: true },
       include: {
         campaign: {
@@ -167,14 +168,14 @@ async function testDatabase() {
 
 async function main() {
   console.log('🚀 Uruchamianie testów modułu automatycznych odpowiedzi z materiałami\n');
-  console.log('=' .repeat(60));
+  console.log('='.repeat(60));
 
   try {
     await testAnalysis();
     await testGeneration();
     await testDatabase();
 
-    console.log('=' .repeat(60));
+    console.log('='.repeat(60));
     console.log('\n✅ Wszystkie testy zakończone!\n');
   } catch (error: any) {
     console.error(`\n❌ Błąd krytyczny: ${error.message}\n`);

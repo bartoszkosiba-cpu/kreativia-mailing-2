@@ -5,6 +5,23 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import AIHealthIndicator from "./AIHealthIndicator";
 
+type NavSubItem = {
+  href: string;
+  label: string;
+};
+
+type NavItem =
+  | {
+      href: string;
+      label: string;
+      dropdown?: undefined;
+    }
+  | {
+      label: string;
+      dropdown: NavSubItem[];
+      href?: undefined;
+    };
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -31,7 +48,7 @@ export default function Navbar() {
   }, [pathname]);
 
   // Menu dla modułu Mailing
-  const mailingNavItems = [
+  const mailingNavItems: NavItem[] = [
     { 
       href: "/", 
       label: "Dashboard"
@@ -76,7 +93,7 @@ export default function Navbar() {
   ];
 
   // Menu dla modułu CRM
-  const crmNavItems = [
+  const crmNavItems: NavItem[] = [
     { 
       href: "/crm", 
       label: "Dashboard"
@@ -100,7 +117,7 @@ export default function Navbar() {
   ];
 
   // Menu dla modułu Wyboru Leadów
-  const leadSelectionNavItems = [
+  const leadSelectionNavItems: NavItem[] = [
     { 
       href: "/company-selection", 
       label: "Dashboard"
@@ -114,10 +131,6 @@ export default function Navbar() {
       label: "Weryfikacja"
     },
     { 
-      href: "/company-selection/criteria", 
-      label: "Kryteria"
-    },
-    { 
       href: "/company-selection/blocked", 
       label: "Zablokowane firmy"
     },
@@ -127,7 +140,7 @@ export default function Navbar() {
     }
   ];
 
-  const navItems = selectedModule === 'CRM' 
+  const navItems: NavItem[] = selectedModule === 'CRM' 
     ? crmNavItems 
     : selectedModule === 'LEAD_SELECTION'
     ? leadSelectionNavItems
@@ -149,8 +162,8 @@ export default function Navbar() {
     return pathname.startsWith(href);
   };
 
-  const isDropdownActive = (dropdown: any[]) => {
-    return dropdown.some(item => isActive(item.href));
+  const isDropdownActive = (dropdown: NavSubItem[]) => {
+    return dropdown.some((item) => isActive(item.href));
   };
 
   return (
@@ -302,8 +315,7 @@ export default function Navbar() {
             alignItems: "center"
           }}>
             {navItems.map((item, index) => {
-              // Simple link (no dropdown)
-              if (item.href) {
+              if ("href" in item && item.href) {
                 return (
                   <Link
                     key={item.href}
@@ -338,18 +350,18 @@ export default function Navbar() {
                 );
               }
 
-              // Dropdown menu
-              if (item.dropdown) {
-                const isOpen = openDropdown === item.label;
-                const hasActiveChild = isDropdownActive(item.dropdown);
+              const dropdownItem = item as Extract<NavItem, { dropdown: NavSubItem[] }>;
+              const { dropdown } = dropdownItem;
+              const isOpen = openDropdown === dropdownItem.label;
+              const hasActiveChild = isDropdownActive(dropdown);
 
-                return (
-                  <div 
-                    key={index}
-                    style={{ position: "relative" }}
-                    onMouseEnter={() => setOpenDropdown(item.label)}
-                    onMouseLeave={() => setOpenDropdown(null)}
-                  >
+              return (
+                <div 
+                  key={index}
+                  style={{ position: "relative" }}
+                  onMouseEnter={() => setOpenDropdown(dropdownItem.label)}
+                  onMouseLeave={() => setOpenDropdown(null)}
+                >
                     <button
                       style={{
                         padding: "var(--spacing-sm) var(--spacing-md)",
@@ -368,7 +380,7 @@ export default function Navbar() {
                         cursor: "pointer"
                       }}
                     >
-                      <span>{item.label}</span>
+                      <span>{dropdownItem.label}</span>
                       <span style={{ 
                         fontSize: "10px",
                         transition: "transform 0.2s ease",
@@ -402,7 +414,7 @@ export default function Navbar() {
                           padding: "var(--spacing-xs)",
                           zIndex: 1001
                         }}>
-                        {item.dropdown.map((subItem) => (
+                        {dropdown.map((subItem) => (
                           <Link
                             key={subItem.href}
                             href={subItem.href}
@@ -436,9 +448,6 @@ export default function Navbar() {
                     )}
                   </div>
                 );
-              }
-
-              return null;
             })}
           </div>
         </div>

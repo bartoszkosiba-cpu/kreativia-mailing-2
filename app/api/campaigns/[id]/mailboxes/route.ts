@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getMailboxStats } from "@/services/mailboxManager";
+import { getWeekFromDay, getPerformanceLimits } from "@/services/mailboxManager";
 
 export async function GET(
   req: NextRequest,
@@ -54,9 +54,6 @@ export async function GET(
       });
     }
 
-    // Pobierz statystyki skrzynek
-    const stats = await getMailboxStats(campaign.virtualSalespersonId);
-
     // Pobierz szczegółowe informacje o każdej skrzynce
     const mailboxes = await db.mailbox.findMany({
       where: {
@@ -83,75 +80,59 @@ export async function GET(
       }
     });
 
-    // ✅ Resetuj liczniki dla skrzynek jeśli nowy dzień (przed obliczaniem limitów)
-    const { getTodayPLString, isTodayPL } = await import('@/utils/polishTime');
-    const { resetMailboxCounter, syncMailboxCounterFromSendLog } = await import('@/services/mailboxManager');
-    const todayPL = getTodayPLString();
-    
-    for (const mailbox of mailboxes) {
-      const needsReset = !mailbox.lastResetDate || !isTodayPL(mailbox.lastResetDate);
-      if (needsReset) {
-        await resetMailboxCounter(mailbox.id, mailbox.warmupStatus || undefined);
-        // Odśwież dane skrzynki po resecie
-        const refreshed = await db.mailbox.findUnique({
-          where: { id: mailbox.id },
-          select: {
-            currentDailySent: true,
-            warmupTodaySent: true,
-            lastResetDate: true
-          }
-        });
-        if (refreshed) {
-          mailbox.currentDailySent = refreshed.currentDailySent;
-          mailbox.warmupTodaySent = refreshed.warmupTodaySent || 0;
-          mailbox.lastResetDate = refreshed.lastResetDate;
-        }
-      } else {
-        // ✅ Synchronizuj currentDailySent z SendLog (naprawia rozbieżności z V1 lub błędów)
-        // To działa systemowo dla wszystkich kampanii
-        try {
-          const syncResult = await syncMailboxCounterFromSendLog(mailbox.id);
-          if (syncResult.synced) {
-            // Odśwież dane skrzynki po synchronizacji
-            const refreshed = await db.mailbox.findUnique({
-              where: { id: mailbox.id },
-              select: {
-                currentDailySent: true,
-                warmupTodaySent: true,
-                lastResetDate: true
-              }
-            });
-            if (refreshed) {
-              mailbox.currentDailySent = refreshed.currentDailySent;
-              mailbox.warmupTodaySent = refreshed.warmupTodaySent || 0;
-              mailbox.lastResetDate = refreshed.lastResetDate;
-            }
-          }
-        } catch (error: any) {
-          // Nie przerywamy - tylko logujemy błąd synchronizacji
-          console.error(`[MAILBOXES API] Błąd synchronizacji skrzynki ${mailbox.id}:`, error.message);
-        }
+    const { getStartOfTodayPL, isTodayPL } = await import('@/utils/polishTime');
+    const todayStart = getStartOfTodayPL();
+
+    const mailboxIds = mailboxes.map((m) => m.id);
+
+    // Zlicz rzeczywiste wysyłki dzisiaj (wszystkie kampanie) w jednym zapytaniu
+    const sentTodayAllRaw = mailboxIds.length
+      ? await db.sendLog.groupBy({
+          by: ['mailboxId'],
+          where: {
+            mailboxId: { in: mailboxIds },
+            status: 'sent',
+            createdAt: { gte: todayStart }
+          },
+          _count: { _all: true }
+        })
+      : [];
+
+    const sentTodayAllMap = new Map<number, number>();
+    for (const item of sentTodayAllRaw) {
+      if (item.mailboxId !== null) {
+        sentTodayAllMap.set(item.mailboxId, item._count._all);
       }
     }
 
-    // ✅ Pobierz GLOBALNĄ liczbę maili wysłanych DZISIAJ ze skrzynki (wszystkie kampanie)
-    // Używamy mailbox.currentDailySent, który już zawiera wszystkie maile dzisiaj
-    // (jest resetowany codziennie o 00:00 PL i aktualizowany przy każdej wysyłce)
-    
-    // ✅ Pobierz początek dzisiaj w polskim czasie
-    const { getStartOfTodayPL } = await import('@/utils/polishTime');
-    const todayStart = getStartOfTodayPL();
+    // Zlicz wysyłki dzisiaj dla konkretnej kampanii (jedno zapytanie)
+    const sentTodayForCampaignRaw = mailboxIds.length
+      ? await db.sendLog.groupBy({
+          by: ['mailboxId'],
+          where: {
+            mailboxId: { in: mailboxIds },
+            campaignId,
+            status: 'sent',
+            createdAt: { gte: todayStart }
+          },
+          _count: { _all: true }
+        })
+      : [];
+
+    const sentTodayForCampaignMap = new Map<number, number>();
+    for (const item of sentTodayForCampaignRaw) {
+      if (item.mailboxId !== null) {
+        sentTodayForCampaignMap.set(item.mailboxId, item._count._all);
+      }
+    }
 
     // Oblicz efektywne limity dla każdej skrzynki (jak w getNextAvailableMailbox)
     const mailboxesWithLimits = await Promise.all(mailboxes.map(async (mailbox) => {
       let effectiveLimit: number;
       let currentSent: number;
       let status: string;
-      
-      // Import funkcji pomocniczych
-      const mailboxManager = await import('@/services/mailboxManager');
-      const getWeekFromDay = mailboxManager.getWeekFromDay;
-      const getPerformanceLimits = mailboxManager.getPerformanceLimits;
+      const sentAll = sentTodayAllMap.get(mailbox.id) ?? 0;
+      const sentForCampaign = sentTodayForCampaignMap.get(mailbox.id) ?? 0;
       
       // PRZYPADEK 3: W warmup - użyj limitów z /settings/performance
       if (mailbox.warmupStatus === 'warming') {
@@ -166,7 +147,8 @@ export async function GET(
         
         // ✅ Użyj GLOBALNEJ liczby maili (wszystkie kampanie dzisiaj) - to jest rzeczywisty stan skrzynki
         // Licznik kampanii = wszystkie maile dzisiaj MINUS maile warmup
-        currentSent = Math.max(0, mailbox.currentDailySent - mailbox.warmupTodaySent);
+        const campaignCounter = Math.max(0, mailbox.currentDailySent - mailbox.warmupTodaySent);
+        currentSent = campaignCounter;
         status = `Warmup (tydzień ${week})`;
       } 
       // PRZYPADEK 1: Nowa skrzynka, nie w warmup - STAŁE 10 maili dziennie
@@ -185,32 +167,20 @@ export async function GET(
       }
       
       // ✅ Policz maile wysłane DZISIAJ z TEJ kampanii
-      const sentTodayForCampaign = await db.sendLog.count({
-        where: {
-          mailboxId: mailbox.id,
-          campaignId: campaignId,
-          status: 'sent',
-          createdAt: { gte: todayStart }
-        }
-      });
-      
-      // ✅ Policz WSZYSTKIE maile wysłane DZISIAJ (z SendLog - rzeczywiste dane)
-      // Używamy SendLog zamiast currentDailySent, bo currentDailySent może być niezsynchronizowany
-      const sentTodayAll = await db.sendLog.count({
-        where: {
-          mailboxId: mailbox.id,
-          status: 'sent',
-          createdAt: { gte: todayStart }
-        }
-      });
-      
       // ✅ Dla wyświetlania użyj rzeczywistej liczby z SendLog (dokładne dane)
-      const currentSentForDisplay = sentTodayAll;
+      const currentSentForDisplay = sentAll;
       
       // ✅ Oblicz remaining i isAvailable na podstawie rzeczywistego stanu systemu
       // currentSent (z currentDailySent) jest używany przez system do logiki wysyłki
       // currentSentForDisplay (z SendLog) jest używany tylko do wyświetlania w UI
-      const remaining = effectiveLimit - currentSent; // ✅ Użyj currentSent (z currentDailySent) dla logiki
+      let remaining = effectiveLimit - currentSent; // ✅ Użyj currentSent (z currentDailySent) dla logiki
+      if (!mailbox.lastResetDate || !isTodayPL(mailbox.lastResetDate)) {
+        // Liczniki jeszcze nie zostały zresetowane dzisiaj – pokaż ostrożnie, ale nie modyfikuj bazy
+        remaining = effectiveLimit;
+      }
+      if (remaining < 0) {
+        remaining = 0;
+      }
       const isAvailable = mailbox.isActive && remaining > 0;
       
       return {
@@ -223,7 +193,7 @@ export async function GET(
         warmupDay: mailbox.warmupDay,
         effectiveLimit,
         currentSent: currentSentForDisplay, // ✅ Rzeczywiste dane z SendLog dla wyświetlania
-        sentTodayForCampaign, // ✅ Wysłane dzisiaj z tej kampanii
+        sentTodayForCampaign: sentForCampaign, // ✅ Wysłane dzisiaj z tej kampanii
         remaining, // ✅ Obliczone na podstawie currentSent (z uwzględnieniem warmup)
         isAvailable, // ✅ Obliczone na podstawie currentSent (z uwzględnieniem warmup)
         status,
@@ -232,6 +202,13 @@ export async function GET(
         lastResetDate: mailbox.lastResetDate
       };
     }));
+
+    const totalSentTodayAll = mailboxesWithLimits.reduce((sum, mailbox) => sum + (sentTodayAllMap.get(mailbox.id) ?? 0), 0);
+    const activeMailboxes = mailboxesWithLimits.filter((m) => m.isActive);
+    const availableMailboxes = activeMailboxes.filter((m) => m.isAvailable).length;
+    const totalDailyLimit = mailboxes.reduce((sum, m) => sum + m.dailyEmailLimit, 0);
+    const totalRemaining = activeMailboxes.reduce((sum, m) => sum + (m.remaining > 0 ? m.remaining : 0), 0);
+    const totalRemainingToday = Math.max(0, totalDailyLimit - totalSentTodayAll);
 
     return NextResponse.json({
       success: true,
@@ -242,15 +219,13 @@ export async function GET(
         },
         salesperson: campaign.virtualSalesperson,
         summary: {
-          totalMailboxes: stats.totalMailboxes,
-          activeMailboxes: stats.activeMailboxes,
-          availableMailboxes: mailboxesWithLimits.filter(m => m.isAvailable).length,
-          totalDailyLimit: stats.totalDailyLimit,
-          totalSentToday: stats.totalSentToday,
-          totalRemainingToday: stats.remainingToday,
-          effectiveRemainingToday: mailboxesWithLimits
-            .filter(m => m.isActive)
-            .reduce((sum, m) => sum + (m.remaining > 0 ? m.remaining : 0), 0)
+          totalMailboxes: mailboxes.length,
+          activeMailboxes: activeMailboxes.length,
+          availableMailboxes,
+          totalDailyLimit,
+          totalSentToday: totalSentTodayAll,
+          totalRemainingToday,
+          effectiveRemainingToday: totalRemaining
         },
         mailboxes: mailboxesWithLimits
       }

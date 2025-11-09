@@ -104,7 +104,6 @@ export function startWarmupCron() {
       global.warmupCronRunning!.reset = false;
     }
   }, {
-    scheduled: true,
     timezone: 'Europe/Warsaw'
   });
   
@@ -129,7 +128,6 @@ export function startWarmupCron() {
       global.warmupCronRunning!.schedule = false;
     }
   }, {
-    scheduled: true,
     timezone: 'Europe/Warsaw'
   });
   
@@ -154,7 +152,6 @@ export function startWarmupCron() {
       global.warmupCronRunning!.advance = false;
     }
   }, {
-    scheduled: true,
     timezone: 'Europe/Warsaw'
   });
   

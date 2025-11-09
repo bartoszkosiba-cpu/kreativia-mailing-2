@@ -47,6 +47,18 @@ const moduleDescriptions: Record<string, ModuleInfo> = {
     icon: "🔍",
     color: "#06B6D4",
   },
+  "persona-criteria": {
+    name: "Persony – zapis",
+    description: "Logi zapisów konfiguracji person i błędów walidacji",
+    icon: "🗂️",
+    color: "#F97316",
+  },
+  "persona-criteria-chat": {
+    name: "Persony – czat",
+    description: "Logi rozmów z agentem AI przy definiowaniu person",
+    icon: "👥",
+    color: "#2563EB",
+  },
 };
 
 export default function LogsIndexPage() {

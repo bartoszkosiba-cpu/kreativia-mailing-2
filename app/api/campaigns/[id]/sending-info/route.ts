@@ -293,7 +293,11 @@ export async function GET(
     } else {
       // ✅ SPRAWDŹ DOSTĘPNOŚĆ SKRZYNEK (przed delay check)
       const { getNextAvailableMailbox } = await import('@/services/mailboxManager');
-      const availableMailbox = await getNextAvailableMailbox(campaign.virtualSalespersonId || 0, campaignId);
+      const availableMailbox = await getNextAvailableMailbox(
+        campaign.virtualSalespersonId || 0,
+        campaignId,
+        { readOnly: true }
+      );
       
       if (!availableMailbox) {
         // Brak dostępnych skrzynek - sprawdź które kampanie blokują

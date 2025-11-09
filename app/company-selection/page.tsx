@@ -187,6 +187,19 @@ export default function CompanySelectionPage() {
           Kryteria weryfikacji
         </Link>
         <Link
+          href="/company-selection/personas"
+          style={{
+            padding: "0.75rem 1.5rem",
+            backgroundColor: "#1D4ED8",
+            color: "white",
+            borderRadius: "0.5rem",
+            textDecoration: "none",
+            display: "inline-block",
+          }}
+        >
+          Persony (Agenda AI)
+        </Link>
+        <Link
           href="/company-selection/logs"
           style={{
             padding: "0.75rem 1.5rem",

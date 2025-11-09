@@ -52,6 +52,11 @@ async function findAndUpdateInterestedFrom311() {
       console.log(`⚠️  Reply ${reply.id} - brak leadId`);
       continue;
     }
+
+    if (!reply.lead) {
+      console.log(`⚠️  Reply ${reply.id} - brak powiązanego leada`);
+      continue;
+    }
     
     console.log(`📧 ${reply.lead.email}`);
     console.log(`   → Reply ID: ${reply.id}`);

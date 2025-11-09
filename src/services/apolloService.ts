@@ -7,6 +7,320 @@ import { logger } from "./logger";
 
 const APOLLO_API_KEY = process.env.APOLLO_API_KEY;
 const APOLLO_API_BASE_URL = "https://api.apollo.io/v1";
+const APOLLO_MIXED_PEOPLE_ENDPOINT = `${APOLLO_API_BASE_URL}/mixed_people/search`;
+
+function normalizeDomain(domain?: string | null): string | undefined {
+  if (!domain) {
+    return undefined;
+  }
+
+  return domain
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0];
+}
+
+function isAccessDeniedError(message: string | undefined): boolean {
+  if (!message) {
+    return false;
+  }
+
+  return message.includes("API_INACCESSIBLE") || message.includes("403");
+}
+
+function filterPeopleByCriteria(
+  people: ApolloPerson[],
+  criteria: {
+    organizationId?: string;
+    organizationName?: string;
+    domain?: string;
+  }
+): ApolloPerson[] {
+  let filteredPeople = [...people];
+
+  if (criteria.organizationId) {
+    filteredPeople = filteredPeople.filter(
+      (person: ApolloPerson) => person.organization?.id === criteria.organizationId
+    );
+    logger.info(
+      "apollo",
+      `Filtrowanie po organization_id: ${criteria.organizationId}, znaleziono ${filteredPeople.length} z ${people.length}`
+    );
+    if (filteredPeople.length === 0 && people.length > 0) {
+      logger.warn(
+        "apollo",
+        `⚠️ Apollo zwrócił ${people.length} osób, ale żadna nie ma organization_id: ${criteria.organizationId}`
+      );
+    }
+    return filteredPeople;
+  }
+
+  if (criteria.organizationName) {
+    const orgNameLower = criteria.organizationName.toLowerCase().trim();
+    filteredPeople = filteredPeople.filter((person: ApolloPerson) => {
+      const personOrgName = person.organization?.name?.toLowerCase().trim() || "";
+      if (!personOrgName) return false;
+
+      if (personOrgName === orgNameLower) return true;
+
+      if (personOrgName.includes(orgNameLower) || orgNameLower.includes(personOrgName)) {
+        const similarity =
+          Math.min(personOrgName.length, orgNameLower.length) /
+          Math.max(personOrgName.length, orgNameLower.length);
+        return similarity > 0.7;
+      }
+
+      return false;
+    });
+    logger.info(
+      "apollo",
+      `Filtrowanie po organization_name: ${criteria.organizationName}, znaleziono ${filteredPeople.length} z ${people.length}`
+    );
+    return filteredPeople;
+  }
+
+  if (criteria.domain) {
+    const domainLower = normalizeDomain(criteria.domain);
+    if (!domainLower) {
+      return filteredPeople;
+    }
+
+    const beforeFilter = filteredPeople.length;
+
+    if (filteredPeople.length > 0) {
+      logger.info("apollo", `Przykładowe osoby z wyszukiwania (pierwsze 3):`);
+      filteredPeople.slice(0, 3).forEach((p: ApolloPerson, idx: number) => {
+        logger.info(
+          "apollo",
+          `  ${idx + 1}. ${p.name} - Org: ${p.organization?.name} (${normalizeDomain(
+            p.organization?.primary_domain
+          )})`
+        );
+      });
+    }
+
+    filteredPeople = filteredPeople.filter((person: ApolloPerson) => {
+      const orgDomain = normalizeDomain(person.organization?.primary_domain);
+      if (orgDomain === domainLower) {
+        return true;
+      }
+
+      if (person.email && person.email !== "email_not_unlocked@domain.com") {
+        const emailDomain = normalizeDomain(person.email.split("@")[1]);
+        if (emailDomain === domainLower) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    logger.info(
+      "apollo",
+      `Filtrowanie po domain: ${domainLower}, znaleziono ${filteredPeople.length} z ${beforeFilter} (total: ${people.length})`
+    );
+
+    if (filteredPeople.length === 0 && beforeFilter > 0) {
+      logger.warn(
+        "apollo",
+        `⚠️ Apollo zwrócił ${beforeFilter} osób, ale żadna nie pasuje do domeny "${domainLower}"`
+      );
+      logger.warn(
+        "apollo",
+        "⚠️ Możliwe przyczyny: organizacja nie jest w bazie Apollo, lub API zwraca błędne wyniki"
+      );
+    }
+
+    return filteredPeople;
+  }
+
+  return filteredPeople;
+}
+
+async function searchPeopleViaMixedPeople(
+  organizationId?: string,
+  organizationName?: string,
+  domain?: string,
+  options?: {
+    perPage?: number;
+    page?: number;
+  }
+): Promise<ApolloSearchPeopleResponse> {
+  if (!APOLLO_API_KEY) {
+    throw new Error("APOLLO_API_KEY nie jest ustawiony w zmiennych środowiskowych");
+  }
+
+  const payload: any = {
+    page: options?.page || 1,
+    per_page: options?.perPage || 50,
+    contact_scopes: {
+      include_non_exportable_companies: true,
+      include_personal_emails: true,
+    },
+  };
+
+  if (organizationId) {
+    payload.organization_ids = [organizationId];
+  }
+
+  if (organizationName) {
+    payload.q_organization_name = organizationName;
+  }
+
+  if (domain) {
+    const normalizedDomain = normalizeDomain(domain);
+    if (normalizedDomain) {
+      payload.q_company_domains = [normalizedDomain];
+      if (!payload.q_organization_name) {
+        payload.q_organization_name = normalizedDomain;
+      }
+    }
+  }
+
+  const response = await fetch(APOLLO_MIXED_PEOPLE_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Cache-Control": "no-cache",
+      "Content-Type": "application/json",
+      "X-Api-Key": APOLLO_API_KEY,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Apollo API error (mixed_people): ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+
+  const peopleMap = new Map<string, ApolloPerson>();
+
+  const upsertPerson = (person: ApolloPerson) => {
+    if (!person.id) {
+      const fallbackId = `${person.name || "unknown"}-${normalizeDomain(person.organization?.primary_domain) || "no-org"}`;
+      person.id = fallbackId;
+    }
+    peopleMap.set(person.id, person);
+  };
+
+  const mapOrganization = (
+    sourceOrg: any,
+    fallbackName?: string,
+    fallbackId?: string
+  ): ApolloOrganization | undefined => {
+    const resolvedId = sourceOrg?.organization_id || sourceOrg?.id || fallbackId;
+    const resolvedName = sourceOrg?.name || fallbackName;
+
+    if (!resolvedId && !resolvedName) {
+      return undefined;
+    }
+
+    return {
+      id: resolvedId || "",
+      name: resolvedName || "",
+      website_url: sourceOrg?.website_url,
+      primary_domain:
+        sourceOrg?.primary_domain || sourceOrg?.domain || normalizeDomain(sourceOrg?.website_url) || undefined,
+      industry: sourceOrg?.industry,
+      estimated_num_employees: sourceOrg?.estimated_num_employees,
+      city: sourceOrg?.city,
+      country: sourceOrg?.country,
+      linkedin_url: sourceOrg?.linkedin_url,
+    };
+  };
+
+  if (Array.isArray(data.contacts)) {
+    data.contacts.forEach((contact: any) => {
+      const emailEntry = Array.isArray(contact.contact_emails)
+        ? contact.contact_emails.find((item: any) => item?.email)
+        : null;
+
+      const rawEmail = emailEntry?.email || (contact.email !== "email_not_unlocked@domain.com" ? contact.email : null);
+      const emailStatus =
+        emailEntry?.email_status || emailEntry?.email_true_status || contact.email_true_status || contact.email_status;
+
+      const organization = mapOrganization(
+        contact.account || contact.organization,
+        contact.organization_name,
+        contact.organization_id
+      );
+
+      const person: ApolloPerson = {
+        id: contact.person_id || contact.id,
+        first_name: contact.first_name,
+        last_name: contact.last_name,
+        name: contact.name || [contact.first_name, contact.last_name].filter(Boolean).join(" "),
+        title: contact.title,
+        email: rawEmail || undefined,
+        email_status: emailStatus,
+        linkedin_url: contact.linkedin_url,
+        organization,
+        headline: contact.headline,
+        contact_email_status: contact.email_status,
+        departments: contact.departments ?? contact.account?.departments ?? [],
+        subdepartments: contact.subdepartments ?? [],
+        seniority: contact.seniority ?? contact.account?.seniority,
+      };
+
+      upsertPerson(person);
+    });
+  }
+
+  if (Array.isArray(data.people)) {
+    data.people.forEach((personData: any) => {
+      const organization = mapOrganization(personData.organization, personData.organization_name, personData.organization_id);
+
+      const person: ApolloPerson = {
+        id: personData.id,
+        first_name: personData.first_name,
+        last_name: personData.last_name,
+        name: personData.name || [personData.first_name, personData.last_name].filter(Boolean).join(" "),
+        title: personData.title,
+        email: personData.email !== "email_not_unlocked@domain.com" ? personData.email : undefined,
+        email_status: personData.email_status,
+        linkedin_url: personData.linkedin_url,
+        organization,
+        headline: personData.headline,
+        contact_email_status: personData.contact_email_status,
+        departments: personData.departments ?? [],
+        subdepartments: personData.subdepartments ?? [],
+        seniority: personData.seniority,
+      };
+
+      upsertPerson(person);
+    });
+  }
+
+  let people = Array.from(peopleMap.values());
+
+  people = filterPeopleByCriteria(people, {
+    organizationId,
+    organizationName,
+    domain,
+  });
+
+  logger.info(
+    "apollo",
+    `Fallback mixed_people/search zwrócił ${people.length} osób (contacts: ${data.contacts?.length || 0}, people: ${
+      data.people?.length || 0
+    })`
+  );
+
+  const pagination = {
+    page: data.pagination?.page || options?.page || 1,
+    per_page: data.pagination?.per_page || options?.perPage || people.length || 1,
+    total_entries: people.length,
+    total_pages: data.pagination?.total_pages || Math.max(1, Math.ceil(people.length / (options?.perPage || 1))) || 1,
+  };
+
+  return {
+    people,
+    pagination,
+  };
+}
 
 export interface ApolloOrganization {
   id: string;
@@ -33,6 +347,9 @@ export interface ApolloPerson {
   organization?: ApolloOrganization;
   headline?: string;
   contact_email_status?: string; // Status emaila bez pobierania (darmowe)
+  departments?: string[];
+  subdepartments?: string[];
+  seniority?: string;
 }
 
 export interface ApolloSearchOrganizationsResponse {
@@ -179,56 +496,52 @@ export async function searchPeopleFromOrganization(
     throw new Error("APOLLO_API_KEY nie jest ustawiony w zmiennych środowiskowych");
   }
 
-  try {
-    // Używamy TYLKO people/search (bardziej precyzyjny niż mixed_people/search)
-    // mixed_people/search zwraca nieprecyzyjne wyniki - osoby z innych firm (np. Mike Braham, Bill Gates zamiast pracowników INTER MARK GROUP)
-    // WYMAGANE: Dodaj dostęp do api/v1/people/search w Apollo API Settings
-    
-    // GŁÓWNE WYSZUKIWANIE przez people/search (używamy TYLKO tego endpointu)
+  const criteria = {
+    organizationId,
+    organizationName,
+    domain,
+  };
+
+  const performPeopleSearch = async (): Promise<ApolloSearchPeopleResponse> => {
     const searchParams: any = {
       page: options?.page || 1,
       per_page: options?.perPage || 50,
     };
 
-    // Użyj organization_id jeśli dostępne (najbardziej precyzyjne)
     if (organizationId) {
-      // WAŻNE: Dla organization_id używamy organization_ids (tablica) zamiast organization_id
       searchParams.organization_ids = [organizationId];
       logger.info("apollo", `Wyszukiwanie pracowników po organization_ids: ${organizationId}`);
     } else if (organizationName) {
-      // UWAGA: organization_name może nie działać poprawnie w Apollo API
-      // Spróbuj użyć q_keywords jako alternatywy (często działa lepiej)
       searchParams.organization_name = organizationName;
-      // Dodatkowo dodaj q_keywords dla lepszego dopasowania
       searchParams.q_keywords = organizationName;
       logger.info("apollo", `Wyszukiwanie pracowników po organization_name + q_keywords: ${organizationName}`);
     } else if (domain) {
-      // WAŻNE: Używamy q_organization_domains (z prefiksem q_) - to jest właściwy parametr!
-      // organization_domains (bez prefiksu) może nie działać poprawnie
-      searchParams.q_organization_domains = [domain];
-      logger.info("apollo", `Wyszukiwanie pracowników po q_organization_domains: ${domain}`);
+      const normalizedDomain = normalizeDomain(domain);
+      if (!normalizedDomain) {
+        throw new Error("Musisz podać organizationId, organizationName lub poprawną domenę");
+      }
+      searchParams.q_organization_domains = [normalizedDomain];
+      logger.info("apollo", `Wyszukiwanie pracowników po q_organization_domains: ${normalizedDomain}`);
     } else {
       throw new Error("Musisz podać organizationId, organizationName lub domain");
     }
 
-    // Filtrowanie po stanowiskach jeśli podano
     if (options?.titles && options.titles.length > 0) {
       searchParams.person_titles = options.titles;
     }
-    
-    // WAŻNE: NIE pobieraj emaili automatycznie - to zużywa kredyty!
-    // Ustawiamy person_details: false żeby Apollo nie odblokowywał emaili
-    // Użytkownik będzie mógł później wybrać które osoby chce pobrać (i zapłacić za nie)
+
     if (options?.revealEmails === false || options?.revealEmails === undefined) {
-      // Domyślnie NIE pobieramy emaili - tylko podstawowe dane (darmowe)
       searchParams.person_details = false;
-      // Nie używamy reveal_personal_emails=true - to by automatycznie pobierało emaile
     } else if (options?.revealEmails === true) {
-      // Tylko jeśli użytkownik wyraźnie chce pobrać emaile
       searchParams.reveal_personal_emails = true;
     }
 
-    logger.info("apollo", `Wyszukiwanie pracowników (revealEmails=${options?.revealEmails || false}) - ${options?.revealEmails ? 'ZUŻYWA kredyty' : 'DARMOWE'}`);
+    logger.info(
+      "apollo",
+      `Wyszukiwanie pracowników (revealEmails=${options?.revealEmails || false}) - ${
+        options?.revealEmails ? "ZUŻYWA kredyty" : "DARMOWE"
+      }`
+    );
 
     const response = await fetch(`${APOLLO_API_BASE_URL}/people/search`, {
       method: "POST",
@@ -246,78 +559,8 @@ export async function searchPeopleFromOrganization(
     }
 
     const data = await response.json();
-
-    // Filtruj tylko osoby z właściwej organizacji (Apollo czasem zwraca osoby z innych firm)
-    let filteredPeople = data.people || [];
-    if (organizationId) {
-      // Najbardziej precyzyjne - filtruj po ID organizacji
-      // Apollo powinno zwrócić tylko osoby z tej organizacji, ale sprawdzamy dla pewności
-      filteredPeople = filteredPeople.filter(
-        (person: ApolloPerson) => person.organization?.id === organizationId
-      );
-      logger.info("apollo", `Filtrowanie po organization_id: ${organizationId}, znaleziono ${filteredPeople.length} z ${data.people.length}`);
-      if (filteredPeople.length === 0 && data.people.length > 0) {
-        logger.warn("apollo", `⚠️ Apollo zwrócił ${data.people.length} osób, ale żadna nie ma organization_id: ${organizationId}`);
-      }
-    } else if (organizationName) {
-      // Filtruj po nazwie - sprawdź dokładne dopasowanie
-      const orgNameLower = organizationName.toLowerCase().trim();
-      filteredPeople = filteredPeople.filter((person: ApolloPerson) => {
-        const personOrgName = person.organization?.name?.toLowerCase().trim() || "";
-        if (!personOrgName) return false;
-        
-        // Dokładne dopasowanie
-        if (personOrgName === orgNameLower) return true;
-        
-        // Częściowe dopasowanie - ale tylko jeśli nazwa jest podobna
-        if (personOrgName.includes(orgNameLower) || orgNameLower.includes(personOrgName)) {
-          const similarity = Math.min(personOrgName.length, orgNameLower.length) / Math.max(personOrgName.length, orgNameLower.length);
-          return similarity > 0.7; // Tylko jeśli podobieństwo > 70%
-        }
-        
-        return false;
-      });
-      logger.info("apollo", `Filtrowanie po organization_name: ${organizationName}, znaleziono ${filteredPeople.length} z ${data.people.length}`);
-    } else if (domain) {
-      // Filtruj po domenie organizacji - WAŻNE: musimy przefiltrować bo Apollo zwraca przypadkowe wyniki
-      const domainLower = domain.toLowerCase().trim();
-      const beforeFilter = filteredPeople.length;
-      
-      // Loguj pierwsze 3 osoby dla debugowania
-      if (filteredPeople.length > 0) {
-        logger.info("apollo", `Przykładowe osoby z people/search (pierwsze 3):`);
-        filteredPeople.slice(0, 3).forEach((p: ApolloPerson, idx: number) => {
-          logger.info("apollo", `  ${idx + 1}. ${p.name} - Org: ${p.organization?.name} (${p.organization?.primary_domain})`);
-        });
-      }
-      
-      filteredPeople = filteredPeople.filter((person: ApolloPerson) => {
-        const orgDomain = person.organization?.primary_domain?.toLowerCase().trim();
-        
-        // Sprawdź czy organizacja ma tę domenę (priorytet)
-        if (orgDomain === domainLower) {
-          return true;
-        }
-        
-        // Sprawdź czy email kończy się na tę domenę
-        if (person.email && person.email !== "email_not_unlocked@domain.com") {
-          const emailDomain = person.email.split("@")[1]?.toLowerCase();
-          if (emailDomain === domainLower) {
-            return true;
-          }
-        }
-        
-        return false;
-      });
-      
-      logger.info("apollo", `Filtrowanie po domain: ${domain}, znaleziono ${filteredPeople.length} z ${beforeFilter} (total: ${data.people.length})`);
-      
-      // Jeśli po filtrowaniu nie ma wyników, to znaczy że Apollo zwrócił przypadkowe osoby
-      if (filteredPeople.length === 0 && beforeFilter > 0) {
-        logger.warn("apollo", `⚠️ Apollo zwrócił ${beforeFilter} osób, ale żadna nie pasuje do domeny "${domain}"`);
-        logger.warn("apollo", `⚠️ Możliwe przyczyny: organizacja nie jest w bazie Apollo, lub API zwraca błędne wyniki`);
-      }
-    }
+    const rawPeople: ApolloPerson[] = data.people || [];
+    const filteredPeople = filterPeopleByCriteria(rawPeople, criteria);
 
     logger.info(
       "apollo",
@@ -329,25 +572,28 @@ export async function searchPeopleFromOrganization(
       people: filteredPeople,
       pagination: {
         ...data.pagination,
-        total_entries: filteredPeople.length, // Aktualizujemy liczbę po filtrowaniu
+        total_entries: filteredPeople.length,
       },
     };
+  };
+
+  try {
+    return await performPeopleSearch();
   } catch (error: any) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
-    
-    // Jeśli to błąd 403 - endpoint niedostępny, przekaż informację dalej
-    if (errorObj.message?.includes("403") || errorObj.message?.includes("API_INACCESSIBLE")) {
-      logger.warn("apollo", `Endpoint people/search nie jest dostępny dla tego API key`);
-      logger.warn("apollo", `Sprawdź uprawnienia API key w Apollo.io - może potrzebujesz dodać dostęp do people/search`);
+
+    if (isAccessDeniedError(errorObj.message)) {
+      logger.warn("apollo", "Endpoint people/search niedostępny - fallback do mixed_people/search");
+      return await searchPeopleViaMixedPeople(organizationId, organizationName, domain, options);
     }
-    
+
     logger.error(
       "apollo",
       `Błąd wyszukiwania pracowników w Apollo`,
       { organizationId, organizationName, domain },
       errorObj
     );
-    throw error;
+    throw errorObj;
   }
 }
 

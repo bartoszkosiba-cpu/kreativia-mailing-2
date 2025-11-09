@@ -57,9 +57,9 @@ function convertToHtml(text: string): string {
     // ✅ Zachowaj puste linie (linie z samym ">") jako odstępy
     const quoteLines = quoteBlock
       .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(line => line.startsWith('>'))
-      .map(line => {
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.startsWith('>'))
+      .map((line: string) => {
         const withoutPrefix = line.replace(/^>\s*/, '');
         // Jeśli linia była pusta (tylko ">"), zwróć pusty string (będzie renderowany jako odstęp)
         return withoutPrefix === '' ? '' : withoutPrefix;
@@ -71,7 +71,7 @@ function convertToHtml(text: string): string {
     
     // ✅ Połącz linie, ale puste linie (puste stringi) zamień na <br><br> (odstęp)
     const cleanQuote = quoteLines
-      .map((line, index) => {
+      .map((line: string, index: number) => {
         if (line === '') {
           // Pusta linia - dodaj odstęp
           return '<br>';
@@ -98,12 +98,12 @@ function convertToHtml(text: string): string {
     // ✅ Usuń "> " z każdej linii, ale zachowaj puste linie jako odstępy
     const cleanQuote = match
       .split(/\r?\n/)
-      .map(line => {
+      .map((line: string) => {
         const withoutPrefix = line.replace(/^>\s*/, '');
         // Jeśli linia była pusta (tylko ">"), zwróć pusty string dla odstępu
         return withoutPrefix === '' ? '' : withoutPrefix;
       })
-      .map((line, index, array) => {
+      .map((line: string, index: number, array: string[]) => {
         if (line === '') {
           // Pusta linia - zwróć jako odstęp (będzie dodany jako <br><br>)
           return '';
@@ -114,7 +114,7 @@ function convertToHtml(text: string): string {
           return line;
         }
       })
-      .filter((line, index, array) => {
+      .filter((line: string, index: number, array: string[]) => {
         // Jeśli mamy ciąg pustych linii, zostaw tylko jedną
         if (line === '' && index > 0 && array[index - 1] === '') {
           return false;
@@ -841,7 +841,7 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
         quotedContent += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         
         // ✅ Dodaj prefix "> " do każdej linii cytatu, ZACHOWAJ puste linie (są ważne dla formatowania!)
-        const quotedLines = directReplyText.split('\n').map(line => {
+        const quotedLines = directReplyText.split('\n').map((line: string) => {
           if (line.trim() === '') {
             // Pusta linia - zachowaj jako pustą linię (będzie renderowana jako odstęp w HTML)
             return '>';
@@ -865,7 +865,7 @@ export async function sendScheduledMaterialResponses(): Promise<number> {
       });
 
       // Przygotuj załączniki dla nodemailer
-      const nodemailerAttachments = attachments.map(att => ({
+      const nodemailerAttachments = attachments.map((att) => ({
         filename: att.filename,
         path: att.path
       }));

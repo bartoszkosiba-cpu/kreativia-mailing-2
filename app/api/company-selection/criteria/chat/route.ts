@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { db } from "@/lib/db";
 import { trackTokenUsage } from "@/services/tokenTracker";
 import { logger } from "@/services/logger";
@@ -26,10 +27,29 @@ export async function POST(req: NextRequest) {
       : null;
 
     // Przygotuj historię rozmowy
-    let chatHistory: Array<{ role: string; content: string }> = [];
+    type AllowedRole = "system" | "user" | "assistant";
+    const allowedRoles: AllowedRole[] = ["system", "user", "assistant"];
+
+    let chatHistory: ChatCompletionMessageParam[] = [];
     if (criteria?.chatHistory) {
       try {
-        chatHistory = JSON.parse(criteria.chatHistory);
+        const parsed = JSON.parse(criteria.chatHistory) as Array<{ role?: string; content?: unknown }>;
+        if (Array.isArray(parsed)) {
+          chatHistory = parsed.reduce<ChatCompletionMessageParam[]>((acc, item) => {
+            if (typeof item?.role !== "string") {
+              return acc;
+            }
+            if (typeof item?.content !== "string") {
+              return acc;
+            }
+            if (!allowedRoles.includes(item.role as AllowedRole)) {
+              return acc;
+            }
+
+            acc.push({ role: item.role as AllowedRole, content: item.content });
+            return acc;
+          }, []);
+        }
       } catch (e) {
         chatHistory = [];
       }

@@ -98,6 +98,8 @@ export async function POST(req: NextRequest) {
           netProfit: companyData["Zysk netto"] || companyData.netProfit || companyData["netProfit"] || null,
           locationCount: parseIntSafe(companyData["Liczba lokalizacji"] || companyData["Number of Retail Locations"] || companyData.locationCount || companyData["locationCount"]),
           ratingPoints: parseIntSafe(companyData["Punkty oceny"] || companyData.ratingPoints || companyData["ratingPoints"]),
+          keywords: companyData["Keywords"] || companyData.keywords || companyData["keywords"] || null,
+          apolloAccountId: companyData["Apollo Account Id"] || companyData["Apollo\nAccount Id"] || companyData.apolloAccountId || companyData["apolloAccountId"] || null,
           sicCode: companyData["Kod SIC"] || companyData["SIC Codes"] || companyData.sicCode || companyData["sicCode"] || null,
           naceCode: companyData["Kod NACE"] || companyData["NAICS Codes"] || companyData.naceCode || companyData["naceCode"] || null,
           // Dane z weryfikacji CSV (jeśli były)

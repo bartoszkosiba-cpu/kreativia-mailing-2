@@ -53,9 +53,9 @@ function formatEmailContent(content: string): string {
     // ✅ Zachowaj puste linie (linie z samym ">") jako odstępy
     const quoteLines = quoteBlock
       .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(line => line.startsWith('>'))
-      .map(line => {
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.startsWith('>'))
+      .map((line: string) => {
         const withoutPrefix = line.replace(/^>\s*/, '');
         // Jeśli linia była pusta (tylko ">"), zwróć pusty string (będzie renderowany jako odstęp)
         return withoutPrefix === '' ? '' : withoutPrefix;
@@ -67,7 +67,7 @@ function formatEmailContent(content: string): string {
     
     // ✅ Połącz linie, ale puste linie (puste stringi) zamień na <br><br> (odstęp)
     const cleanQuote = quoteLines
-      .map((line, index) => {
+      .map((line: string, index: number) => {
         if (line === '') {
           // Pusta linia - dodaj odstęp
           return '<br>';
@@ -104,12 +104,12 @@ function formatEmailContent(content: string): string {
       // ✅ Usuń "> " z każdej linii, ale zachowaj puste linie jako odstępy
       const cleanQuote = match
         .split(/\r?\n/)
-        .map(line => {
+        .map((line: string) => {
           const withoutPrefix = line.replace(/^>\s*/, '');
           // Jeśli linia była pusta (tylko ">"), zwróć pusty string dla odstępu
           return withoutPrefix === '' ? '' : withoutPrefix;
         })
-        .map((line, index, array) => {
+        .map((line: string, index: number, array: string[]) => {
           if (line === '') {
             // Pusta linia - zwróć jako odstęp (będzie dodany jako <br><br>)
             return '';
@@ -120,7 +120,7 @@ function formatEmailContent(content: string): string {
             return line;
           }
         })
-        .filter((line, index, array) => {
+        .filter((line: string, index: number, array: string[]) => {
           // Jeśli mamy ciąg pustych linii, zostaw tylko jedną
           if (line === '' && index > 0 && array[index - 1] === '') {
             return false;
@@ -213,9 +213,9 @@ function formatEmailContent(content: string): string {
           // ✅ Formatuj blok cytatów - zachowaj puste linie jako odstępy
           const quoteLines = quoteBlock
             .split(/\r?\n/)
-            .map(line => line.trim())
-            .filter(line => line.startsWith('>'))
-            .map(line => {
+            .map((line: string) => line.trim())
+            .filter((line: string) => line.startsWith('>'))
+            .map((line: string) => {
               const withoutPrefix = line.replace(/^>\s*/, '');
               // Jeśli linia była pusta (tylko ">"), zwróć pusty string (będzie renderowany jako odstęp)
               return withoutPrefix === '' ? '' : withoutPrefix;
@@ -227,7 +227,7 @@ function formatEmailContent(content: string): string {
           
           // ✅ Połącz linie, ale puste linie (puste stringi) zamień na <br><br> (odstęp)
           const cleanQuote = quoteLines
-            .map((line, index) => {
+            .map((line: string, index: number) => {
               if (line === '') {
                 // Pusta linia - dodaj odstęp
                 return '<br>';
@@ -506,11 +506,9 @@ export default function CampaignMaterialDecisions({ campaignId, showOnlyPending,
             })
             .then(({ fullContent, fullSubject, materials }) => {
               setDecisionPreviewData({
+                subject: fullSubject,
+                content: fullContent,
                 materials,
-                responseContent: fullContent,
-                responseSubject: fullSubject,
-                lead: matchingResponse.lead,
-                reply: matchingResponse.reply
               });
               setLoadingDecisionPreview(false);
             })

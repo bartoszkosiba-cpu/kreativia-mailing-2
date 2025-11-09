@@ -983,6 +983,7 @@ model Company {
   updatedAt DateTime @updatedAt
 
   verificationLogs CompanyVerificationLog[]
+  personaVerifications PersonaVerificationResult[]
 
   @@index([verificationStatus])
   @@index([verifiedAt])
@@ -1054,6 +1055,64 @@ model CompanyVerificationCriteria {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  personaCriteria CompanyPersonaCriteria?
+
   @@index([isActive])
   @@index([isDefault])
+}
+
+model CompanyPersonaCriteria {
+  id                Int @id @default(autoincrement())
+  companyCriteriaId Int @unique
+  name              String
+  description       String?
+  positiveRoles     String
+  negativeRoles     String
+  conditionalRules  String?
+  language          String?
+  chatHistory       String?
+  lastUserMessage   String?
+  lastAIResponse    String?
+  createdBy         String?
+  updatedBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  companyCriteria     CompanyVerificationCriteria @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
+  personaBrief        PersonaBrief?
+  personaVerifications PersonaVerificationResult[]
+}
+
+model PersonaBrief {
+  id                Int      @id @default(autoincrement())
+  companyCriteriaId Int      @unique
+  summary           String   @default("")
+  decisionGuidelines String?
+  targetProfiles    String?
+  avoidProfiles     String?
+  additionalNotes   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  personaCriteria CompanyPersonaCriteria @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
+}
+
+model PersonaVerificationResult {
+  id                 Int      @id @default(autoincrement())
+  companyId          Int
+  personaCriteriaId  Int?
+  verifiedAt         DateTime @default(now())
+  positiveCount      Int      @default(0)
+  negativeCount      Int      @default(0)
+  unknownCount       Int      @default(0)
+  employees          String
+  metadata           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company        Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  personaCriteria CompanyPersonaCriteria? @relation(fields: [personaCriteriaId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId])
+  @@index([verifiedAt])
 }

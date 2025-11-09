@@ -4,17 +4,41 @@ import { useState } from "react";
 import Papa from "papaparse";
 import Link from "next/link";
 
+interface ImportError {
+  row: number;
+  error: string;
+  data?: Record<string, unknown>;
+}
+
+interface ImportResult {
+  imported: number;
+  updated: number;
+  skipped: number;
+  total: number;
+  totalInDb?: number;
+  errorCount?: number;
+  errors?: ImportError[];
+}
+
 export default function CompanyImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{
-    imported: number;
-    updated: number;
-    skipped: number;
-    total: number;
-  } | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const getCompanyName = (data?: Record<string, unknown>): string => {
+    if (!data) return "Brak nazwy";
+    const nazwa = data["Nazwa"];
+    if (typeof nazwa === "string" && nazwa.trim().length > 0) {
+      return nazwa;
+    }
+    const name = data["name"];
+    if (typeof name === "string" && name.trim().length > 0) {
+      return name;
+    }
+    return "Brak nazwy";
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -103,7 +127,8 @@ export default function CompanyImportPage() {
             }
 
             console.log("[Import] Wynik importu:", data);
-            setResult(data);
+            const { success: _success, ...resultData } = data as { success?: boolean } & ImportResult;
+            setResult(resultData);
           } catch (err) {
             console.error("[Import] Błąd:", err);
             setError(err instanceof Error ? err.message : "Błąd importu");
@@ -261,14 +286,14 @@ export default function CompanyImportPage() {
         <div
           style={{
             padding: "1.5rem",
-            backgroundColor: result.errorCount > 0 ? "#FEF3C7" : "#10B981",
-            color: result.errorCount > 0 ? "#92400E" : "white",
+            backgroundColor: (result.errorCount ?? 0) > 0 ? "#FEF3C7" : "#10B981",
+            color: (result.errorCount ?? 0) > 0 ? "#92400E" : "white",
             borderRadius: "0.5rem",
             marginBottom: "2rem",
           }}
         >
           <h2 style={{ marginBottom: "1rem" }}>
-            {result.errorCount > 0 ? "⚠️ Import zakończony z błędami" : "✅ Import zakończony!"}
+            {(result.errorCount ?? 0) > 0 ? "⚠️ Import zakończony z błędami" : "✅ Import zakończony!"}
           </h2>
           <div style={{ lineHeight: "1.8" }}>
             <div>✅ Zaimportowanych: {result.imported}</div>
@@ -278,23 +303,26 @@ export default function CompanyImportPage() {
             {result.totalInDb !== undefined && (
               <div>💾 Firm w bazie: {result.totalInDb}</div>
             )}
-            {result.errorCount > 0 && (
+            {(result.errorCount ?? 0) > 0 && (
               <div style={{ marginTop: "1rem", padding: "1rem", backgroundColor: "rgba(0,0,0,0.1)", borderRadius: "0.25rem" }}>
                 <div style={{ fontWeight: "bold", marginBottom: "0.5rem" }}>
                   ⚠️ Błędy: {result.errorCount}
                 </div>
                 {result.errors && result.errors.length > 0 && (
                   <div style={{ fontSize: "0.875rem", maxHeight: "200px", overflowY: "auto" }}>
-                    {result.errors.map((err: any, idx: number) => (
-                      <div key={idx} style={{ marginBottom: "0.5rem", padding: "0.5rem", backgroundColor: "rgba(0,0,0,0.1)", borderRadius: "0.25rem" }}>
-                        <div><strong>Wiersz {err.row}:</strong> {err.error}</div>
-                        {err.data && err.data["Nazwa"] && (
-                          <div style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
-                            Firma: {err.data["Nazwa"] || err.data.name || "Brak nazwy"}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    {result.errors.map((err, idx) => {
+                      const companyName = getCompanyName(err.data);
+                      return (
+                        <div key={idx} style={{ marginBottom: "0.5rem", padding: "0.5rem", backgroundColor: "rgba(0,0,0,0.1)", borderRadius: "0.25rem" }}>
+                          <div><strong>Wiersz {err.row}:</strong> {err.error}</div>
+                          {companyName !== "Brak nazwy" && (
+                            <div style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                              Firma: {companyName}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -307,8 +335,8 @@ export default function CompanyImportPage() {
                 display: "inline-block",
                 marginTop: "1rem",
                 padding: "0.5rem 1rem",
-                backgroundColor: result.errorCount > 0 ? "#92400E" : "white",
-                color: result.errorCount > 0 ? "#FEF3C7" : "#10B981",
+                backgroundColor: (result.errorCount ?? 0) > 0 ? "#92400E" : "white",
+                color: (result.errorCount ?? 0) > 0 ? "#FEF3C7" : "#10B981",
                 borderRadius: "0.25rem",
                 textDecoration: "none",
               }}

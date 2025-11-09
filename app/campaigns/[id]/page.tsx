@@ -13,6 +13,7 @@ import FollowUpManager from "./FollowUpManager";
 import CampaignOutbox from "./CampaignOutbox";
 import CampaignPlanningInfo from "./CampaignPlanningInfo";
 import CampaignTabs from "./CampaignTabs";
+import { getPersonaCriteria } from "@/services/personaCriteriaService";
 
 export default async function CampaignDetailsPage({ params }: { params: { id: string } }) {
   const campaignId = Number(params.id);
@@ -26,7 +27,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
 
   const campaign = await db.campaign.findUnique({
     where: { id: campaignId },
-    include: { 
+    include: {
       virtualSalesperson: true,
       savedContent: {
         include: {
@@ -48,7 +49,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
             include: { LeadTag: { include: { tag: true } } }
           } 
         } 
-      }
+      },
     }
   });
 
@@ -81,6 +82,47 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
       language: cl.lead.language || "pl",
       hasSentEmail: sentLeadIds.has(cl.lead.id)
     }));
+
+  const safeParse = <T,>(raw: string | null | undefined, fallback: T): T => {
+    if (!raw) return fallback;
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  };
+
+  let personaDetails: {
+    id: number;
+    companyCriteriaId: number;
+    name: string;
+    description?: string | null;
+    language?: string | null;
+    positiveRoles: any[];
+    negativeRoles: any[];
+    conditionalRules: any[];
+  } | null = null;
+
+  const activeCriteria = await db.companyVerificationCriteria.findFirst({
+    where: { isActive: true, isDefault: true },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (activeCriteria) {
+    const persona = await getPersonaCriteria(activeCriteria.id);
+    if (persona) {
+      personaDetails = {
+        id: persona.id,
+        companyCriteriaId: persona.companyCriteriaId,
+        name: persona.name,
+        description: persona.description ?? null,
+        language: persona.language ?? null,
+        positiveRoles: persona.positiveRoles ?? [],
+        negativeRoles: persona.negativeRoles ?? [],
+        conditionalRules: persona.conditionalRules ?? [],
+      };
+    }
+  }
 
   return (
     <main className="container" style={{ paddingTop: "var(--spacing-xl)", paddingBottom: "var(--spacing-2xl)" }}>
@@ -176,7 +218,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
           linkUrlB: campaign.linkUrlB || null
         }}
         autoReply={{
-          autoReplyEnabled: (campaign.autoReplyEnabled as any) === true || (campaign.autoReplyEnabled as any) === 1, // Jawna konwersja do boolean (uwzględnij też SQLite integer)
+          autoReplyEnabled: campaign.autoReplyEnabled === true || campaign.autoReplyEnabled === 1,
           autoReplyContext: campaign.autoReplyContext,
           autoReplyRules: campaign.autoReplyRules,
           autoReplyDelayMinutes: campaign.autoReplyDelayMinutes || 15,
@@ -185,6 +227,9 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
           autoReplyGuardianTitle: campaign.autoReplyGuardianTitle,
           autoReplyIncludeGuardian: campaign.autoReplyIncludeGuardian || false, // ✅ NOWE
           autoReplyGuardianIntroText: campaign.autoReplyGuardianIntroText || null // ✅ NOWE
+        }}
+        agenda={{
+          personaCriteria: personaDetails
         }}
       />
 
