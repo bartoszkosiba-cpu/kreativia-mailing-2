@@ -218,7 +218,7 @@ export default async function CampaignDetailsPage({ params }: { params: { id: st
           linkUrlB: campaign.linkUrlB || null
         }}
         autoReply={{
-          autoReplyEnabled: campaign.autoReplyEnabled === true || campaign.autoReplyEnabled === 1,
+          autoReplyEnabled: Boolean(campaign.autoReplyEnabled),
           autoReplyContext: campaign.autoReplyContext,
           autoReplyRules: campaign.autoReplyRules,
           autoReplyDelayMinutes: campaign.autoReplyDelayMinutes || 15,

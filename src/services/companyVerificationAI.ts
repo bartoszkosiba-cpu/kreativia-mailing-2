@@ -4,8 +4,10 @@
  */
 
 import { db } from "@/lib/db";
-import { trackTokenUsage } from "./tokenTracker";
 import { logger } from "./logger";
+import { ensurePolishDescriptions } from "./companyTranslation";
+import { ensureCompanyClassification } from "./companySegmentation";
+import { trackTokenUsage } from "./tokenTracker";
 
 export interface VerificationResult {
   status: "QUALIFIED" | "REJECTED" | "NEEDS_REVIEW";
@@ -243,13 +245,16 @@ export async function verifyAndSaveCompany(
   criteria?: VerificationCriteria | null
 ): Promise<VerificationResult> {
   // Pobierz firmę
-  const company = await db.company.findUnique({
+  let company = await db.company.findUnique({
     where: { id: companyId },
   });
 
   if (!company) {
     throw new Error(`Firma o ID ${companyId} nie została znaleziona`);
   }
+
+  company = await ensurePolishDescriptions(company);
+  company = await ensureCompanyClassification(company);
 
   // SPRAWDŹ CZY FIRMA JEST ZABLOKOWANA - PRZED weryfikacją AI
   const blockedMatch = await checkIfBlocked(company.name);
@@ -295,8 +300,8 @@ export async function verifyAndSaveCompany(
   const result = await verifyCompanyWithAI(
     {
       name: company.name,
-      description: company.description,
-      activityDescription: company.activityDescription,
+      description: company.descriptionPl ?? company.description,
+      activityDescription: company.activityDescriptionPl ?? company.activityDescription,
       industry: company.industry,
       website: company.website,
     },

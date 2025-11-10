@@ -11,6 +11,12 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const industry = searchParams.get("industry");
     const country = searchParams.get("country");
+    const importBatchId = searchParams.get("importBatchId");
+      const batchLanguage = searchParams.get("batchLanguage");
+      const market = searchParams.get("market");
+    const batchName = searchParams.get("batchName");
+    const classificationClass = searchParams.get("classificationClass");
+    const classificationSubClass = searchParams.get("classificationSubClass");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const search = searchParams.get("search");
@@ -27,6 +33,39 @@ export async function GET(req: NextRequest) {
 
     if (country) {
       where.country = country;
+    }
+
+      if (market) {
+        where.market = market;
+      }
+
+    if (importBatchId) {
+      const parsedBatchId = parseInt(importBatchId, 10);
+      if (!Number.isNaN(parsedBatchId)) {
+        where.importBatchId = parsedBatchId;
+      }
+    }
+
+    if (classificationClass) {
+      where.classificationClass = classificationClass;
+    }
+
+    if (classificationSubClass) {
+      where.classificationSubClass = classificationSubClass;
+    }
+
+    const importBatchWhere: any = {};
+    if (batchLanguage) {
+      importBatchWhere.language = batchLanguage;
+    }
+          if (market && !where.market) {
+            importBatchWhere.market = market;
+          }
+    if (batchName && batchName.trim()) {
+      importBatchWhere.name = { contains: batchName.trim() };
+    }
+    if (Object.keys(importBatchWhere).length > 0) {
+      where.importBatch = importBatchWhere;
     }
 
     // Wyszukiwanie po nazwie firmy (case-insensitive dla lepszego wyszukiwania)
@@ -48,6 +87,9 @@ export async function GET(req: NextRequest) {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: "desc" },
+        include: {
+          importBatch: true,
+        },
       }),
       db.company.count({ where }),
     ]);

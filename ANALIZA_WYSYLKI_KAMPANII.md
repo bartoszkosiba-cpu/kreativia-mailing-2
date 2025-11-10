@@ -257,3 +257,6 @@ if (queuedLeadsCount > 0 && queueCount === 0) {
 - `[CAMPAIGN SENDER] ✅ Mail wysłany!` - sukces wysyłki
 
 
+
+
+

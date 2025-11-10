@@ -1,0 +1,791 @@
+Klasyfikacja klientów:
+Klasyfikacja klientów:
+	•	PS - Pośrednik
+	•	WK - Wykonawca
+	•	WKK - Wartościowy Klient Końcowy
+	•	KK - Klient Końcowy
+
+Podsumowanie klas klientów
+
+1. Pośrednicy (PS)
+Charakterystyka:  Pośrednicy to klienci, którzy nie są odbiorcami końcowymi, lecz sprzedają produkty Kreativia dalej, oferując je swoim klientom. To szeroka grupa obejmująca agencje reklamowe, drukarnie wielkoformatowe, sprzedawców internetowych oraz pośredników działających na rynkach zagranicznych.
+Specjalizacje:
+	•	Duże Agencje Reklamowe – realizują kampanie dla klientów Retail, wymagają kompleksowej obsługi i indywidualnych rozwiązań.
+	•	Małe Agencje Reklamowe – obsługują lokalnych klientów, często zamawiają gotowe produkty i korzystają z Kreativia Creator.
+	•	Drukarnie Wielkoformatowe – zlecają produkcję ze względu na brak technologii lub opłacalność, zamawiają druk i konstrukcje.
+	•	Sprzedawcy Internetowi – oferują standardowe produkty reklamowe online, zamawiają regularnie i systematycznie.
+	•	Pośrednicy Sprzedający na Rynki Zagraniczne – handlowcy obsługujący klientów poza Polską, poszukujący najlepszych cen i jakości.
+	•	Wyspecjalizowani Pośrednicy – firmy oferujące konkretną grupę produktów, np. Smart Frame, Signage, Modularico.
+
+2. Wykonawcy (WK)
+Charakterystyka:  Firmy realizujące projekty dla klientów końcowych, w których wykorzystują produkty Kreativia. Współpraca z nimi opiera się na dostarczaniu komponentów do ich realizacji.
+Specjalizacje:
+	•	Firmy Targowe – budują stoiska targowe, zamawiają druk, podwieszenia, litery 3D i Smart Frame.
+	•	Firmy Eventowe – oznakowują wydarzenia, zamawiają tkaniny reklamowe, flagi, płotki oraz tablice z polipropylenu.
+	•	Producenci – produkują wyposażenie dla Retail, korzystają z konstrukcji aluminiowych, Smart Frame i druku.
+	•	Biura Projektowe – specyfikują produkty w projektach wnętrz i identyfikacji wizualnej, kluczowe jest Smart Frame.
+	•	Wykonawcy Budowy i Wykończeń – zajmują się adaptacją przestrzeni handlowych i biurowych, potrzebują Smart Frame, oznakowania i konstrukcji aluminiowych.
+
+3. Wartościowi Klienci Końcowi (WKK)
+Charakterystyka:  Klienci końcowi zamawiający produkty Kreativia na potrzeby własnych działań marketingowych, rebrandingu i aranżacji wnętrz.
+Specjalizacje:
+	•	Sieci Handlowe – zamawiają duże wolumeny produktów do rebrandingu sklepów i kampanii marketingowych.
+	•	Duże i Średnie Marki – realizują kampanie reklamowe i brandingowe, często wymagają indywidualnych rozwiązań i prototypowania.
+
+4. Klienci Końcowi (KK)
+Charakterystyka:  Firmy i instytucje zamawiające produkty Kreativia w mniejszych ilościach, często na jednorazowe potrzeby.
+Specjalizacje:
+	•	Klienci na Modularico – firmy wystawiające się na targach, które potrzebują modułowych systemów stoisk targowych, w opcji wynajmu lub zakupu.
+
+
+Klasa - Pośrednik (PS)
+Podsumowanie klasy Pośrednik (PS):
+
+Charakterystyka:
+Klasa Pośrednik (PS) obejmuje klientów, którzy pełnią rolę pośredników między Kreativia a swoimi klientami końcowymi. To firmy i osoby wyspecjalizowane w sprzedaży, dystrybucji i realizacji projektów wykorzystujących produkty Kreativia. Charakteryzują się różnorodnymi potrzebami, specyficznymi dla obsługiwanych grup klientów, oraz dużym potencjałem w budowaniu długofalowej współpracy. Pośrednicy zarabiają głównie na sprzedaży produktów kupionych w Kreativia, co powoduje, że cena odgrywa istotną, choć nie zawsze kluczową, rolę.
+
+Specjalizacje w klasie PS:
+	•	Duże Agencje Reklamowe – Globalne agencje realizujące złożone kampanie dla klientów Retail i firm produkcyjnych.
+	•	Małe Agencje Reklamowe – Lokalnie działające agencje obsługujące szerokie grono klientów o mniejszych potrzebach.
+	•	Drukarnie Wielkoformatowe – Firmy zlecające produkcję z uwagi na brak technologii lub potrzebę opłacalności.
+	•	Sprzedawcy Internetowi – Mniejsze sklepy internetowe oferujące standardowe produkty reklamowe.
+	•	Pośrednicy Sprzedający na Rynki Zagraniczne – Niezależni handlowcy obsługujący klientów zagranicznych.
+	•	Wyspecjalizowany Pośrednik – Firmy koncentrujące się na określonych grupach produktowych, takich jak Smart Frame, Signage czy Modularico.
+
+Charakter współpracy:
+	•	Pośrednicy zamawiają produkty gotowe, często dostosowywane do specyficznych potrzeb ich klientów.
+	•	Współpraca może być zarówno transakcyjna, jak i długofalowa, zależnie od typu pośrednika.
+	•	Kluczowe znaczenie ma jakość produktów, terminowość realizacji oraz wsparcie techniczne i logistyczne.
+	•	Pośrednicy często oczekują niskiej ceny, aby zachować swoje marże, ale cena nie zawsze jest decydującym czynnikiem – liczy się również elastyczność i wsparcie.
+
+
+
+Zalety:
+	•	Łatwy do zlokalizowania.
+	•	Ma potrzebę na produkty Kreativia.
+	•	Może generować duże wolumeny zamówień.
+	•	Stała współpraca oparta na obsłudze wielu klientów końcowych.
+	•	Jeden pośrednik obsługuje kilku klientów, co zwiększa skalę współpracy.
+
+Wady:
+	•	Potrzebuje niskiej ceny, aby zachować marżę.
+	•	Często krótkie terminy realizacji.
+	•	Może obsługiwać klienta końcowego, którego moglibyśmy obsługiwać bezpośrednio.
+	•	Trudniejsze uzależnienie klienta od Kreativia, istnieje ryzyko zmiany dostawcy.
+
+Potencjał rozwoju:
+	•	Uzależnienie pośredników od narzędzi, takich jak Kreativia Creator, oraz indywidualizacja produktów.
+	•	Wprowadzanie nowych rozwiązań opracowanych wspólnie z wyspecjalizowanymi pośrednikami.
+	•	Rozszerzenie współpracy na rynki zagraniczne oraz rozwój zaawansowanych systemów reklamowych.
+
+
+Duże Agencje Reklamowe
+Duże Agencje Reklamowe – Specjalizacja w klasie Pośrednik (PS)
+
+Charakterystyka:
+	•	Działają globalnie, obsługując kampanie marketingowe klientów o dużej skali.
+	•	Koncentrują się na stałych i powtarzalnych zleceniach o większym wolumenie.
+	•	Liczba klientów jest mniejsza, ale ich zlecenia są większe, bardziej złożone i wymagają precyzyjnego planowania oraz dostosowania oferty do specyficznych potrzeb kampanii.
+
+Potrzeby i oczekiwania:
+	•	Produkty:
+	•	Tkaniny reklamowe: Do różnych systemów i nośników.
+	•	Smart Frame:
+	•	Regularna wymiana grafik dla istniejących kampanii.
+	•	Ramy sprzedawane w momencie potrzeby nowego nośnika w obecnej lub nowej lokalizacji klienta.
+	•	Inne produkty Retail: Stojaki z grafiką i inne rozwiązania dedykowane, wymagające opracowania.
+	•	Wsparcie:
+	•	Obsługa przez handlowca oraz pomoc działu DTP w przygotowaniu plików.
+	•	Logistyka – wysyłka na wiele adresów.
+	•	Charakter zamówień:
+	•	Planowane i przewidywalne, często o dużej skali.
+	•	Produkty dostosowane do budżetu klienta agencji.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania:
+	•	Brak miejsca na błędy i opóźnienia, które mogą wpłynąć na przebieg kampanii.
+	•	Poszukiwanie tańszych dostawców ze względu na dużą skalę zamówień.
+	•	Współpraca:
+	•	Agencje wysyłają zapytania ofertowe, oczekując kompleksowych propozycji – rzadko korzystają z Creatora.
+	•	Wartość dodana w postaci prototypowania i opracowywania produktów na zamówienie.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Lojalność zależy od jakości obsługi, terminowości oraz możliwości dostosowania produktów do budżetu.
+	•	Potencjał rozwoju:
+	•	Rozwój zaawansowanych produktów Retail oraz personalizowanych rozwiązań.
+	•	Długoterminowa współpraca oparta na dostarczaniu kompleksowych usług.
+
+Podsumowanie:
+Duże Agencje Reklamowe są kluczowym segmentem w klasie Pośrednik (PS). Generują duże wolumeny zamówień, które wymagają najwyższych standardów obsługi. Kluczowe wyzwania to zapewnienie jakości, terminowości oraz elastyczności cenowej, co jest niezbędne do utrzymania lojalności. Potencjał rozwoju leży w opracowywaniu dedykowanych rozwiązań oraz wsparciu ich działań logistycznych i produkcyjnych.
+
+
+
+Małe Agencje Reklamowe
+Małe Agencje Reklamowe – Specjalizacja w klasie Pośrednik (PS)
+
+Charakterystyka:
+	•	Działają lokalnie, obsługując większą liczbę klientów o mniejszych potrzebach.
+	•	Obsługują klientów z sektora MŚP oraz lokalnych przedsiębiorców, realizując zarówno jednorazowe kampanie, jak i powtarzalne zlecenia.
+	•	Realizują projekty dynamicznie, dostosowując się do bieżących potrzeb swoich klientów.
+
+Potrzeby i oczekiwania:
+	•	Produkty:
+	•	Druk: Tkaniny reklamowe, materiały sztywne, folie i inne materiały rolowe.
+	•	Signage: Litery 3D, kasetony.
+	•	Smart Frame: Cała oferta produktów Smart Frame.
+	•	Display: Rollupy, flagi, ścianki reklamowe.
+	•	Modularico: Stoiska targowe dla klientów, których obsługują.
+	•	Charakter zamówień:
+	•	Mniejsze wolumeny, ale zdarzają się powtarzalne projekty.
+	•	Produkty dopasowywane do różnorodnych potrzeb klientów końcowych.
+	•	Wsparcie:
+	•	Kreativia Creator: Narzędzie do konfiguracji produktów i szybkiej wyceny.
+	•	Platforma B2B: Przegląd produktów i inspiracje do dopasowania oferty.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania:
+	•	Zróżnicowane potrzeby klientów i konieczność oferowania elastycznych rozwiązań.
+	•	Dynamiczny charakter zamówień, wynikający z nieregularności współpracy.
+	•	Współpraca:
+	•	Relacyjny charakter współpracy – klienci oczekują indywidualnego podejścia i wsparcia technicznego.
+	•	Problemy z pojedynczym zleceniem nie wpływają znacząco na ogólną relację.
+
+
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Mogą uzależnić się od produktów Kreativia dzięki wsparciu narzędziowemu i elastycznej obsłudze.
+	•	Potencjał rozwoju:
+	•	Rozszerzenie oferty o inne grupy produktowe z naszej oferty.
+	•	Dalsze podkreślanie wartości Creatora i platformy B2B w ich pracy.
+
+Podsumowanie:
+Małe Agencje Reklamowe są elastycznym segmentem klientów, generującym różnorodne zlecenia o mniejszej skali, ale często powtarzalne dla klientów sieciowych. Dzięki wsparciu technologicznemu i szerokiej ofercie produktów, współpraca z nimi jest dynamiczna i owocna. Wyzwaniem jest dostosowanie się do ich różnorodnych oczekiwań, ale potencjał rozwoju tkwi w możliwości uzależnienia tych klientów od oferty Kreativia oraz wsparcia w ramach narzędzi Creatora i platformy B2B.
+
+
+Drukarnie Wielkoformatowe
+Drukarnie Wielkoformatowe – Specjalizacja w klasie Pośrednik (PS)
+
+Charakterystyka:
+	•	Duże i małe drukarnie, które zlecają produkcję w Kreativia z powodu braku technologii (np. sublimacja, Smart Frame) lub z uwagi na opłacalność.
+	•	Obsługują różnorodnych klientów końcowych, zamawiając produkty dostosowane do ich potrzeb.
+	•	Współpraca ma charakter transakcyjny i dochodzi do niej w określonych okolicznościach.
+
+Potrzeby i oczekiwania:
+	•	Produkty:
+	•	Druk: Tkaniny reklamowe, materiały sztywne, folie i inne materiały rolowe.
+	•	Systemy reklamowe: Cała oferta Smart Frame.
+	•	Inne: Mogą mieć okazjonalną potrzebę innych produktów z naszej oferty.
+	•	Charakter zamówień:
+	•	Większe projekty związane z drukiem.
+	•	Gotowe konstrukcje reklamowe.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania:
+	•	Konkurencja cenowa – drukarnie mają świadomość kosztów produkcji i szukają najbardziej opłacalnych rozwiązań.
+	•	Zainteresowanie ich naszymi produktami jak Smart Frame, które mogą poszerzyć ich ofertę.
+	•	Współpraca:
+	•	Relacje transakcyjne – zamówienia realizowane, gdy jest to bardziej opłacalne lub konieczne.
+	•	Brak lojalności – drukarnie zmieniają dostawców w zależności od jakości, terminowości i ceny.
+
+
+
+
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Ograniczona – drukarnie zamawiają tylko w przypadku konkretnej potrzeby technologicznej lub opłacalności.
+	•	Potencjał rozwoju:
+	•	Rozwój współpracy w obszarze systemów Smart Frame i zaawansowanych konstrukcji reklamowych.
+	•	Możliwość zwiększenia zaufania przez stałą jakość i terminowość realizacji.
+
+Podsumowanie:
+Drukarnie Wielkoformatowe są klientami transakcyjnymi, którzy zlecają produkcję z powodu braku technologii lub potrzeby opłacalności. Współpraca opiera się na realizacji dużych projektów związanych z drukiem oraz gotowych systemów reklamowych. Kluczowe wyzwania to konkurencja cenowa i zainteresowanie produktami, które mogą poszerzyć ich ofertę, takimi jak Smart Frame. Potencjał rozwoju tkwi w zwiększaniu wartości współpracy przez stałą jakość obsługi oraz budowanie zaufania.
+
+
+
+Sprzedawcy Internetowi
+Sprzedawcy Internetowi – Specjalizacja w klasie Pośrednik (PS)
+
+Charakterystyka:
+	•	Mniejsze sklepy internetowe wyspecjalizowane w reklamie wizualnej, oferujące standardowe produkty reklamowe.
+	•	Ich klienci to różnorodne firmy zamawiające produkty, takie jak rollupy, flagi czy ścianki reklamowe.
+	•	Działają w pełni online, co sprawia, że współpraca jest dynamiczna i nowoczesna.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Display: Rollupy, flagi, ścianki reklamowe – najczęściej zamawiane produkty.
+	•	Smart Frame: Możliwość poszerzenia oferty o całą gamę produktów Smart Frame.
+	•	Materiały rolowe: Naklejki, folie – mniej popularne, ale obecne w asortymencie.
+	•	Druk: Część sprzedawców internetowych zamawia wyłącznie wydruki, które wykorzystują w konstrukcjach pozyskiwanych z własnych źródeł.
+	•	Charakter zamówień: 
+	•	Regularne, mniejsze ilości produktów o zróżnicowanych parametrach (np. różne grafiki, wymiary).
+	•	Możliwość tworzenia indywidualnych parametrów produktów, takich jak nietypowe wymiary konstrukcji ścianek reklamowych, zapisanych wyłącznie dla danego klienta w Kreativia Creator oraz na platformie B2B.
+	•	Wsparcie: 
+	•	Kreativia Creator: Narzędzie do konfiguracji produktów, zapewniające wycenę, specyfikacje, wizualizacje 3D oraz pliki AR.
+	•	Logistyka: Możliwość dostarczania paczek bezpośrednio do klientów końcowych.
+
+
+
+
+
+Wyzwania i współpraca:
+	•	Największe wyzwania:
+	•	Konkurencja cenowa – klienci oczekują atrakcyjnych cen i szerokiej gamy standardowych produktów.
+	•	Standaryzacja produktów – sprzedawcy potrzebują uniwersalnych rozwiązań, które łatwo wdrożyć do oferty online.
+	•	Współpraca:
+	•	Współpraca jest bardziej transakcyjna, ale sprzedawcy są lojalni ze względu na inwestycję w ofertę opartą na produktach Kreativia.
+	•	Kreativia Creator umożliwia łatwą integrację produktów z ich ofertą.
+	•	Możliwość indywidualizacji parametrów produktów wzmacnia współpracę i uzależnia klienta od naszej oferty.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Wysoka – sprzedawcy rzadziej zmieniają dostawcę po włączeniu produktów do swojej oferty.
+	•	Potencjał rozwoju:
+	•	Rozszerzenie oferty o bardziej zaawansowane produkty, takie jak Smart Frame, litery 3D czy Signage.
+	•	Promowanie nowych funkcji Creatora, takich jak zapis indywidualnych parametrów produktów, co pozwala na pełną personalizację oferty dla wybranych klientów.
+
+Podsumowanie:
+Sprzedawcy Internetowi to nowoczesny segment klientów, którzy zamawiają regularnie mniejsze ilości produktów, dostosowane do potrzeb ich klientów końcowych. Niektórzy sprzedawcy zamawiają wyłącznie wydruki do konstrukcji pozyskiwanych z własnych źródeł, co również jest opłacalne i pozwala na tworzenie indywidualnych parametrów produktów w Kreativia Creator. Dzięki wsparciu narzędziowemu oraz logistycznemu, współpraca z nimi jest dynamiczna i stabilna. Kluczowe wyzwania to konkurencja cenowa i potrzeba standaryzacji produktów, ale potencjał rozwoju tkwi w wprowadzaniu zaawansowanych rozwiązań oraz dalszym rozwijaniu funkcji Creatora.
+
+
+
+Pośrednicy Sprzedający na Rynki Zagraniczne
+Pośrednicy Sprzedający na Rynki Zagraniczne – Specjalizacja w klasie Pośrednik (PS)
+
+Charakterystyka:
+	•	Niezależni handlowcy działający na rynkach zagranicznych, głównie w krajach UE, takich jak Niemcy, Francja czy Belgia.
+	•	Zazwyczaj mają doświadczenie w branży reklamowej i znajomość lokalnego rynku oraz języka.
+	•	Współpracują z klientami zagranicznymi, w tym agencjami reklamowymi, agencjami eventowymi, a czasem klientami końcowymi.
+	•	Działają jako pośrednicy między lokalnymi klientami a dostawcami z Polski.
+
+Potrzeby i oczekiwania:
+	•	Produkty:
+	•	Druk: Tkaniny reklamowe, materiały sztywne, folie i inne materiały rolowe.
+	•	Systemy reklamowe: Cała oferta Smart Frame.
+	•	Inne: Produkty dostosowane do specyficznych wymagań rynku zagranicznego.
+	•	Charakter zamówień:
+	•	Większe i mniejsze zamówienia, dostosowane do potrzeb klientów zagranicznych.
+	•	Zróżnicowane zamówienia, obejmujące szeroki zakres produktów z oferty Kreativia.
+	•	Wsparcie:
+	•	Logistyka międzynarodowa: Transport, dokumentacja w języku kraju docelowego, certyfikaty materiałowe.
+	•	Wsparcie techniczne: Pomoc w doborze produktów i technologii.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania:
+	•	Konkurencja cenowa: Pośrednicy szukają najbardziej opłacalnych rozwiązań, porównując oferty różnych dostawców.
+	•	Terminowość i jakość: Nawet niewielkie błędy lub opóźnienia mogą prowadzić do utraty zaufania.
+	•	Rozwój oferty: Zainteresowanie produktami Smart Frame i ich potencjałem na rynkach zagranicznych.
+	•	Współpraca:
+	•	Relacje są transakcyjne, pośrednicy zamawiają, gdy jest to dla nich korzystne i nie mają problemów ze zmianą dostawcy.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Ograniczona – pośrednicy są mniej lojalni, ponieważ kierują się głównie ceną, terminowością i jakością.
+	•	Potencjał rozwoju:
+	•	Rozwój współpracy poprzez wsparcie techniczne i logistyczne, które wyróżnia Kreativia na tle konkurencji.
+	•	Promowanie produktów, takich jak Smart Frame, które mogą poszerzyć ich ofertę.
+
+Podsumowanie:
+Pośrednicy Sprzedający na Rynki Zagraniczne to niezależni handlowcy, którzy działają jako pośrednicy między klientami zagranicznymi a dostawcami z Polski. Zamawiają produkty, takie jak tkaniny reklamowe, materiały sztywne i Smart Frame, dostosowane do potrzeb rynków zagranicznych. Współpraca ma charakter transakcyjny, a kluczowe wyzwania to zapewnienie konkurencyjności cenowej, terminowości oraz jakości. Potencjał rozwoju tkwi w oferowaniu produktów dostosowanych do wymagań rynku oraz wsparciu logistycznym i technicznym.
+
+
+
+Wyspecjalizowany Pośrednik
+Wyspecjalizowany Pośrednik – Specjalizacja w klasie Pośrednik (PS)
+
+Charakterystyka:
+	•	Firmy specjalizujące się w określonych grupach produktowych, takich jak Smart Frame, Signage czy Modularico.
+	•	Obsługują zróżnicowanych klientów, od Retail po klientów końcowych, w zależności od oferowanych produktów.
+	•	Realizują stałe i powtarzalne zlecenia, budując długoterminowe relacje z klientami.
+	•	Współpraca obejmuje tworzenie nowych produktów, dostosowywanie technologii do ich potrzeb, co często prowadzi do wprowadzenia nowych rozwiązań do oferty Kreativia.
+
+Potrzeby i oczekiwania:
+	•	Produkty:
+	•	Smart Frame: Systemy ram aluminiowych z napinaną tkaniną, głównie dla klientów Retail.
+	•	Signage: Litery 3D, kasetony, semafory, pylony – szeroko stosowane w reklamie zewnętrznej dla różnych branż.
+	•	Modularico: Modułowe stoiska targowe, idealne dla sprzedaży internetowej i konfiguracji w Kreativia Creator.
+	•	Charakter zamówień:
+	•	Zamawiają gotowe produkty, które często są częścią większych realizacji.
+	•	Produkty są dostosowywane do ich indywidualnych potrzeb, a Creator pozwala na ich wizualizację i konfigurację.
+	•	Wsparcie:
+	•	Kreativia Creator jako kluczowe narzędzie do wycen, wizualizacji i tworzenia produktów gotowych do sprzedaży online.
+	•	Standardowe wsparcie logistyczne, bez dodatkowych wymagań.
+
+
+
+
+
+
+
+
+
+Wyzwania i współpraca:
+	•	Największe wyzwania:
+	•	Namówienie ich do podjęcia współpracy i rozpoczęcia korzystania z narzędzi Kreativia.
+	•	Dopasowanie produktów do ich indywidualnych potrzeb, co wymaga elastyczności i otwartości na współpracę w zakresie rozwoju nowych rozwiązań.
+	•	Współpraca:
+	•	Relacje oparte na długoterminowej współpracy – po wdrożeniu naszych rozwiązań i narzędzi pośrednicy są raczej lojalni.
+	•	Tworzenie nowych produktów wspólnie z pośrednikami to duża wartość dodana dla obu stron.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Pośrednicy są lojalni, jeśli zaczną korzystać z naszych rozwiązań i narzędzi, takich jak Creator.
+	•	Potencjał rozwoju:
+	•	Rozwój współpracy poprzez wdrażanie zaawansowanych narzędzi sprzedaży i konfiguracji produktów.
+	•	Możliwość wprowadzenia nowych rozwiązań na podstawie ich pomysłów i wymagań, co jednocześnie wzbogaca ofertę Kreativia.
+
+Podsumowanie:
+Wyspecjalizowani Pośrednicy to kluczowy segment w klasie PS, który koncentruje się na określonych grupach produktowych, takich jak Smart Frame, Signage czy Modularico. Dzięki ich wiedzy o rynku oraz możliwości montażu i konfiguracji produktów są wartościowym partnerem. Ich lojalność wynika z korzyści płynących z narzędzi, takich jak Kreativia Creator, oraz elastyczności w dostosowywaniu produktów do ich potrzeb. Wyzwaniem jest rozpoczęcie współpracy, ale potencjał rozwoju tkwi w tworzeniu innowacyjnych rozwiązań wspólnie z tymi pośrednikami.
+
+
+
+Klasa - Wykonawca (WK)
+Klasyfikacja i założenia dla klasy Wykonawca (WK):
+
+Klasyfikacja w klasie Wykonawca (WK):
+	•	Firmy Targowe: 
+	•	Realizują stoiska targowe dla klientów końcowych, korzystając z produktów Kreativia jako elementów swoich projektów.
+
+	•	Firmy Eventowe: 
+	•	Obsługują wydarzenia, takie jak konferencje, koncerty czy eventy promocyjne, wykorzystując systemy reklamowe i tekstylne rozwiązania Kreativia.
+
+	•	Producenci: 
+	•	Firmy zajmujące się produkcją lub montażem wyposażenia, które w swoich realizacjach wykorzystują materiały Kreativia.
+	•	Produkty: Smart Frame, Signage, wybrane produkty druku wielkoformatowego.
+
+	•	Biura Projektowe: 
+	•	Projektanci wnętrz oraz przestrzeni komercyjnych, którzy specyfikują produkty Kreativia w swoich projektach.
+
+	•	Wykonawcy Przebudowy: 
+	•	Firmy zajmujące się adaptacją przestrzeni handlowych, biurowych czy eventowych, realizujące projekty związane z modernizacją i aranżacją wnętrz.
+	•	Produkty: Smart Frame, Signage, wybrane produkty druku wielkoformatowego.
+
+
+
+
+Założenia dla klasy Wykonawca (WK):
+	•	Charakter współpracy: 
+	•	Produkty Kreativia są elementem większych realizacji wykonawcy, a nie końcowym produktem dla ich klientów.
+	•	Współpraca opiera się na dostarczaniu produktów dostosowanych do specyfikacji projektów, często w trybie „just-in-time”.
+	•	Lojalność: 
+	•	Wysoka, jeśli produkty spełniają oczekiwania jakościowe, technologiczne i logistyczne.
+	•	Wykonawcy rzadziej zmieniają dostawców, gdy jakość i terminowość są utrzymane.
+	•	Cena: 
+	•	Cena jest mniej istotna niż dla pośredników (PS), ponieważ produkty Kreativia stanowią część większej realizacji, na której wykonawca zarabia.
+	•	Wsparcie: 
+	•	Wykonawcy potrzebują wsparcia technicznego, szczególnie w zakresie doboru odpowiednich materiałów i technologii.
+	•	Logistyka dostosowana do realizacji na dużą skalę lub w krótkim czasie jest kluczowa.
+
+Zalety współpracy z WK:
+	•	Wysoka lojalność przy spełnieniu oczekiwań jakościowych i logistycznych.
+	•	Stała współpraca w ramach dużych projektów, które generują znaczące wolumeny zamówień.
+	•	Możliwość budowania relacji poprzez wspólne rozwijanie produktów dostosowanych do ich potrzeb.
+
+Wyzwania współpracy z WK:
+	•	Konieczność dostosowania produktów do specyficznych wymagań projektów.
+	•	Utrzymanie wysokiej jakości i terminowości dostaw.
+	•	Współpraca z wykonawcami działającymi na rynkach zagranicznych może wymagać dodatkowego wsparcia technicznego i językowego.
+
+
+
+Firmy Targowe
+Firmy Targowe – Specjalizacja w klasie Wykonawca (WK)
+
+Charakterystyka:
+Współpracują z Kreativia, wykorzystując produkty jako elementy swoich realizacji. Zajmują się projektowaniem, budową i montażem stoisk targowych dla klientów końcowych, integrując produkty Kreativia w swoich kompleksowych projektach.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Druk wielkoformatowy: Tkaniny reklamowe, folie, materiały sztywne.
+	•	Podwieszenia: Gotowe podwieszenia lub same tkaniny z wydrukiem do podwieszeń.
+	•	Litery 3D: Stosowane w oznakowaniach i brandingach stoisk.
+	•	Smart Frame: Systemy ram aluminiowych z napinaną tkaniną, wykorzystywane w stoiskach targowych jako dekoracje lub elementy konstrukcyjne.
+	•	Charakter zamówień: 
+	•	Zlecenia uzależnione są od kalendarza imprez targowych.
+	•	Wymagają precyzji wykonania i weryfikacji jakości oraz zgodności produktu z zamówieniem.
+	•	Wsparcie: 
+	•	Produkcja dostosowana do krótkich terminów i realizacji „just-in-time”, często zlecenia na "ostatnią chwilę".
+	•	Możliwość skorzystania z programu Fast & Smile, oferującego realizację zamówień w bardzo krótkim terminie (np. 24h) za dodatkową opłatą, co wzmacnia relacje i pomaga w sytuacjach kryzysowych.
+
+
+
+
+
+
+
+Wyzwania i współpraca:
+	•	Największe wyzwania: 
+	•	Krótkie terminy realizacji związane z harmonogramami targów.
+	•	Dostosowanie produktów do specyficznych wymagań projektów (np. nietypowe wymiary, personalizacja).
+	•	Sprostanie sytuacjom kryzysowym, które wymagają błyskawicznej reakcji i wsparcia.
+	•	Współpraca: 
+	•	Relacje są bardziej partnerskie – firmy targowe oczekują dostosowania produktów i elastyczności w realizacji zamówień.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Firmy targowe są lojalne, gdy oferowane produkty i wsparcie spełniają ich wymagania jakościowe i logistyczne.
+	•	Potencjał rozwoju:
+	•	Terminowa realizacja zamówień, brak reklamacji oraz wsparcie techniczne i pomoc w plikach DTP wzmacniają relacje z klientem.
+	•	Program Fast & Smile zwiększa zaufanie i wartość współpracy, pomagając w sytuacjach kryzysowych i budując lojalność klientów.
+
+Podsumowanie:
+Firmy Targowe są istotnym segmentem w klasie Wykonawca (WK), realizującym kompleksowe projekty dla klientów końcowych. Produkty Kreativia, takie jak Smart Frame, Signage, druk wielkoformatowy i podwieszenia, są integralną częścią ich realizacji. Kluczowe wyzwania to krótkie terminy i specyficzne wymagania projektów, ale program Fast & Smile, pomoc w sytuacjach kryzysowych oraz wsparcie techniczne mogą znacząco wzmocnić relacje i zwiększyć potencjał współpracy.
+
+
+Firmy Eventowe
+Firmy Eventowe – Specjalizacja w klasie Wykonawca (WK)
+
+Charakterystyka:
+Firmy eventowe obsługują różnorodne wydarzenia, takie jak koncerty, festiwale, konferencje czy imprezy promocyjne, w szczególności w plenerze. Wykorzystują produkty Kreativia do oznakowania, dekoracji i aranżacji przestrzeni eventowych. Zamówienia w tej specjalizacji są dobrze zaplanowane i przewidywalne, dostosowane do kalendarza wydarzeń.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Tkaniny reklamowe:
+	•	Banery tekstylne (np. Meshflag) jako alternatywa dla siatek i banerów PCV.
+	•	Tkaniny na pokrycia konstrukcji estrad, dekoracje oraz nośniki informacji (płachty, elementy konstrukcji).
+	•	Display: Flagi, ścianki, płotki – wykorzystywane jako nośniki reklamowe i dekoracyjne.
+	•	Tablice: Ekonomiczne tablice wykonane z polipropylenu kanalikowego, używane do oznakowania imprez plenerowych.
+	•	Charakter zamówień: 
+	•	Zamówienia dostosowane do kalendarza wydarzeń, bez presji na krótkie terminy.
+	•	Zamówienia muszą być kompletne, zawierać wszystkie elementy, aby uniknąć problemów podczas montażu przed wydarzeniem.
+	•	Wsparcie: 
+	•	Klient nie widzi dużej wartości w Kreativia Creator jako narzędziu do konfiguracji, ale może on służyć jako baza wiedzy o produktach i inspiracja do ich zastosowania.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania: 
+	•	Przekonanie klientów do stosowania banerów tekstylnych (np. Meshflag) jako alternatywy dla siatek i banerów PCV.
+	•	Utrzymanie lojalności klientów poprzez zapewnienie pełnych, zgodnych zamówień i wsparcia technicznego.
+	•	Współpraca: 
+	•	Relacje oparte na terminowości i dostarczaniu zamówień zgodnych z oczekiwaniami.
+	•	Klient jest lojalny, jeśli spełniane są wymagania dotyczące kompletności zamówień i wsparcia.
+
+Relacje i rozwój współpracy:
+	•	Potencjał rozwoju:
+	•	Duży potencjał w znalezieniu nowych klientów.
+	•	Rozwój klienta zależny w większości od jego zapotrzebowania i rodzaju imprez, jakie obsługuje.
+
+Podsumowanie:
+Firmy Eventowe to przewidywalny segment w klasie Wykonawca (WK), realizujący zlecenia zgodne z kalendarzem wydarzeń. Produkty Kreativia, takie jak tkaniny reklamowe (np. Meshflag), flagi, płotki i ekonomiczne tablice z polipropylenu, są integralną częścią ich realizacji. Kluczowe wyzwania to przekonanie klientów do ekologicznych alternatyw dla banerów PCV oraz zapewnienie kompletności zamówień. Potencjał współpracy tkwi w znalezieniu nowych klientów i dostosowaniu się do ich zapotrzebowania oraz obsługiwanych imprez.
+
+
+
+Producenci
+Producenci – Specjalizacja w klasie Wykonawca (WK)
+
+Charakterystyka:
+Producenci wyposażenia i mebli dla Retail to firmy zajmujące się produkcją mebli sklepowych, regałów oraz urządzeń takich jak automaty sprzedażowe, stacje ładowania czy kioski sprzedażowe. Współpracują z Kreativia jako dostawcą komponentów i gotowych rozwiązań, szczególnie przy dużych projektach dla sieci handlowych. Realizują zlecenia na dużą skalę, które często obejmują wiele sklepów w różnych krajach.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Smart Frame: Gotowe ramy aluminiowe lub komponenty, takie jak profile aluminiowe, dostosowane do indywidualnych projektów.
+	•	Druk wielkoformatowy: Tkaniny reklamowe i materiały sztywne używane w wyposażeniu mebli i konstrukcji reklamowych.
+	•	Konstrukcje aluminiowe: Nietypowe realizacje wymagające specjalnych konstrukcji poza standardowymi systemami Smart Frame.
+	•	Charakter zamówień: 
+	•	Duże wolumeny dostosowane do realizacji na wiele sklepów lub lokalizacji.
+	•	Krótkie terminy realizacji wynikające z planów produkcyjnych lub nagłych oczekiwań klientów producenta.
+	•	Zamówienia często obejmują nietypowe projekty wymagające dopasowania rozwiązań Kreativia do dokumentacji technicznej klienta.
+	•	Wsparcie: 
+	•	Partnerskie podejście do realizacji – klient oczekuje jasnych informacji o etapach produkcji i potencjalnych problemach.
+	•	Opracowanie dokumentacji technicznej i współpraca w zakresie projektowania nietypowych rozwiązań.
+	•	Możliwość wdrażania nowych technologii i współpracy z nowymi dostawcami w przypadku niestandardowych projektów.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania: 
+	•	Zrozumienie założeń projektowych klienta oraz analiza dokumentacji technicznej.
+	•	Utrzymanie krótkich terminów i terminowej realizacji zamówień.
+	•	Zapewnienie pełnej przejrzystości procesu produkcji, w tym informowanie o postępach oraz potencjalnych problemach.
+	•	Współpraca: 
+	•	Klienci są lojalni, jeśli zamówienia są realizowane terminowo i spełniają wymagania jakościowe.
+	•	Możliwość wspólnego opracowania nowych produktów i technologii wzmacnia relacje partnerskie.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Wysoka lojalność oparta na jakości produktów, terminowości realizacji i transparentnej komunikacji podczas całego procesu.
+	•	Potencjał rozwoju:
+	•	Wzmacnianie relacji przez realizację dużych projektów oraz wdrażanie niestandardowych rozwiązań.
+	•	Możliwość rozszerzenia współpracy w zakresie nowych konstrukcji aluminiowych i druku wielkoformatowego zintegrowanego z konstrukcjami.
+
+Podsumowanie:
+Producenci wyposażenia i mebli dla Retail to kluczowy segment w klasie Wykonawca (WK), realizujący duże i często nietypowe zlecenia. Produkty Kreativia, takie jak Smart Frame, druk wielkoformatowy i niestandardowe konstrukcje aluminiowe, są integralną częścią ich realizacji. Kluczowe wyzwania obejmują terminowość, transparentność i zrozumienie założeń projektowych. Dzięki doświadczeniu w produkcji konstrukcji aluminiowych i współpracy z tłoczniami profili, Kreativia wzmacnia relacje z tym segmentem, zapewniając kompleksowe rozwiązania dla ich projektów.
+
+
+Biura Projektowe
+Biura Projektowe – Specjalizacja w klasie Wykonawca (WK)
+
+Charakterystyka:
+Biura projektowe zajmują się projektowaniem przestrzeni komercyjnych, takich jak sklepy, galerie handlowe, biura, hotele czy biurowce. Choć współpraca z nimi nie jest jeszcze rozwinięta w Kreativia, stanowią potencjalny segment klientów, który może wprowadzać produkty, takie jak Smart Frame, do swoich projektów. Proces współpracy jest długoterminowy, ponieważ decyzje projektowe wymagają czasu, a zamówienia pojawiają się dopiero na etapie realizacji projektów przez wykonawców.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Smart Frame:
+	•	Systemy ram aluminiowych z napinaną tkaniną jako alternatywa dla tapet i malowania ścian.
+	•	Możliwość tworzenia dużych formatów bez widocznych łączeń.
+	•	Idealne rozwiązania dla dekoracji ścian, sufitów i przestrzeni komercyjnych dzięki opcji podświetlenia LED oraz łatwości wymiany tkanin.
+	•	Zastosowania: 
+	•	Pokrycie ścian i sufitów w przestrzeniach takich jak galerie handlowe, biurowce, hotele i sklepy.
+	•	Rozwiązania dekoracyjne i funkcjonalne, np. łatwość odsłonięcia ścian w celu dojścia do instalacji technicznych.
+	•	Wsparcie: 
+	•	Edukacja projektantów na temat zalet Smart Frame jako innowacyjnej technologii.
+	•	Dostarczanie próbek, wzorników i materiałów wizualnych (np. wizualizacje, zdjęcia realizacji) wspierających wprowadzenie produktu do projektów.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania: 
+	•	Budowanie świadomości Smart Frame jako rozwiązania dekoracyjnego i funkcjonalnego w przestrzeniach komercyjnych poza Retail.
+	•	Długi czas od wprowadzenia produktu do projektu do momentu realizacji zamówienia.
+	•	Współpraca: 
+	•	Relacje opierają się na edukacji i wsparciu projektantów w procesie włączania produktów do projektów.
+	•	Biura projektowe mogą rekomendować produkty Kreativia w swoich projektach oraz wskazywać wykonawców odpowiedzialnych za realizację.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Wysoka, jeśli produkty są łatwe do uwzględnienia w projektach oraz jeśli Kreativia wspiera biura projektowe w edukacji i dostarczaniu materiałów pomocniczych.
+	•	Potencjał rozwoju:
+	•	Rozwój poprzez zwiększanie świadomości Smart Frame jako unikalnego rozwiązania dla dużych formatów, dekoracji ścian i sufitów.
+	•	Wprowadzenie dedykowanych materiałów edukacyjnych i marketingowych, wspierających pracę projektantów.
+
+Podsumowanie:
+Biura Projektowe to potencjalny segment w klasie Wykonawca (WK), który może wprowadzać produkty Kreativia, takie jak Smart Frame, do przestrzeni komercyjnych. System Smart Frame oferuje unikalne korzyści, takie jak możliwość tworzenia dużych formatów bez widocznych łączeń, idealne podświetlenie LED oraz łatwość wymiany grafik. Kluczowe wyzwania to budowanie świadomości produktu oraz długi czas oczekiwania na zamówienia wynikający z cyklu realizacji projektów. Współpraca opiera się na edukacji projektantów i dostarczaniu materiałów wspierających integrację Smart Frame w ich projektach.
+
+
+
+Wykonawcy Budowy i Wykończeń
+Wykonawcy Budowy i Wykończeń – Specjalizacja w klasie Wykonawca (WK)
+
+Charakterystyka:
+Wykonawcy budowy i wykończeń to firmy zajmujące się realizacją nowych obiektów oraz przebudową i wykańczaniem wnętrz w przestrzeniach takich jak galerie handlowe, biurowce, hotele czy sklepy. Ich działalność koncentruje się na końcowych etapach budowy, takich jak aranżacja wnętrz oraz instalacja elementów dekoracyjnych i funkcjonalnych. Często współpracują z projektantami, którzy specyfikują produkty Kreativia w projektach.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Smart Frame: Systemy ram aluminiowych z napinaną tkaniną, stosowane w dekoracji ścian i sufitów, często w dużych formatach.
+	•	Ściany i dekoracje: Tapety, obrazy, sztywne płyty z wydrukiem (np. Dibond) do wykańczania wnętrz.
+	•	Signage: Litery 3D i inne elementy oznakowania zewnętrznego.
+	•	Konstrukcje aluminiowe: Nietypowe rozwiązania wymagające personalizacji, podobne do tych oferowanych producentom.
+	•	Charakter zamówień: 
+	•	Zamówienia dostosowane do specyfikacji projektowej oraz harmonogramu budowy lub wykończenia.
+	•	Wymagają krótkich terminów realizacji, szczególnie na końcowym etapie projektu.
+	•	Nietypowe zamówienia mogą wymagać opracowania nowych rozwiązań i współpracy z dodatkowymi dostawcami.
+	•	Wsparcie: 
+	•	Transparentna komunikacja na każdym etapie realizacji, w tym informowanie o postępach i potencjalnych problemach.
+	•	Opracowanie dokumentacji technicznej oraz dopasowanie produktów do specyfikacji projektowej klienta.
+
+
+
+
+Wyzwania i współpraca:
+	•	Największe wyzwania: 
+	•	Dopasowanie produktów do specyficznych wymagań projektów oraz zapewnienie ich zgodności z dokumentacją techniczną.
+	•	Utrzymanie krótkich terminów realizacji oraz terminowej dostawy produktów.
+	•	Współpraca przy nietypowych zleceniach wymagających personalizacji i zaawansowanego wsparcia technicznego.
+	•	Współpraca: 
+	•	Relacje opierają się na partnerskim podejściu – klient oczekuje elastyczności i dostosowania do swoich potrzeb projektowych.
+	•	Wykonawcy są lojalni, jeśli zamówienia spełniają ich wymagania jakościowe, logistyczne i techniczne.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Wysoka, jeśli produkty i wsparcie techniczne spełniają oczekiwania klientów oraz realizacja jest terminowa.
+	•	Potencjał rozwoju:
+	•	Możliwość rozszerzenia współpracy poprzez wprowadzanie nowych produktów i rozwiązań dostosowanych do specyficznych projektów.
+	•	Rozwój współpracy w zakresie konstrukcji aluminiowych i produktów dekoracyjnych, które mogą być stosowane w dużych projektach komercyjnych.
+
+Podsumowanie:
+Wykonawcy Budowy i Wykończeń to kluczowy segment w klasie Wykonawca (WK), który realizuje duże projekty w przestrzeniach komercyjnych. Produkty Kreativia, takie jak Smart Frame, tapety, płyty z wydrukiem, litery 3D i nietypowe konstrukcje aluminiowe, są integralną częścią ich realizacji. Kluczowe wyzwania obejmują terminowość, dopasowanie do dokumentacji technicznej i transparentną komunikację. Potencjał współpracy tkwi w tworzeniu zaawansowanych rozwiązań dostosowanych do dużych projektów oraz w budowaniu długofalowych relacji partnerskich.
+
+
+
+Klasa - Wartościowi Klienci Końcowi (WKK)
+Klasa Wartościowi Klienci Końcowi (WKK) – Klasyfikacja i Założenia
+
+Klasyfikacja w klasie WKK:
+	•	Sieci handlowe: 
+	•	Klienci posiadający liczne lokalizacje sklepów, którzy wymagają regularnych dostaw materiałów reklamowych i systemów ekspozycyjnych.
+	•	Duże marki: 
+	•	Klienci prowadzący duże kampanie reklamowe i promocyjne, wymagający zaawansowanych produktów i rozwiązań.
+	•	Średnie marki: 
+	•	Klienci o mniejszej skali działania, ale z regularnymi potrzebami w zakresie reklamy wizualnej i dekoracji przestrzeni.
+
+Założenia dla klasy WKK:
+	•	Charakterystyka współpracy: 
+	•	Klienci końcowi zamawiają produkty bezpośrednio w Kreativia na potrzeby swoich kampanii, rebrandingu lub aranżacji przestrzeni.
+	•	Zamówienia mogą obejmować zarówno regularne dostawy, jak i projekty specjalne.
+	•	Produkty: 
+	•	Smart Frame: Systemy ram aluminiowych dla aranżacji przestrzeni handlowych i reklamowych.
+	•	Signage: Litery 3D, kasetony, pylony, wykorzystywane w identyfikacji wizualnej.
+	•	Druk wielkoformatowy: Tkaniny reklamowe, materiały sztywne, folie.
+	•	Systemy ekspozycyjne: Display, flagi, rollupy.
+	•	Cena i budżet: 
+	•	WKK mniej odczuwają presję cenową niż klienci w klasie Pośrednik (PS). Kluczowa jest jakość i dostosowanie produktów do potrzeb.
+	•	Wsparcie: 
+	•	Klienci oczekują kompleksowej obsługi, w tym wsparcia technicznego, pomocy w DTP oraz terminowych dostaw.
+	•	Transparentna komunikacja i elastyczność są kluczowe, szczególnie przy realizacji dużych projektów.
+
+Zalety współpracy z WKK:
+	•	Klienci WKK generują duże i regularne zamówienia, co zapewnia stabilność współpracy.
+	•	Możliwość budowania długofalowych relacji partnerskich opartych na zaufaniu i kompleksowej obsłudze.
+	•	Potencjał do rozwijania dedykowanych produktów i rozwiązań w odpowiedzi na ich potrzeby.
+
+Wyzwania współpracy z WKK:
+	•	Utrzymanie wysokiej jakości obsługi przy dużych wolumenach zamówień.
+	•	Dostosowanie produktów i procesów logistycznych do indywidualnych wymagań klientów.
+	•	Wsparcie w realizacji niestandardowych projektów, które mogą wymagać wdrożenia nowych technologii lub rozwiązań.
+
+
+
+Sieci Handlowe
+Sieci Handlowe – Specjalizacja w klasie Wartościowi Klienci Końcowi (WKK)
+
+Charakterystyka:
+Sieci handlowe to klienci posiadający liczne lokalizacje sklepów, które wymagają regularnych dostaw materiałów reklamowych, systemów ekspozycyjnych i oznakowania. Ich potrzeby wynikają z kampanii marketingowych, rebrandingu, zmian aranżacji sklepów oraz otwierania nowych lokalizacji. Współpraca z nimi opiera się na długoterminowych projektach oraz stałych, powtarzalnych zamówieniach.
+Większość sieci handlowych obsługujemy na rynku polskim, ale handlowcy działający na rynkach zagranicznych również posiadają klientów końcowych. Istnieje potencjał do zwiększenia liczby takich klientów na rynkach zagranicznych.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Smart Frame: Systemy ram aluminiowych stosowane w witrynach, ścianach ekspozycyjnych i strefach promocyjnych.
+	•	Signage: Litery 3D, kasetony, pylony – wykorzystywane do oznakowania sklepów i komunikacji wizualnej.
+	•	Druk wielkoformatowy: Tkaniny reklamowe, materiały sztywne, folie – używane w ekspozycjach i kampaniach promocyjnych.
+	•	Systemy ekspozycyjne: Display, flagi, rollupy – stosowane w strefach promocyjnych i marketingu wizualnym.
+	•	Charakter zamówień: 
+	•	Powtarzalne zamówienia związane z cyklicznymi kampaniami oraz rebrandingiem sklepów.
+	•	Duże wolumeny dostosowane do wielu lokalizacji.
+	•	Wymagają elastycznej logistyki oraz możliwości dostawy na wiele adresów.
+	•	Wsparcie: 
+	•	Pomoc w dostosowywaniu produktów do specyfikacji i standardów sieci.
+	•	Transparentność i przejrzysta komunikacja na każdym etapie realizacji.
+	•	Możliwość przygotowania dokumentacji technicznej oraz próbek produktów do akceptacji.
+
+
+
+Wyzwania i współpraca:
+	•	Największe wyzwania: 
+	•	Utrzymanie wysokiej jakości i terminowości dostaw przy dużych wolumenach zamówień.
+	•	Dopasowanie produktów do identyfikacji wizualnej sieci handlowej i wymogów aranżacyjnych.
+	•	Obsługa logistyczna obejmująca wiele lokalizacji.
+	•	Rozwój współpracy z klientami zagranicznymi i budowanie ich większej liczby.
+	•	Możliwość opracowania dla sieci nowego i ciekawego rozwiązania, co jest zaletą, ale również ryzykiem, ponieważ może ono zostać później wykonane przez innego dostawcę, np. taniej.
+	•	Ograniczenia w zakresie montażu – niektóre sieci handlowe wymagają montażu elementów ekspozycyjnych w swoich sklepach, np. folii na witrynach, tkanin w ramach czy oznakowania.
+	•	Rozwiązaniem jest Smart Frame, który umożliwia prostą wymianę grafik przez pracowników sklepu, eliminując konieczność angażowania zewnętrznych ekip montażowych.
+	•	Folie samoprzylepne z klejem kropelkowym pozwalają na łatwą aplikację przez niewykwalifikowane osoby, co zmniejsza koszty operacyjne.
+	•	Kreativia posiada jedną ekipę montażową, ale nie rozwija tej usługi, więc nie jest w stanie zaoferować montaży w wielu lokalizacjach w jednym czasie.
+	•	Alternatywnie montaż można zlecać firmom lokalnym, ale wymaga to zaawansowanej koordynacji ze strony managera projektu, co może wiązać się z dodatkowymi kosztami i wyzwaniami organizacyjnymi.
+	•	Współpraca: 
+	•	Sieci handlowe oczekują stałej dostępności produktów oraz zdolności do realizacji dużych zamówień w krótkim czasie.
+	•	Kluczowe jest zapewnienie zgodności produktów z wymaganiami sieci i dostosowanie procesów logistycznych do ich oczekiwań.
+
+
+
+
+
+
+
+
+Relacje i rozwój współpracy:
+	•	Lojalność: 
+	•	Lojalność zależy od struktury klienta – jeśli posiada mały dział marketingu, często zostaje z nami na dłużej.
+	•	W przypadku dużych działów marketingu lub zmian kadrowych, szczególnie na wysokich stanowiskach, może następować poszukiwanie alternatyw i najtańszej oferty.
+	•	Potencjał rozwoju: 
+	•	Możliwość wprowadzania nowych rozwiązań produktowych dostosowanych do potrzeb sieci.
+	•	Długoterminowa współpraca oparta na kompleksowej obsłudze i dostosowaniu produktów do ich cyklicznych kampanii.
+	•	Zwiększenie liczby klientów końcowych na rynkach zagranicznych poprzez lepsze ukierunkowanie działań handlowych.
+
+Podsumowanie:
+Sieci Handlowe to kluczowy segment w klasie WKK, generujący powtarzalne, dużej skali zamówienia związane z kampaniami marketingowymi, rebrandingiem i ekspozycją sklepów. Produkty Kreativia, takie jak Smart Frame, Signage, druk wielkoformatowy oraz systemy ekspozycyjne, są integralną częścią ich aranżacji i komunikacji wizualnej. Kluczowe wyzwania to terminowość, jakość oraz obsługa logistyczna dostosowana do wielu lokalizacji.
+Dodatkowym wyzwaniem jest montaż ekspozycji – Kreativia nie oferuje szeroko zakrojonych usług montażowych, dlatego alternatywą jest dostarczanie produktów umożliwiających samodzielny montaż, takich jak Smart Frame czy folie z klejem ułatwiającym aplikację. Istnieje również potencjał do zwiększenia liczby klientów końcowych na rynkach zagranicznych, co może stanowić kolejny kierunek rozwoju współpracy.
+
+
+
+Duże i Średnie Marki
+Duże i Średnie Marki – Specjalizacja w klasie Wartościowi Klienci Końcowi (WKK)
+
+Charakterystyka:
+Duże i średnie marki to klienci końcowi zamawiający produkty Kreativia bezpośrednio na potrzeby swoich kampanii marketingowych, wprowadzania nowych produktów, rebrandingu oraz aranżacji wnętrz. Współpraca z nimi polega na dostarczaniu dedykowanych rozwiązań dostosowanych do ich branży, specyfiki działania i budżetu.
+	•	Duże marki mają bardziej rozbudowane struktury i większą liczbę szczebli decyzyjnych, co sprawia, że procesy akceptacji trwają dłużej.
+	•	Średnie marki są bardziej elastyczne – często decyzje podejmują właściciele lub mniejsze zespoły zarządzające, co przyspiesza proces współpracy.
+Działy marketingu w obu przypadkach chętnie korzystają z naszej wiedzy i wsparcia, są otwarte na nowe rozwiązania i produkty, co daje duży potencjał do kreowania innowacyjnych rozwiązań.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Smart Frame: Systemy ram aluminiowych stosowane w showroomach, przestrzeniach biurowych oraz w kampaniach promocyjnych.
+	•	Signage: Litery 3D, kasetony, pylony – do oznakowania biur, punktów sprzedaży i przestrzeni ekspozycyjnych.
+	•	Druk wielkoformatowy: Tkaniny reklamowe, materiały sztywne, folie – wykorzystywane do aranżacji wnętrz i komunikacji wizualnej.
+	•	Systemy ekspozycyjne: Rollupy, flagi, ścianki reklamowe – stosowane w eventach, biurach i działaniach marketingowych.
+	•	Charakter zamówień: 
+	•	Zamówienia nie są cykliczne jak w sieciach handlowych – dotyczą najczęściej nowych produktów i kampanii z nimi związanych.
+	•	Kluczowe znaczenie ma dostosowanie produktu do specyfiki danej branży i jej identyfikacji wizualnej.
+	•	Ważnym elementem współpracy jest prototypowanie, które pozwala na testowanie rozwiązań przed wdrożeniem ich na większą skalę.
+	•	Wsparcie: 
+	•	Klienci oczekują pełnego dopasowania produktów do ich specyficznych wymagań.
+	•	Transparentna komunikacja na każdym etapie realizacji i możliwość konsultacji technicznych.
+	•	Przygotowanie dokumentacji technicznej, wizualizacji oraz próbek produktów.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania: 
+	•	Stworzenie unikalnych rozwiązań, które dopasują się do wizerunku i charakterystyki marki.
+	•	Możliwość opracowania nowych produktów lub technologii, ale z ryzykiem, że klient zdecyduje się na ich realizację u innego dostawcy, który zaoferuje niższą cenę.
+	•	Potrzeba stałej obsługi i zaangażowania zespołu handlowego, mimo że potencjał zakupowy tych klientów jest mniejszy niż w sieciach handlowych.
+	•	Konieczność rozważenia, w jakiej ilości klienci tej kategorii powinni znajdować się w portfolio handlowca – nie każdy dział handlowy specjalizuje się w ich obsłudze.
+	•	Współpraca: 
+	•	Klienci oczekują dostosowania produktów do ich strategii marketingowej poprzez odpowiedni dobór produktów standardowych oraz opracowanie nowych rozwiązań w oparciu o technologie i możliwości produkcyjne Kreativia.
+	•	Projekty są realizowane w terminach dostosowanych do naszych możliwości – nie ma presji na krótkie terminy, ale wymagana jest precyzja i zgodność z założeniami marki.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Klienci są lojalni, o ile produkty spełniają ich oczekiwania, ale mogą przejść do konkurencji, jeśli pojawi się bardziej innowacyjne i atrakcyjne rozwiązanie.
+	•	Potencjał rozwoju:
+	•	Możliwość rozszerzania współpracy poprzez wprowadzanie nowych produktów i rozwiązań dostosowanych do danej branży.
+	•	Dział Tomasza Glapki specjalizuje się w obsłudze tego typu klientów, co pozwala na skuteczniejszą realizację ich potrzeb.
+
+
+
+Podsumowanie:
+Duże i średnie marki to wartościowi klienci końcowi, którzy wymagają dedykowanych rozwiązań i wysokiego poziomu obsługi. Ich zamówienia koncentrują się wokół nowych produktów i kampanii, a nie cyklicznych projektów. Kluczowym elementem współpracy jest prototypowanie, które umożliwia testowanie rozwiązań przed wdrożeniem.
+Duże marki mają bardziej złożoną strukturę decyzyjną i wymagają dłuższego procesu akceptacji, podczas gdy średnie marki są bardziej elastyczne i umożliwiają szybsze podejmowanie decyzji. Lojalność tych klientów jest wysoka, ale mogą oni zmienić dostawcę, jeśli pojawi się ciekawsze lub bardziej innowacyjne rozwiązanie.
+Współpraca wymaga stałej obsługi i zaangażowania, dlatego należy rozważyć, w jakiej ilości tacy klienci powinni być w portfolio handlowca. Nie każdy dział handlowy obsługuje ich w taki sam sposób – przykładem specjalizacji w tym zakresie jest dział Tomasza Glapki.
+
+
+Klasa - Klient Końcowy (KK)
+Klient na Modularico – Specjalizacja w klasie Klienci Końcowi (KK)
+
+Charakterystyka:
+Klienci na Modularico to firmy i instytucje wystawiające się na targach, eventach lub konferencjach, które poszukują modułowego systemu stoisk targowych. Zamówienia mogą dotyczyć zarówno zakupu, jak i wynajmu stoisk w zależności od ich budżetu, częstotliwości wystawiania się oraz strategii marketingowej.
+Ich potrzeby są różnorodne – niektórzy szukają jednorazowego rozwiązania, inni długoterminowej inwestycji w system, który pozwoli na wielokrotne wykorzystanie. Klientów Modularico można podzielić na kilka typów:
+	•	Klient jednorazowy: Szuka gotowego rozwiązania na jedne targi i rzadko wraca.
+	•	Klient regularny: Korzysta z targów kilka razy w roku i może być zainteresowany wynajmem lub zakupem modułowego systemu.
+	•	Klient długoterminowy: Inwestuje w modułowe stoisko na własność, używa go przez kilka lat i wymienia tylko grafiki lub elementy.
+
+Potrzeby i oczekiwania:
+	•	Produkty: 
+	•	Modularico – systemy modułowych stoisk targowych: Możliwość zakupu i wynajmu w różnych konfiguracjach.
+	•	Druk wielkoformatowy: Grafiki na tkaninach do stoisk, możliwość wymiany grafik przy zachowaniu tej samej konstrukcji.
+	•	Dodatkowe wyposażenie: Oświetlenie, podesty, lady, elementy brandingowe do uzupełnienia stoiska.
+	•	Charakter zamówień: 
+	•	Zamówienia mogą być jednorazowe (np. stoisko na konkretne targi) lub powtarzalne (np. rozbudowa systemu, wymiana grafik).
+	•	Klienci często mają ograniczony budżet, dlatego wybór między wynajmem a zakupem jest kluczowy.
+	•	Dla klientów wystawiających się cyklicznie ważne są rozwiązania wielokrotnego użytku i możliwość ich modyfikacji.
+	•	Wsparcie: 
+	•	Pomoc w wyborze optymalnego rozwiązania w zależności od potrzeb klienta.
+	•	Wizualizacje, dokumentacja techniczna i doradztwo w zakresie konfiguracji stoiska.
+	•	Możliwość wynajmu z pełną obsługą lub samodzielnej konfiguracji przez klienta.
+
+Wyzwania i współpraca:
+	•	Największe wyzwania: 
+	•	Klienci często porównują oferty różnych dostawców pod kątem ceny i elastyczności rozwiązania.
+	•	Niektórzy klienci mają ograniczone doświadczenie w projektowaniu stoisk, co wymaga dodatkowego doradztwa i edukacji.
+	•	Modularico jest konkurencyjną opcją, ale klienci mogą porównywać je z tradycyjną zabudową targową, co wymaga podkreślenia zalet modułowości.
+	•	Współpraca: 
+	•	Kluczowe jest dostosowanie oferty do strategii wystawienniczej klienta.
+	•	Długoterminowi klienci mogą korzystać z oferty wymiany grafik zamiast kupowania nowego stoiska.
+	•	Możliwość stopniowego rozbudowywania stoisk dla klientów, którzy zaczynają od mniejszego systemu.
+
+Relacje i rozwój współpracy:
+	•	Lojalność:
+	•	Klienci są lojalni, jeśli system spełnia ich oczekiwania i daje możliwość elastycznej adaptacji.
+	•	Możliwość wielokrotnego wykorzystania stoiska i wymiany grafik zwiększa szanse na długoterminową współpracę.
+	•	Potencjał rozwoju:
+	•	Klienci, którzy zaczynają od wynajmu, mogą w przyszłości zdecydować się na zakup własnego systemu.
+	•	Możliwość rozszerzenia oferty o dodatkowe wyposażenie i serwis dla klientów posiadających własne stoiska.
+
+Podsumowanie:
+Klienci na Modularico to firmy i instytucje wystawiające się na targach, które potrzebują modułowego systemu stoisk targowych. Ich wybory zależą od budżetu, strategii marketingowej oraz częstotliwości uczestnictwa w wydarzeniach. Modularico wyróżnia się modułowością i możliwością łatwej modyfikacji, co sprawia, że jest atrakcyjną alternatywą dla klasycznej zabudowy targowej.
+Kluczowe wyzwania to edukacja klientów w zakresie zalet systemu oraz porównywanie oferty z konkurencją. Potencjał rozwoju tkwi w długoterminowej współpracy z klientami, którzy mogą zaczynać od wynajmu, a w przyszłości zdecydować się na zakup własnego stoiska.
+

@@ -127,3 +127,6 @@ curl http://localhost:3000/api/campaigns/4/sending-info
 - Sprawdź czy są błędy: `[CAMPAIGN SENDER] ❌`
 
 
+
+
+

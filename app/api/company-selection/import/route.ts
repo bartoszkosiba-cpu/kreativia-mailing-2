@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/services/logger";
+import { ensureCompanyClassification } from "@/services/companySegmentation";
+
+const ALLOWED_MARKETS = ["PL", "DE", "FR", "EN"] as const;
+type MarketCode = (typeof ALLOWED_MARKETS)[number];
+
+function normalizeMarket(value: unknown): MarketCode | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = String(value).toUpperCase().trim();
+  return (ALLOWED_MARKETS as readonly string[]).includes(normalized) ? (normalized as MarketCode) : null;
+}
 
 /**
  * Import firm z CSV
@@ -9,7 +21,23 @@ import { logger } from "@/services/logger";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { companies } = body;
+    const {
+      companies,
+      batchId: incomingBatchId,
+      batchName,
+      batchLanguage,
+      totalRows,
+      batchMarket: incomingBatchMarket,
+    }: {
+      companies: any[];
+      batchId?: number;
+      batchName?: string;
+      batchLanguage?: "PL" | "EN" | "DE" | "FR";
+      totalRows?: number;
+      batchMarket?: "PL" | "DE" | "FR" | "EN";
+    } = body;
+
+    let batchMarket = incomingBatchMarket ?? null;
 
     console.log(`[Company Import] Otrzymano request, typ danych:`, typeof companies);
     console.log(`[Company Import] Liczba firm:`, Array.isArray(companies) ? companies.length : 'NIE JEST TABLICĄ');
@@ -21,8 +49,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    logger.info("company-import", `Rozpoczynam import ${companies.length} firm`);
-    
+    let batchId = incomingBatchId ?? null;
+
+    if (batchId === null) {
+      if (!batchName || !batchLanguage || typeof totalRows !== "number" || !batchMarket) {
+        return NextResponse.json(
+          { error: "Brakuje danych partii importu (batchName, batchLanguage, batchMarket, totalRows)" },
+          { status: 400 }
+        );
+      }
+
+      const createdBatch = await db.companyImportBatch.create({
+        data: {
+          name: batchName,
+          language: batchLanguage,
+          market: batchMarket,
+          totalRows,
+        },
+      });
+      batchId = createdBatch.id;
+      logger.info(
+        "company-import",
+        `Utworzono nową partię importu "${createdBatch.name}" (ID: ${createdBatch.id}, język: ${createdBatch.language}, rynek: ${createdBatch.market}, rekordy: ${createdBatch.totalRows})`
+      );
+    } else {
+      const existingBatch = await db.companyImportBatch.findUnique({ where: { id: batchId } });
+      if (!existingBatch) {
+        return NextResponse.json(
+          { error: `Partia importu o ID ${batchId} nie istnieje` },
+          { status: 404 }
+        );
+      }
+      if (!batchMarket) {
+        batchMarket = normalizeMarket(existingBatch.market) ?? null;
+      }
+      if (!batchMarket) {
+        return NextResponse.json(
+          { error: "Nie udało się określić rynku dla istniejącej partii importu" },
+          { status: 400 }
+        );
+      }
+    }
+
+    logger.info("company-import", `Rozpoczynam import ${companies.length} firm (batchId: ${batchId})`);
+
     // Sprawdź czy db.company jest dostępne
     if (!db.company) {
       logger.error("company-import", "db.company jest undefined!", null, new Error("Model Company nie jest dostępny"));
@@ -76,9 +146,16 @@ export async function POST(req: NextRequest) {
 
         // Mapowanie kolumn CSV do pól bazy danych
         // Obsługujemy zarówno polskie jak i angielskie nazwy kolumn
+        const inferredMarket =
+          companyData["Rynek"] ||
+          companyData["Market"] ||
+          companyData["market"] ||
+          batchMarket;
+
         const company = {
           name: companyData["Nazwa"] || companyData["Company Name"] || companyData["Company Name for Emails"] || companyData.name || companyData["name"] || "",
           industry: companyData["Branża"] || companyData["Industry"] || companyData.industry || companyData["industry"] || null,
+          market: normalizeMarket(inferredMarket),
           country: companyData["Kraj"] || companyData["Company Country"] || companyData.country || companyData["country"] || null,
           city: companyData["Miasto"] || companyData["Company City"] || companyData.city || companyData["city"] || null,
           postalCode: companyData["Kod pocztowy"] || companyData["Company Postal Code"] || companyData.postalCode || companyData["postalCode"] || null,
@@ -110,12 +187,25 @@ export async function POST(req: NextRequest) {
           csvModifiedBy: companyData["Użytkownik modyfikujący"] || companyData.csvModifiedBy || companyData["csvModifiedBy"] || null,
         };
 
+        // Normalizuj podstawowe pola tekstowe
+        company.name = company.name?.toString().trim();
+        company.website = company.website?.toString().trim() || null;
+
         // Jeśli brak nazwy, pomiń
         if (!company.name || company.name.trim() === "") {
           logger.warn("company-import", `Pominięto firmę bez nazwy (wiersz ${i + 1})`, {
             availableKeys: Object.keys(companyData),
             sampleData: Object.entries(companyData).slice(0, 5),
           });
+          skippedCount++;
+          continue;
+        }
+
+        // Jeśli brak strony www, pomiń
+        if (!company.website) {
+          if (skippedCount < 5) {
+            logger.warn("company-import", `Pominięto firmę bez strony www: "${company.name}" (wiersz ${i + 1})`);
+          }
           skippedCount++;
           continue;
         }
@@ -144,17 +234,9 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing) {
-          // Aktualizuj istniejącą firmę
-          const updated = await db.company.update({
-            where: { id: existing.id },
-            data: {
-              ...company,
-              verificationStatus: verificationStatus !== "PENDING" ? verificationStatus : existing.verificationStatus,
-            },
-          });
-          updatedCount++;
-          if (updatedCount <= 3) {
-            console.log(`[Company Import] Zaktualizowano firmę: ${updated.name} (ID: ${updated.id})`);
+          skippedCount++;
+          if (skippedCount <= 3) {
+            logger.debug("company-import", `Pominięto duplikat firmy: "${existing.name}" (ID: ${existing.id}) w batchId ${batchId}`);
           }
         } else {
           // Utwórz nową firmę
@@ -163,8 +245,10 @@ export async function POST(req: NextRequest) {
             data: {
               ...company,
               verificationStatus,
+              importBatchId: batchId,
             },
           });
+          await ensureCompanyClassification(created);
           importedCount++;
           logger.info("company-import", `Utworzono firmę: ${created.name} (ID: ${created.id})`);
         }
@@ -180,9 +264,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await db.companyImportBatch.update({
+      where: { id: batchId },
+      data: {
+        processedRows: { increment: companies.length },
+        importedCount: { increment: importedCount },
+        updatedCount: { increment: updatedCount },
+        skippedCount: { increment: skippedCount },
+        errorCount: { increment: errors.length },
+        updatedAt: new Date(),
+      },
+    });
+
     // Sprawdź ile firm jest teraz w bazie
     const totalInDb = await db.company.count();
-    logger.info("company-import", `Zakończono import: ${importedCount} zaimportowanych, ${updatedCount} zaktualizowanych, ${skippedCount} pominiętych, łącznie w bazie: ${totalInDb}`);
+    logger.info(
+      "company-import",
+      `Zakończono import (batchId: ${batchId}): ${importedCount} zaimportowanych, ${updatedCount} zaktualizowanych, ${skippedCount} pominiętych, łącznie w bazie: ${totalInDb}`
+    );
 
     return NextResponse.json({
       success: true,
@@ -193,6 +292,7 @@ export async function POST(req: NextRequest) {
       totalInDb: totalInDb,
       errors: errors.length > 0 ? errors.slice(0, 10) : undefined, // Pokaż pierwsze 10 błędów
       errorCount: errors.length,
+      batchId,
     });
   } catch (error) {
     console.error("[Company Import] Błąd:", error);

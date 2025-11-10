@@ -131,8 +131,16 @@ export default function Navbar() {
       label: "Weryfikacja"
     },
     { 
+      href: "/company-selection/selections", 
+      label: "Nowa baza firm"
+    },
+    { 
       href: "/company-selection/blocked", 
       label: "Zablokowane firmy"
+    },
+    { 
+      href: "/company-selection/segments", 
+      label: "Segmenty i branże"
     },
     { 
       href: "/company-selection/logs", 

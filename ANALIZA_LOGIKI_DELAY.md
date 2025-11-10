@@ -128,3 +128,6 @@ if (isPastDue) {
 3. ✅ Dla catch-up: pomijaj okno czasowe, ale używaj scheduledAt
 
 
+
+
+

@@ -83,17 +83,39 @@ async function computeVerification(
     (personaCriteria.positiveRoles ?? []).some((role) => role.minSeniority) ||
     (personaCriteria.negativeRoles ?? []).some((role) => role.minSeniority);
 
-  const employeeInputs = (employeesSource.people || []).map((person: any) => {
+  type EmployeeInputRecord = {
+    person: any;
+    matchKey: string;
+    input: {
+      id?: string;
+      matchKey: string;
+      name?: string;
+      title?: string;
+      titleNormalized?: string;
+      titleEnglish?: string;
+      departments: string[];
+      seniority: string | null;
+      emailStatus: string | null;
+      managesPeople: boolean;
+      managesProcesses: boolean;
+      isExecutive: boolean;
+      semanticHint: string | null;
+    };
+  };
+
+  const employeeInputs: EmployeeInputRecord[] = (employeesSource.people || []).map((person: any) => {
     const analysis = analyseJobTitle(person.title);
     const matchKey = buildEmployeeKey(person);
     const input = {
       id: person.id ? String(person.id) : undefined,
       matchKey,
-      name: person.name,
-      title: person.title,
-      titleNormalized: analysis.normalized,
-      titleEnglish: analysis.english,
-      departments: Array.isArray(person.departments) ? person.departments : [],
+      name: typeof person.name === "string" ? person.name : undefined,
+      title: typeof person.title === "string" ? person.title : undefined,
+      titleNormalized: analysis.normalized ?? undefined,
+      titleEnglish: analysis.english ?? undefined,
+      departments: Array.isArray(person.departments)
+        ? person.departments.filter((dep: unknown): dep is string => typeof dep === "string")
+        : [],
       seniority: includeSeniority ? person.seniority ?? null : null,
       emailStatus: person.emailStatus ?? person.email_status ?? null,
       managesPeople: analysis.managesPeople,

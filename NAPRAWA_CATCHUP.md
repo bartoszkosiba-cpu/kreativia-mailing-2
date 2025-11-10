@@ -72,3 +72,6 @@
 - Po nadrobieniu zaległości, wraca do normalnego trybu (1 mail/minutę)
 
 
+
+
+

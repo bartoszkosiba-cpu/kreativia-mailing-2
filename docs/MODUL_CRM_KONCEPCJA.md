@@ -455,3 +455,6 @@ model Lead {
 
 **Status:** 📋 KONCEPCJA - DO DYSKUSJI I ROZWIĄZANIA PYTAN
 
+
+
+

@@ -378,3 +378,6 @@ case 'INTERESTED':
 
 **Czy zaczynamy implementację?**
 
+
+
+

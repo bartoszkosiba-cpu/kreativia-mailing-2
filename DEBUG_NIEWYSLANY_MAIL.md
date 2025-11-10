@@ -107,3 +107,6 @@ Najbardziej prawdopodobne:
 3. **Mail w statusie "sending"** → zablokowany przez poprzedni proces (crash)
 
 
+
+
+

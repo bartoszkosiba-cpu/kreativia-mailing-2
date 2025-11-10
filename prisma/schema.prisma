@@ -916,12 +916,32 @@ model PendingMaterialDecision {
 // COMPANY SELECTION MODULE - Moduł wyboru leadów
 // ============================================================================
 
+model CompanyImportBatch {
+  id             Int      @id @default(autoincrement())
+  name           String
+  language       String
+  market         String   @default("PL")
+  totalRows      Int
+  processedRows  Int      @default(0)
+  importedCount  Int      @default(0)
+  updatedCount   Int      @default(0)
+  skippedCount   Int      @default(0)
+  errorCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  companies Company[]
+
+  @@index([createdAt])
+}
+
 model Company {
   id Int @id @default(autoincrement())
 
   // Podstawowe dane z CSV
   name                String // Nazwa firmy
   industry            String? // Branża (np. "Targi")
+  market              String?
   country             String? // Kraj (np. "Polska")
   city                String? // Miasto
   postalCode          String? // Kod pocztowy
@@ -930,6 +950,17 @@ model Company {
   website             String? // Strona www (URL)
   description         String? // Opis firmy (długi tekst z CSV)
   activityDescription String? // Opis działalności (krótki opis)
+  descriptionPl      String? // Opis w języku polskim (automatyczne tłumaczenie)
+  activityDescriptionPl String? // Opis działalności po polsku
+  detectedLanguage   String? // Wykryty język opisu
+  translationUpdatedAt DateTime? // Kiedy ostatnio przetłumaczono
+  classificationClass String? // PS | WK | WKK | KK
+  classificationSubClass String? // np. PS_AGENCY, WK_TRADESHOW
+  classificationConfidence Float?
+  classificationSource String? // RULES | AI | MANUAL
+  classificationSignals String? // JSON array of matches
+  classificationNeedsReview Boolean? // true jeśli brak jednoznacznej klasyfikacji
+  classificationUpdatedAt DateTime?
 
   // Dane prawne
   nip               String? // NIP
@@ -945,10 +976,16 @@ model Company {
   netProfit     String? // Zysk netto (zakres)
   locationCount Int? // Liczba lokalizacji
   ratingPoints  Int? // Punkty oceny
+  keywords      String? // Lista słów kluczowych (CSV lub JSON)
+  apolloAccountId String? // ID konta w Apollo (jeśli dostępne)
 
   // Kody branżowe
   sicCode  String? // Kod SIC
   naceCode String? // Kod NACE
+
+  // Import metadata
+  importBatchId Int?
+  importBatch   CompanyImportBatch? @relation(fields: [importBatchId], references: [id])
 
   // Status weryfikacji
   verificationStatus  String  @default("PENDING") // PENDING | VERIFYING | QUALIFIED | REJECTED | NEEDS_REVIEW | BLOCKED | ERROR
@@ -984,11 +1021,55 @@ model Company {
 
   verificationLogs CompanyVerificationLog[]
   personaVerifications PersonaVerificationResult[]
+  selectionMemberships CompanySelectionCompany[]
 
   @@index([verificationStatus])
   @@index([verifiedAt])
   @@index([industry])
   @@index([country])
+  @@index([market])
+  @@index([importBatchId])
+}
+
+model CompanySelection {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  market      String
+  language    String? // preferowany język pracy nad selekcją
+  filters     String? // JSON z parametrami filtrów użytych do utworzenia selekcji
+  totalCompanies Int   @default(0)
+  activeCompanies Int  @default(0)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companies CompanySelectionCompany[]
+  criteria  CompanyVerificationCriteria[]
+
+  @@index([market])
+  @@index([createdAt])
+}
+
+model CompanySelectionCompany {
+  id           Int      @id @default(autoincrement())
+  selectionId  Int
+  companyId    Int
+  status       String   @default("PENDING") // PENDING | QUALIFIED | REJECTED | NEEDS_REVIEW | BLOCKED | ERROR
+  score        Float?
+  reason       String?
+  verifiedAt   DateTime?
+  verificationResult String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  selection CompanySelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([selectionId, companyId])
+  @@index([selectionId, status])
+  @@index([companyId])
 }
 
 model BlockedCompany {
@@ -1032,6 +1113,7 @@ model CompanyVerificationCriteria {
   id          Int     @id @default(autoincrement())
   name        String // Nazwa konfiguracji (np. "Firmy targowe - zabudowy")
   description String? // Opis kryteriów
+  selectionId Int?
 
   // Kryteria (wygenerowane przez AI z czatu)
   criteriaText      String // Pełny tekst kryteriów (prompt dla AI)
@@ -1056,9 +1138,11 @@ model CompanyVerificationCriteria {
   updatedAt DateTime @updatedAt
 
   personaCriteria CompanyPersonaCriteria?
+  selection       CompanySelection?         @relation(fields: [selectionId], references: [id], onDelete: Cascade)
 
   @@index([isActive])
   @@index([isDefault])
+  @@index([selectionId])
 }
 
 model CompanyPersonaCriteria {

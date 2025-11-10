@@ -117,3 +117,6 @@ W logach serwera powinno być:
 Powinno pokazać że maile są wysyłane!
 
 
+
+
+

@@ -78,3 +78,6 @@ LIMIT 10;
 4. **Sprawdź ponownie** - `diagnose-campaign.ts 4`
 
 
+
+
+

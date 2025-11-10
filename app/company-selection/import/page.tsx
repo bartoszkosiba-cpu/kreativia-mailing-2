@@ -4,6 +4,20 @@ import { useState } from "react";
 import Papa from "papaparse";
 import Link from "next/link";
 
+const LANGUAGE_OPTIONS = [
+  { value: "PL", label: "Polski" },
+  { value: "EN", label: "English" },
+  { value: "DE", label: "Deutsch" },
+  { value: "FR", label: "Français" },
+] as const;
+
+const MARKET_OPTIONS = [
+  { value: "PL", label: "Rynek PL" },
+  { value: "DE", label: "Rynek DE" },
+  { value: "FR", label: "Rynek FR" },
+  { value: "EN", label: "Rynek EN" },
+] as const;
+
 interface ImportError {
   row: number;
   error: string;
@@ -18,6 +32,7 @@ interface ImportResult {
   totalInDb?: number;
   errorCount?: number;
   errors?: ImportError[];
+  batchId?: number;
 }
 
 export default function CompanyImportPage() {
@@ -26,6 +41,18 @@ export default function CompanyImportPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [batchName, setBatchName] = useState<string>(
+    `Import ${new Date().toISOString().slice(0, 16).replace("T", " ")}`
+  );
+  const [batchLanguage, setBatchLanguage] = useState<
+    (typeof LANGUAGE_OPTIONS)[number]["value"]
+  >("PL");
+  const [batchMarket, setBatchMarket] = useState<
+    (typeof MARKET_OPTIONS)[number]["value"]
+  >("PL");
+  const [clearing, setClearing] = useState(false);
+  const [clearMessage, setClearMessage] = useState<string | null>(null);
+  const [clearError, setClearError] = useState<string | null>(null);
 
   const getCompanyName = (data?: Record<string, unknown>): string => {
     if (!data) return "Brak nazwy";
@@ -47,6 +74,7 @@ export default function CompanyImportPage() {
       setPreview([]);
       setResult(null);
       setError(null);
+      setBatchName(`Import ${new Date().toISOString().slice(0, 16).replace("T", " ")}`);
 
       // Parse CSV
       Papa.parse(selectedFile, {
@@ -66,6 +94,11 @@ export default function CompanyImportPage() {
   const handleImport = async () => {
     if (!file) {
       setError("Wybierz plik CSV");
+      return;
+    }
+
+    if (!batchName.trim()) {
+      setError("Podaj nazwę importu");
       return;
     }
 
@@ -117,6 +150,10 @@ export default function CompanyImportPage() {
               },
               body: JSON.stringify({
                 companies: parseResult.data,
+                batchName: batchName.trim(),
+                batchLanguage,
+                batchMarket,
+                totalRows: parseResult.data.length,
               }),
             });
 
@@ -166,6 +203,83 @@ export default function CompanyImportPage() {
         <h1 style={{ fontSize: "2rem", marginTop: "1rem" }}>
           Import firm z CSV
         </h1>
+        <p
+          style={{
+            marginTop: "0.75rem",
+            color: "#4B5563",
+            maxWidth: "720px",
+            lineHeight: 1.5,
+          }}
+        >
+          Jeśli masz plik z tysiącami firm, przejdź do
+          <Link
+            href="/company-selection/import-mass"
+            style={{ color: "#2563EB", textDecoration: "underline", marginLeft: "0.25rem" }}
+          >
+            masowego importu CSV
+          </Link>
+          , który dzieli dane na paczki i pokazuje pasek postępu.
+        </p>
+
+        <div
+          style={{
+            marginTop: "1.5rem",
+            padding: "1rem",
+            backgroundColor: "#FEF3C7",
+            borderRadius: "0.75rem",
+            border: "1px solid #FDE68A",
+          }}
+        >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center" }}>
+            <div style={{ flex: "1 1 240px", color: "#92400E" }}>
+              Potrzebujesz wyczyścić obecną bazę firm (wszystkie rekordy i partie importu)?
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (clearing) return;
+                if (!window.confirm("Czy na pewno chcesz usunąć WSZYSTKIE firmy i partie importu? Operacja jest nieodwracalna.")) {
+                  return;
+                }
+                try {
+                  setClearing(true);
+                  setClearError(null);
+                  setClearMessage(null);
+                  const response = await fetch("/api/company-selection/clear", {
+                    method: "POST",
+                  });
+                  if (!response.ok) {
+                    const data = await response.json().catch(() => null);
+                    throw new Error(data?.error || "Błąd czyszczenia bazy");
+                  }
+                  setClearMessage("Baza firm została wyczyszczona. Możesz teraz wgrać nowe dane testowe.");
+                } catch (err) {
+                  setClearError(err instanceof Error ? err.message : "Błąd czyszczenia bazy");
+                } finally {
+                  setClearing(false);
+                }
+              }}
+              disabled={clearing}
+              style={{
+                padding: "0.75rem 1.25rem",
+                backgroundColor: clearing ? "#B45309" : "#F97316",
+                color: "white",
+                borderRadius: "0.5rem",
+                border: "none",
+                cursor: clearing ? "not-allowed" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {clearing ? "Czyszczę..." : "Usuń wszystkie firmy"}
+            </button>
+          </div>
+          {clearMessage && (
+            <div style={{ marginTop: "0.75rem", color: "#047857", fontWeight: 500 }}>{clearMessage}</div>
+          )}
+          {clearError && (
+            <div style={{ marginTop: "0.75rem", color: "#B91C1C", fontWeight: 500 }}>{clearError}</div>
+          )}
+        </div>
       </div>
 
       {/* Upload */}
@@ -199,6 +313,82 @@ export default function CompanyImportPage() {
             marginBottom: "1rem",
           }}
         />
+
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "1rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <div style={{ flex: "1 1 260px" }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>
+              Nazwa importu *
+            </label>
+            <input
+              type="text"
+              value={batchName}
+              onChange={(event) => setBatchName(event.target.value)}
+              disabled={loading}
+              placeholder="Np. Expo PL 2025-11-10"
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                border: "1px solid #D1D5DB",
+                borderRadius: "0.5rem",
+              }}
+            />
+          </div>
+          <div style={{ width: "180px" }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>
+              Język rekordów *
+            </label>
+            <select
+              value={batchLanguage}
+              onChange={(event) =>
+                setBatchLanguage(event.target.value as (typeof LANGUAGE_OPTIONS)[number]["value"])
+              }
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "0.55rem 0.75rem",
+                border: "1px solid #D1D5DB",
+                borderRadius: "0.5rem",
+              }}
+            >
+              {LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ width: "180px" }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>
+              Rynek bazowy *
+            </label>
+            <select
+              value={batchMarket}
+              onChange={(event) =>
+                setBatchMarket(event.target.value as (typeof MARKET_OPTIONS)[number]["value"])
+              }
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "0.55rem 0.75rem",
+                border: "1px solid #D1D5DB",
+                borderRadius: "0.5rem",
+              }}
+            >
+              {MARKET_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {preview.length > 0 && (
           <div style={{ marginTop: "1rem" }}>
@@ -265,15 +455,17 @@ export default function CompanyImportPage() {
 
         <button
           onClick={handleImport}
-          disabled={!file || loading}
+          disabled={!file || loading || !batchName.trim()}
           style={{
             marginTop: "1rem",
             padding: "0.75rem 1.5rem",
-            backgroundColor: loading ? "#9CA3AF" : "#3B82F6",
+            backgroundColor:
+              loading || !file || !batchName.trim() ? "#9CA3AF" : "#3B82F6",
             color: "white",
             border: "none",
             borderRadius: "0.5rem",
-            cursor: loading ? "not-allowed" : "pointer",
+            cursor:
+              loading || !file || !batchName.trim() ? "not-allowed" : "pointer",
             fontSize: "1rem",
           }}
         >
@@ -302,6 +494,12 @@ export default function CompanyImportPage() {
             <div>📊 Łącznie: {result.total}</div>
             {result.totalInDb !== undefined && (
               <div>💾 Firm w bazie: {result.totalInDb}</div>
+            )}
+            {result.batchId && (
+              <div>
+                🆔 ID partii: <strong>{result.batchId}</strong> • Nazwa:{" "}
+                <strong>{batchName}</strong> ({batchLanguage})
+              </div>
             )}
             {(result.errorCount ?? 0) > 0 && (
               <div style={{ marginTop: "1rem", padding: "1rem", backgroundColor: "rgba(0,0,0,0.1)", borderRadius: "0.25rem" }}>
