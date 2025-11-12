@@ -1009,6 +1009,7 @@ model Company {
   // Notatki użytkownika
   notes String?
   tags  String? // JSON array of tags
+  tagScores CompanyTagScore[]
 
   // Dane z CSV (jeśli były ręcznie zweryfikowane)
   csvVerificationDate   DateTime? // Data weryfikacji z CSV
@@ -1029,6 +1030,22 @@ model Company {
   @@index([country])
   @@index([market])
   @@index([importBatchId])
+}
+
+model CompanyTagScore {
+  id          Int      @id @default(autoincrement())
+  companyId   Int
+  tagCode     String
+  score       Int
+  explanation String?
+  source      String   @default("AI_TAGGER")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, tagCode])
+  @@index([tagCode])
 }
 
 model CompanySelection {
@@ -1199,4 +1216,40 @@ model PersonaVerificationResult {
 
   @@unique([companyId])
   @@index([verifiedAt])
+}
+
+model IndustrySpecializationRule {
+  id                 Int      @id @default(autoincrement())
+  industry           String
+  specializationCode String
+  score              Float    @default(5)
+  explanation        String?
+  source             String   @default("MANUAL") // MANUAL | AI
+  status             String   @default("ACTIVE") // ACTIVE | PENDING | ARCHIVED
+  createdBy          String? // email lub "AI"
+  updatedBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([industry])
+  @@index([industry, specializationCode])
+  @@index([status])
+}
+
+model IndustryMappingSuggestion {
+  id                 Int      @id @default(autoincrement())
+  industry           String
+  specializationCode String
+  score              Float
+  explanation        String?
+  evidence           String? // JSON: keywords, descriptions used by AI
+  status             String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  createdBy          String? @default("AI")
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([industry])
+  @@index([status])
 }

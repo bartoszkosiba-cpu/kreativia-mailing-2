@@ -34,6 +34,7 @@ interface ImportChunkResult {
   errors?: ImportError[];
   total?: number;
   batchId?: number;
+  skippedDetails?: Record<string, { count?: number; examples?: string[] }>;
 }
 
 interface AggregatedResult {
@@ -42,6 +43,7 @@ interface AggregatedResult {
   skipped: number;
   errorCount: number;
   processedRows: number;
+  skippedDetails: Record<string, { count: number; examples: string[] }>;
 }
 
 const createDefaultBatchName = () =>
@@ -66,6 +68,8 @@ export default function CompanyMassImportPage() {
   const [batchMarket, setBatchMarket] = useState<
     (typeof MARKET_OPTIONS)[number]["value"]
   >("PL");
+  const [isClearing, setIsClearing] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const progressPercent = useMemo(() => {
     if (totalRows === 0) return 0;
@@ -83,7 +87,46 @@ export default function CompanyMassImportPage() {
     setAggregatedResult(null);
     setChunkDetails([]);
     setCurrentBatchId(null);
+    setDeleteMessage(null);
   }, []);
+
+  const handleDeleteAllCompanies = async () => {
+    if (
+      !window.confirm(
+        "Czy na pewno chcesz usunąć wszystkie firmy, importy i powiązania? Tej operacji nie da się cofnąć."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setIsClearing(true);
+      setError(null);
+      setDeleteMessage(null);
+
+      const response = await fetch("/api/company-selection/import/reset", {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Nie udało się wyczyścić bazy firm");
+      }
+
+      setFile(null);
+      resetState();
+      setDeleteMessage(
+        `Baza firm została wyczyszczona. Usunięto ${data?.removedCompanies ?? 0} rekordów.`
+      );
+    } catch (deleteError) {
+      console.error("[Mass Import] Błąd czyszczenia bazy:", deleteError);
+      setError(
+        deleteError instanceof Error ? deleteError.message : "Nie udało się wyczyścić bazy firm"
+      );
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -130,6 +173,7 @@ export default function CompanyMassImportPage() {
       skipped: 0,
       errorCount: 0,
       processedRows: 0,
+      skippedDetails: {},
     };
 
     try {
@@ -182,6 +226,17 @@ export default function CompanyMassImportPage() {
         aggregated.skipped += data.skipped ?? 0;
         aggregated.errorCount += data.errorCount ?? 0;
         aggregated.processedRows += chunk.length;
+        if (data.skippedDetails) {
+          for (const [reason, info] of Object.entries(data.skippedDetails as Record<string, { count?: number; examples?: string[] }>)) {
+            const current = aggregated.skippedDetails[reason] ?? { count: 0, examples: [] };
+            current.count += info.count ?? 0;
+            if (Array.isArray(info.examples) && info.examples.length > 0) {
+              const merged = [...current.examples, ...info.examples];
+              current.examples = merged.slice(0, 5);
+            }
+            aggregated.skippedDetails[reason] = current;
+          }
+        }
 
         setChunkDetails((prev) => [
           ...prev,
@@ -237,6 +292,21 @@ export default function CompanyMassImportPage() {
     });
   };
 
+  const formatReasonLabel = (reason: string) => {
+    switch (reason) {
+      case "missing_name":
+        return "Brak nazwy";
+      case "missing_website":
+        return "Brak strony www";
+      case "duplicate":
+        return "Duplikat nazwy (pominięty)";
+      case "error":
+        return "Inny błąd";
+      default:
+        return reason;
+    }
+  };
+
   return (
     <div style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>
       <div style={{ marginBottom: "2rem" }}>
@@ -258,6 +328,56 @@ export default function CompanyMassImportPage() {
           Ten tryb wysyła plik w paczkach po {CHUNK_SIZE} rekordów, dzięki czemu import dużych baz
           odbywa się bez zacięć i z widocznym paskiem postępu.
         </p>
+      </div>
+
+      <div
+        style={{
+          padding: "2rem",
+          backgroundColor: "white",
+          borderRadius: "0.5rem",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          marginBottom: "2rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "1rem",
+        }}
+      >
+        <h2 style={{ margin: 0 }}>Czyszczenie bazy firm</h2>
+        <p style={{ margin: 0, color: "#4B5563", maxWidth: "680px" }}>
+          Usuwa wszystkie firmy, partie importów, wyniki weryfikacji i powiązania z selekcjami. Używaj tylko na
+          środowisku testowym lub przed ponownym importem.
+        </p>
+        {deleteMessage && (
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "0.5rem",
+              backgroundColor: "#DCFCE7",
+              border: "1px solid #BBF7D0",
+              color: "#065F46",
+            }}
+          >
+            {deleteMessage}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={handleDeleteAllCompanies}
+          disabled={isClearing || isImporting}
+          style={{
+            alignSelf: "flex-start",
+            padding: "0.75rem 1.5rem",
+            borderRadius: "0.5rem",
+            border: "1px solid #DC2626",
+            backgroundColor: isClearing || isImporting ? "#FEE2E2" : "#EF4444",
+            color: "white",
+            fontWeight: 600,
+            cursor: isClearing || isImporting ? "not-allowed" : "pointer",
+            transition: "background-color 0.2s ease",
+          }}
+        >
+          {isClearing ? "Czyścimy bazę…" : "Usuń wszystkie firmy"}
+        </button>
       </div>
 
       <div
@@ -573,34 +693,68 @@ export default function CompanyMassImportPage() {
                 <SummaryCard label="Błędy (łącznie)" value={aggregatedResult.errorCount} color="#EF4444" />
               </div>
 
-              {importCompleted && (
+              {importCompleted && aggregatedResult && (
                 <div
                   style={{
-                    padding: "1.25rem",
-                    marginBottom: "1.5rem",
-                    backgroundColor: aggregatedResult.errorCount > 0 ? "#FEF3C7" : "#ECFDF5",
-                    border: `1px solid ${aggregatedResult.errorCount > 0 ? "#F59E0B" : "#6EE7B7"}`,
+                    padding: "1.5rem",
+                    backgroundColor: "#ECFDF5",
                     borderRadius: "0.75rem",
-                    color: aggregatedResult.errorCount > 0 ? "#92400E" : "#047857",
-                    lineHeight: 1.6,
+                    border: "1px solid #A7F3D0",
+                    color: "#065F46",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                    marginBottom: "2rem",
                   }}
                 >
-                  <strong style={{ display: "block", fontSize: "1rem", marginBottom: "0.5rem" }}>
-                    Import zakończony
-                  </strong>
-                  <div>
-                    📄 W pliku: {totalRows} rekordów &nbsp;|&nbsp; Nazwa:{" "}
-                    <strong>{batchName}</strong> ({batchLanguage})
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem" }}>
+                    <span>📄 Wyszło z pliku: {totalRows.toLocaleString("pl-PL")} rekordów</span>
+                    <span>➕ Zaimportowano: {aggregatedResult.imported.toLocaleString("pl-PL")}</span>
+                    <span>🔁 Zaktualizowano: {aggregatedResult.updated.toLocaleString("pl-PL")}</span>
+                    <span>⏭️ Pominięto: {aggregatedResult.skipped.toLocaleString("pl-PL")}</span>
+                    <span>🆔 ID partii: {currentBatchId}</span>
                   </div>
-                  <div>
-                    🆔 ID partii:{" "}
-                    <strong>{currentBatchId ?? chunkDetails[0]?.result.batchId ?? "—"}</strong>
-                  </div>
-                  <div>✅ Przetworzono łącznie: {aggregatedResult.processedRows}</div>
-                  <div>➕ Zaimportowano: {aggregatedResult.imported}</div>
-                  <div>🔁 Zaktualizowano: {aggregatedResult.updated}</div>
-                  <div>⏭️ Pominięto: {aggregatedResult.skipped}</div>
-                  {aggregatedResult.errorCount > 0 && <div>⚠️ Błędy: {aggregatedResult.errorCount}</div>}
+
+                  {aggregatedResult.skipped > 0 && (
+                    <div
+                      style={{
+                        backgroundColor: "white",
+                        borderRadius: "0.65rem",
+                        padding: "1rem",
+                        border: "1px solid #D1FAE5",
+                        color: "#047857",
+                      }}
+                    >
+                      <h3 style={{ margin: 0, fontSize: "1rem" }}>Powody pominięcia</h3>
+                      <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.5rem", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                        {Object.entries(aggregatedResult.skippedDetails).map(([reason, info]) => (
+                          <div
+                            key={reason}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "0.25rem",
+                              backgroundColor: "#F0FDF4",
+                              borderRadius: "0.5rem",
+                              padding: "0.75rem",
+                              border: "1px solid #BBF7D0",
+                            }}
+                          >
+                            <span style={{ fontWeight: 600 }}>{formatReasonLabel(reason)}</span>
+                            <span>Liczba: {info.count.toLocaleString("pl-PL")}</span>
+                            {info.examples.length > 0 && (
+                              <span style={{ color: "#047857", fontSize: "0.85rem" }}>
+                                Przykłady: {info.examples.join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p style={{ margin: "0.75rem 0 0", fontSize: "0.85rem", color: "#059669" }}>
+                        Duplikaty (oznaczone jako pominięte) nie nadpisują istniejących firm – rekord zostaje całkowicie pominięty.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -637,14 +791,14 @@ export default function CompanyMassImportPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {chunkDetails.map((detail) => (
-                      <tr key={detail.chunk}>
-                        <td style={rowCellStyle}>#{detail.chunk}</td>
-                        <td style={rowCellStyle}>{detail.rows}</td>
-                        <td style={rowCellStyle}>{detail.result.imported ?? 0}</td>
-                        <td style={rowCellStyle}>{detail.result.updated ?? 0}</td>
-                        <td style={rowCellStyle}>{detail.result.skipped ?? 0}</td>
-                        <td style={rowCellStyle}>{detail.result.errorCount ?? 0}</td>
+                    {chunkDetails.map(({ chunk, rows, result }) => (
+                      <tr key={chunk}>
+                        <td style={rowCellStyle}>#{chunk}</td>
+                        <td style={rowCellStyle}>{rows}</td>
+                        <td style={rowCellStyle}>{result.imported ?? 0}</td>
+                        <td style={rowCellStyle}>{result.updated ?? 0}</td>
+                        <td style={rowCellStyle}>{result.skipped ?? 0}</td>
+                        <td style={rowCellStyle}>{result.errorCount ?? 0}</td>
                       </tr>
                     ))}
                   </tbody>

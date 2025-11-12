@@ -105,8 +105,26 @@ export async function POST(req: NextRequest) {
     let importedCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
+    const errors: Array<{ row: number; error: string; data: Record<string, unknown> }> = [];
+    const skippedDetails: Record<string, { count: number; examples: string[] }> = {};
+    const skippedExamples: Record<string, string[]> = {};
 
-    const errors: Array<{ row: number; error: string; data: any }> = [];
+    const registerSkip = (reason: string, name?: string | null) => {
+      skippedCount++;
+      const entry = skippedDetails[reason] ?? { count: 0, examples: [] };
+      entry.count += 1;
+      if (name && entry.examples.length < 5) {
+        entry.examples.push(name);
+      }
+      skippedDetails[reason] = entry;
+      if (name) {
+        const list = skippedExamples[reason] ?? [];
+        if (list.length < 10) {
+          list.push(name);
+        }
+        skippedExamples[reason] = list;
+      }
+    };
 
     for (let i = 0; i < companies.length; i++) {
       const companyData = companies[i];
@@ -197,7 +215,7 @@ export async function POST(req: NextRequest) {
             availableKeys: Object.keys(companyData),
             sampleData: Object.entries(companyData).slice(0, 5),
           });
-          skippedCount++;
+          registerSkip("missing_name");
           continue;
         }
 
@@ -206,7 +224,7 @@ export async function POST(req: NextRequest) {
           if (skippedCount < 5) {
             logger.warn("company-import", `Pominięto firmę bez strony www: "${company.name}" (wiersz ${i + 1})`);
           }
-          skippedCount++;
+          registerSkip("missing_website", company.name ?? undefined);
           continue;
         }
 
@@ -234,7 +252,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing) {
-          skippedCount++;
+          registerSkip("duplicate", company.name ?? undefined);
           if (skippedCount <= 3) {
             logger.debug("company-import", `Pominięto duplikat firmy: "${existing.name}" (ID: ${existing.id}) w batchId ${batchId}`);
           }
@@ -260,7 +278,7 @@ export async function POST(req: NextRequest) {
           error: errorObj.message,
           data: companyData,
         });
-        skippedCount++;
+        registerSkip("error", companyData["Nazwa"] || companyData["Company Name"] || null);
       }
     }
 
@@ -278,9 +296,18 @@ export async function POST(req: NextRequest) {
 
     // Sprawdź ile firm jest teraz w bazie
     const totalInDb = await db.company.count();
+    const skipSummary = Object.entries(skippedDetails).reduce(
+      (acc, [reason, info]) => {
+        acc[reason] = info.count;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
     logger.info(
       "company-import",
-      `Zakończono import (batchId: ${batchId}): ${importedCount} zaimportowanych, ${updatedCount} zaktualizowanych, ${skippedCount} pominiętych, łącznie w bazie: ${totalInDb}`
+      `Zakończono import (batchId: ${batchId}): ${importedCount} zaimportowanych, ${updatedCount} zaktualizowanych, ${skippedCount} pominiętych, łącznie w bazie: ${totalInDb}`,
+      { skipped: skipSummary }
     );
 
     return NextResponse.json({
@@ -293,6 +320,8 @@ export async function POST(req: NextRequest) {
       errors: errors.length > 0 ? errors.slice(0, 10) : undefined, // Pokaż pierwsze 10 błędów
       errorCount: errors.length,
       batchId,
+      processed: companies.length,
+      skippedDetails,
     });
   } catch (error) {
     console.error("[Company Import] Błąd:", error);

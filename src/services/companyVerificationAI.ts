@@ -5,7 +5,6 @@
 
 import { db } from "@/lib/db";
 import { logger } from "./logger";
-import { ensurePolishDescriptions } from "./companyTranslation";
 import { ensureCompanyClassification } from "./companySegmentation";
 import { trackTokenUsage } from "./tokenTracker";
 
@@ -253,7 +252,6 @@ export async function verifyAndSaveCompany(
     throw new Error(`Firma o ID ${companyId} nie została znaleziona`);
   }
 
-  company = await ensurePolishDescriptions(company);
   company = await ensureCompanyClassification(company);
 
   // SPRAWDŹ CZY FIRMA JEST ZABLOKOWANA - PRZED weryfikacją AI
@@ -300,8 +298,8 @@ export async function verifyAndSaveCompany(
   const result = await verifyCompanyWithAI(
     {
       name: company.name,
-      description: company.descriptionPl ?? company.description,
-      activityDescription: company.activityDescriptionPl ?? company.activityDescription,
+      description: company.description ?? company.descriptionPl,
+      activityDescription: company.activityDescription ?? company.activityDescriptionPl,
       industry: company.industry,
       website: company.website,
     },

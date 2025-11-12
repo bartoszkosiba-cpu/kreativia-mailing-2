@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 
 export async function GET() {
   try {
-    const [segmentsRaw, segmentsNeedsReviewRaw, industriesRaw] = await Promise.all([
+    const [segmentsRaw, segmentsNeedsReviewRaw, industriesRaw, marketsRaw] = await Promise.all([
       db.company.groupBy({
         by: ["classificationClass", "classificationSubClass"],
         where: {
@@ -46,6 +46,17 @@ export async function GET() {
           _all: true,
         },
       }),
+      db.company.groupBy({
+        by: ["market"],
+        where: {
+          market: {
+            not: null,
+          },
+        },
+        _count: {
+          _all: true,
+        },
+      }),
     ]);
 
     const needsReviewMap = new Map<string, number>();
@@ -76,10 +87,19 @@ export async function GET() {
       }))
       .sort((a, b) => b.count - a.count || a.industry.localeCompare(b.industry));
 
+    const markets = marketsRaw
+      .filter((entry) => entry.market && entry.market.trim() !== "")
+      .map((entry) => ({
+        market: entry.market!,
+        count: entry._count._all,
+      }))
+      .sort((a, b) => b.count - a.count || a.market.localeCompare(b.market));
+
     return NextResponse.json({
       success: true,
       segments,
       industries,
+      markets,
     });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));

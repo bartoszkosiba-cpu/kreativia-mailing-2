@@ -78,26 +78,59 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageOption; label: string }> = [
 ];
 
 const CLASS_LABELS: Record<string, string> = {
-  PS: "PS – Pośrednik",
-  WK: "WK – Wykonawca",
-  WKK: "WKK – Wartościowi klienci",
-  KK: "KK – Klienci końcowi",
+  PS: "PS – Pośrednicy",
+  WK: "WK – Wykonawcy",
+  WKK: "WKK – Wartościowi klienci końcowi",
 };
 
 const SUBCLASS_LABELS: Record<string, string> = {
-  PS_AGENCY: "Agencje marketingowe / PR",
-  PS_PRINT: "Drukarnie / poligrafia",
-  PS_ECOMMERCE: "E-commerce / resellerzy",
-  PS_FOREIGN: "Pośrednicy zagraniczni",
-  PS_SPECIALIZED: "Specjalistyczni dostawcy",
-  WK_TRADESHOW: "Projektanci stoisk targowych",
-  WK_EVENT: "Obsługa wydarzeń i eventów",
-  WK_PRODUCTION: "Produkcja / montaż",
-  WK_DESIGN: "Projektowanie / koncepcje",
-  WKK_RETAIL: "Sieci retail / franczyzy",
-  WKK_BRAND: "Duże marki / zespoły marketingowe",
-  KK_MODULARICO: "Klienci Modularico",
-  KK_GENERAL: "Klienci końcowi – inne",
+  PS_AGENCY: "Agencja reklamowa",
+  PS_LARGE_FORMAT_PRINT: "Drukarnia wielkoformatowa",
+  PS_ONLINE_SELLER: "Sprzedawca internetowy",
+  PS_AD_PRODUCER: "Producent reklam",
+  PS_DISPLAY: "Display",
+  PS_FOREIGN_BROKER: "Pośrednik zagraniczny",
+  WK_TRADESHOW_BUILDER: "Wykonawca stoisk targowych",
+  WK_EVENT_COMPANY: "Firma eventowa",
+  WK_RETAIL_FITOUT: "Wykonawca Retail",
+  WK_POS_PRODUCER: "Producent POS",
+  WK_FURNITURE_PRODUCER: "Producent mebli",
+  WK_RETAIL_EQUIPMENT: "Producent wyposażenia Retail",
+  WK_BRANDING_STUDIO: "Firma projektowa / Branding",
+  WK_ARCHITECTURE: "Architektura",
+  WK_FITOUT_CONTRACTOR: "Firma wykończeniowa / Fit-out",
+  WKK_RETAIL_CHAIN: "Sieci handlowe",
+  WKK_CONSUMER_BRAND: "Marka konsumencka",
+  WKK_SHOPPING_MALL: "Galerie handlowe",
+  WKK_OFFICE_CORPORATE: "Biura i korporacje",
+  WKK_HOSPITALITY: "Hotele i Restauracje",
+  WKK_AUTO_DEALER: "Salony samochodowe",
+  WKK_RETAIL_STORE: "Salony sprzedaży",
+};
+
+const SUBCLASS_CLASS_MAP: Record<string, string> = {
+  PS_AGENCY: "PS",
+  PS_LARGE_FORMAT_PRINT: "PS",
+  PS_ONLINE_SELLER: "PS",
+  PS_AD_PRODUCER: "PS",
+  PS_DISPLAY: "PS",
+  PS_FOREIGN_BROKER: "PS",
+  WK_TRADESHOW_BUILDER: "WK",
+  WK_EVENT_COMPANY: "WK",
+  WK_RETAIL_FITOUT: "WK",
+  WK_POS_PRODUCER: "WK",
+  WK_FURNITURE_PRODUCER: "WK",
+  WK_RETAIL_EQUIPMENT: "WK",
+  WK_BRANDING_STUDIO: "WK",
+  WK_ARCHITECTURE: "WK",
+  WK_FITOUT_CONTRACTOR: "WK",
+  WKK_RETAIL_CHAIN: "WKK",
+  WKK_CONSUMER_BRAND: "WKK",
+  WKK_SHOPPING_MALL: "WKK",
+  WKK_OFFICE_CORPORATE: "WKK",
+  WKK_HOSPITALITY: "WKK",
+  WKK_AUTO_DEALER: "WKK",
+  WKK_RETAIL_STORE: "WKK",
 };
 
 const cardStyle: CSSProperties = {
@@ -146,6 +179,7 @@ export default function CompanySelectionsPage() {
   const [loading, setLoading] = useState(true);
   const [segments, setSegments] = useState<SegmentSummary[]>([]);
   const [industries, setIndustries] = useState<IndustrySummary[]>([]);
+  const [initialIndustries, setInitialIndustries] = useState<IndustrySummary[]>([]);
   const [batches, setBatches] = useState<ImportBatchOption[]>([]);
   const [selections, setSelections] = useState<SelectionListItem[]>([]);
   const [selectionsLoading, setSelectionsLoading] = useState(false);
@@ -159,6 +193,8 @@ export default function CompanySelectionsPage() {
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
   const [onlyNeedsReview, setOnlyNeedsReview] = useState(false);
+  const [countLoading, setCountLoading] = useState(false);
+  const [countError, setCountError] = useState<string | null>(null);
 
   const [previewLoading, setPreviewLoading] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -184,6 +220,7 @@ export default function CompanySelectionsPage() {
           const summaryData = await summaryResponse.json();
           setSegments(summaryData.segments ?? []);
           setIndustries(summaryData.industries ?? []);
+          setInitialIndustries(summaryData.industries ?? []);
         } else {
           console.warn("Nie udało się pobrać segmentów");
         }
@@ -231,6 +268,150 @@ export default function CompanySelectionsPage() {
       setSelectionsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function refreshCounts() {
+      try {
+        setCountLoading(true);
+        setCountError(null);
+
+        const params = new URLSearchParams();
+        params.set("page", "1");
+        params.set("limit", "1");
+
+        if (market) {
+          params.append("market", market);
+        }
+
+        selectedSegments.forEach((value) => {
+          params.append("classificationClass", value);
+        });
+
+        selectedSubSegments.forEach((value) => {
+          params.append("classificationSubClass", value);
+        });
+
+        selectedIndustries.forEach((value) => {
+          params.append("industry", value);
+        });
+
+        if (selectedBatchIds.length === 1) {
+          params.append("importBatchId", String(selectedBatchIds[0]));
+        }
+
+        if (onlyNeedsReview) {
+          params.set("needsReview", "true");
+        }
+
+        const response = await fetch(`/api/company-selection/list?${params.toString()}`, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        const subClassAggregation = Array.isArray(data?.aggregations?.subClass)
+          ? data.aggregations.subClass
+          : [];
+
+        const nextSegments: SegmentSummary[] = subClassAggregation
+          .map((entry: any) => {
+            if (!entry?.value) return null;
+            const code = String(entry.value);
+            return {
+              class: SUBCLASS_CLASS_MAP[code] ?? null,
+              subClass: code,
+              count: Number(entry.count ?? 0),
+              needsReviewCount: 0,
+            } as SegmentSummary;
+          })
+          .filter((item): item is SegmentSummary => Boolean(item));
+
+        const knownSpecializations = new Set(
+          nextSegments.map((item) => item.subClass).filter((value): value is string => Boolean(value))
+        );
+        Object.keys(SUBCLASS_LABELS).forEach((code) => {
+          if (!knownSpecializations.has(code)) {
+            nextSegments.push({
+              class: SUBCLASS_CLASS_MAP[code] ?? null,
+              subClass: code,
+              count: 0,
+              needsReviewCount: 0,
+            });
+          }
+        });
+
+        const classesPresent = new Set(
+          nextSegments.map((item) => item.class).filter((value): value is string => Boolean(value))
+        );
+
+        Object.keys(CLASS_LABELS).forEach((classCode) => {
+          if (!classesPresent.has(classCode)) {
+            nextSegments.push({
+              class: classCode,
+              subClass: null,
+              count: 0,
+              needsReviewCount: 0,
+            });
+          }
+        });
+
+        setSegments(nextSegments);
+
+        const industryAggregation = Array.isArray(data?.aggregations?.industry)
+          ? data.aggregations.industry
+          : [];
+
+        const industryCountMap = new Map<string, number>();
+        initialIndustries.forEach((item) => {
+          industryCountMap.set(item.industry, 0);
+        });
+
+        industryAggregation.forEach((entry: any) => {
+          if (!entry?.value) return;
+          const key = String(entry.value);
+          industryCountMap.set(key, Number(entry.count ?? 0));
+        });
+
+        const nextIndustries: IndustrySummary[] = Array.from(industryCountMap.entries())
+          .map(([industry, count]) => ({ industry, count }))
+          .sort((a, b) => b.count - a.count || a.industry.localeCompare(b.industry));
+
+        setIndustries(nextIndustries);
+      } catch (error) {
+        if ((error as any)?.name === "AbortError") {
+          return;
+        }
+        setCountError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setCountLoading(false);
+      }
+    }
+
+    refreshCounts();
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    loading,
+    market,
+    selectedSegments,
+    selectedSubSegments,
+    selectedIndustries,
+    selectedBatchIds,
+    onlyNeedsReview,
+    initialIndustries,
+  ]);
 
   const uniqueSegments = useMemo(() => {
     const unique = new Map<string, { code: string; label: string; count: number }>();
@@ -512,7 +693,10 @@ export default function CompanySelectionsPage() {
 
           <hr style={{ margin: "1.5rem 0", borderTop: "1px solid #E5E7EB" }} />
 
-          <h3 style={{ ...sectionTitleStyle, fontSize: "1.1rem" }}>Filtry</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <h3 style={{ ...sectionTitleStyle, fontSize: "1.1rem", marginBottom: 0 }}>Filtry</h3>
+            {countLoading && (<span style={{ fontSize: "0.8rem", color: "#6B7280" }}>Aktualizuję liczniki…</span>)}
+          </div>
 
           <div
             style={{
@@ -549,7 +733,7 @@ export default function CompanySelectionsPage() {
             </div>
 
             <div>
-              <label style={labelStyle}>Subsegmenty</label>
+              <label style={labelStyle}>Specjalizacje</label>
               <div style={{ maxHeight: "220px", overflowY: "auto", paddingRight: "0.5rem" }}>
                 {uniqueSubSegments.map((segment) => (
                   <label
@@ -717,6 +901,20 @@ export default function CompanySelectionsPage() {
             </button>
           </div>
         </section>
+
+      {countError && (
+        <section
+          style={{
+            borderRadius: "0.75rem",
+            border: "1px solid #FCA5A5",
+            backgroundColor: "#FEE2E2",
+            padding: "0.75rem",
+            color: "#B91C1C",
+          }}
+        >
+          <strong>Błąd odświeżania liczników:</strong> {countError}
+        </section>
+      )}
 
         {previewCompanies.length > 0 && (
           <section style={cardStyle}>

@@ -1,5 +1,5 @@
 // Globalny store dla postępu weryfikacji (w produkcji użyj Redis)
-const verificationProgress = new Map<string, {
+type ProgressRecord = {
   total: number;
   processed: number;
   current: number;
@@ -11,7 +11,23 @@ const verificationProgress = new Map<string, {
   startTime: number;
   currentCompanyName?: string;
   lastUpdate: number;
-}>();
+};
+
+const GLOBAL_PROGRESS_KEY = '__verificationProgressStore__';
+
+function getProgressStore(): Map<string, ProgressRecord> {
+  const globalAny = globalThis as typeof globalThis & {
+    [GLOBAL_PROGRESS_KEY]?: Map<string, ProgressRecord>;
+  };
+
+  if (!globalAny[GLOBAL_PROGRESS_KEY]) {
+    globalAny[GLOBAL_PROGRESS_KEY] = new Map<string, ProgressRecord>();
+  }
+
+  return globalAny[GLOBAL_PROGRESS_KEY]!;
+}
+
+const verificationProgress = getProgressStore();
 
 // Import logger (lazy import, żeby uniknąć circular dependencies)
 let loggerInstance: any = null;

@@ -25,10 +25,35 @@ const CLASSIFICATION_OPTIONS = [
   { value: "PS", label: "PS – Pośrednik" },
   { value: "WK", label: "WK – Wykonawca" },
   { value: "WKK", label: "WKK – Wartościowy klient końcowy" },
-  { value: "KK", label: "KK – Klient końcowy" },
 ];
 
 const PAGE_SIZE = 50;
+
+const detailModalStyle: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  backgroundColor: "rgba(15, 23, 42, 0.4)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  padding: "2rem",
+  zIndex: 250,
+};
+
+const detailCardStyle: CSSProperties = {
+  maxWidth: "860px",
+  maxHeight: "80vh",
+  width: "100%",
+  overflowY: "auto",
+  backgroundColor: "white",
+  borderRadius: "0.75rem",
+  border: "1px solid #E5E7EB",
+  boxShadow: "0 24px 48px rgba(15, 23, 42, 0.18)",
+  padding: "2rem",
+  display: "flex",
+  flexDirection: "column",
+  gap: "1.5rem",
+};
 
 interface Company {
   id: number;
@@ -58,7 +83,7 @@ interface Company {
   classificationSubClass: string | null;
   classificationConfidence: number | null;
   classificationSource: string | null;
-  classificationSignals: string | null;
+  classificationSignals: string[];
   classificationNeedsReview: boolean | null;
 }
 
@@ -98,6 +123,13 @@ export default function CompanyVerifyPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
+  const [detailCompany, setDetailCompany] = useState<Company | null>(null);
+
+  useEffect(() => {
+    if (detailCompany) {
+      console.log("[Verify] Otwieram podgląd firmy", detailCompany.id);
+    }
+  }, [detailCompany]);
   const [selectedStatus, setSelectedStatus] = useState<string>("QUALIFIED");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -387,7 +419,9 @@ export default function CompanyVerifyPage() {
             ? Number(company.classificationConfidence)
             : null,
         classificationSource: company.classificationSource ?? null,
-        classificationSignals: company.classificationSignals ?? null,
+        classificationSignals: Array.isArray(company.classificationSignals)
+          ? company.classificationSignals
+          : [],
         classificationNeedsReview:
           typeof company.classificationNeedsReview === "boolean"
             ? company.classificationNeedsReview
@@ -597,7 +631,22 @@ export default function CompanyVerifyPage() {
 
     try {
       setVerifying(true);
-      const newProgressId = `progress-${Date.now()}`;
+      const progressResponse = await fetch("/api/company-selection/verify/progress", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ total: selectableIds.length }),
+      });
+
+      const progressData = await progressResponse.json();
+      if (!progressResponse.ok || !progressData.success || !progressData.progressId) {
+        alert(`Nie udało się utworzyć postępu weryfikacji: ${progressData.error || "brak szczegółów"}`);
+        setVerifying(false);
+        return;
+      }
+
+      const newProgressId = progressData.progressId as string;
       setProgressId(newProgressId);
 
       const response = await fetch("/api/company-selection/verify", {
@@ -792,9 +841,9 @@ export default function CompanyVerifyPage() {
             )}
           </div>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          <button
+            <button
               type="button"
-            onClick={handleVerifyBatch}
+              onClick={handleVerifyBatch}
               disabled={verifying || selectedCount === 0}
             style={{
                 padding: "0.6rem 1.2rem",
@@ -913,30 +962,20 @@ export default function CompanyVerifyPage() {
                       onChange={toggleSelectAll}
                     />
                   </th>
-                <th style={{ ...headerCellStyle, width: "30%" }}>Firma</th>
+                <th style={{ ...headerCellStyle, width: "32%" }}>Firma</th>
                 <th style={{ ...headerCellStyle, width: "18%" }}>Status</th>
-                <th style={{ ...headerCellStyle, width: "32%" }}>Powód / Komentarz</th>
-                <th style={{ ...headerCellStyle, width: "20%" }}>Import</th>
-                <th style={{ ...headerCellStyle, width: "16%" }}>Akcje</th>
+                <th style={{ ...headerCellStyle, width: "26%" }}>Powód / Komentarz</th>
+                <th style={{ ...headerCellStyle, width: "14%" }}>Import</th>
+                <th style={{ ...headerCellStyle, width: "10%" }}>Szczegóły</th>
+                <th style={{ ...headerCellStyle, width: "14%" }}>Akcje</th>
                 </tr>
               </thead>
               <tbody>
                 {companies.map((company, index) => {
                   const isSelected = selectedCompanies.includes(company.id);
-              let classificationSignals: string[] = [];
-              if (company.classificationSignals) {
-                try {
-                  const parsed = JSON.parse(company.classificationSignals);
-                  if (Array.isArray(parsed)) {
-                    classificationSignals = parsed.slice(0, 5).map((item) => String(item));
-                  }
-                } catch (_err) {
-                  classificationSignals = [company.classificationSignals];
-                }
-              }
-              const segmentLabel = company.classificationClass
-                ? `${company.classificationClass}${company.classificationSubClass ? ` / ${company.classificationSubClass}` : ""}`
-                : null;
+                const segmentLabel = company.classificationClass
+                  ? `${company.classificationClass}${company.classificationSubClass ? ` / ${company.classificationSubClass}` : ""}`
+                  : null;
                 const companyActivity =
                   company.activityDescriptionPl ||
                   company.descriptionPl ||
@@ -971,60 +1010,51 @@ export default function CompanyVerifyPage() {
                         />
                       </td>
                     <td style={cellStyle}>
-                      <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>{company.name}</div>
-                      <div style={{ fontSize: "0.8125rem", color: "#6B7280", marginBottom: "0.35rem" }}>
-                        {companyActivity.length > 160
-                          ? `${companyActivity.substring(0, 160)}...`
-                              : companyActivity}
-                          </div>
-                          <div
+                      <div style={{ fontWeight: 600, marginBottom: "0.15rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                        {company.name}
+                        {segmentLabel && (
+                          <span
                             style={{
-                              display: "flex",
-                              gap: "0.5rem",
-                          fontSize: "0.75rem",
-                              color: "#9CA3AF",
-                              flexWrap: "wrap",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.35rem",
+                              padding: "0.1rem 0.45rem",
+                              borderRadius: "0.35rem",
+                              backgroundColor: "#EEF2FF",
+                              color: "#4338CA",
+                              fontSize: "0.7rem",
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.02em",
                             }}
+                            title={`Segment: ${segmentLabel}${company.classificationNeedsReview ? " • do weryfikacji" : ""}`}
                           >
-                        {company.industry && <span>{company.industry}</span>}
-                            {company.city && <span>• {company.city}</span>}
-                        {company.country && <span>• {company.country}</span>}
-                          </div>
-                            <div
-                              style={{
-                          marginTop: "0.5rem",
-                                fontSize: "0.75rem",
-                          color: "#2563EB",
+                            {segmentLabel}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "0.8125rem", color: "#6B7280", marginBottom: "0.25rem", lineHeight: 1.45 }}>
+                        {companyActivity.length > 160 ? `${companyActivity.substring(0, 160)}...` : companyActivity}
+                      </div>
+                      <div
+                        style={{
                           display: "flex",
-                          flexDirection: "column",
-                          gap: "0.25rem",
+                          gap: "0.5rem",
+                          fontSize: "0.75rem",
+                          color: "#9CA3AF",
+                          flexWrap: "wrap",
                         }}
                       >
-                        <span>
-                          Segment:{" "}
-                          {segmentLabel
-                            ? `${segmentLabel}${company.classificationNeedsReview ? " • do weryfikacji" : ""}`
-                            : company.classificationNeedsReview
-                            ? "— (do weryfikacji)"
-                            : "—"}
-                          {typeof company.classificationConfidence === "number"
-                            ? ` (score: ${company.classificationConfidence.toFixed(1)})`
-                            : ""}
-                        </span>
-                        <span style={{ color: "#6B7280" }}>
-                          Sygnały:{" "}
-                          {classificationSignals.length > 0 ? classificationSignals.join(", ") : "—"}
-                        </span>
-                        <span style={{ color: "#6B7280" }}>
-                          Industry: {company.industry || "—"}
-                        </span>
+                        {company.industry && <span>{company.industry}</span>}
+                        {company.city && <span>• {company.city}</span>}
+                        {company.country && <span>• {company.country}</span>}
                       </div>
-                          {!companyHasWebsite && (
+                      {!companyHasWebsite && (
                         <div style={{ fontSize: "0.75rem", color: "#B91C1C", marginTop: "0.35rem" }}>
-                              Brak adresu www – uzupełnij, aby zweryfikować
-                            </div>
-                          )}
-                      </td>
+                          Brak adresu www – uzupełnij, aby zweryfikować
+                        </div>
+                      )}
+                    </td>
                     <td style={cellStyle}>
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -1061,20 +1091,37 @@ export default function CompanyVerifyPage() {
                         )}
                       </td>
                     <td style={cellStyle}>
-                      {company.importBatch ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                          <strong>{company.importBatch.name}</strong>
-                              <span style={{ fontSize: "0.75rem", color: "#6B7280" }}>
-                            Język: {company.importBatch.language}
-                              </span>
-                              <span style={{ fontSize: "0.75rem", color: "#6B7280" }}>
-                            Dodano: {new Date(company.importBatch.createdAt).toLocaleString("pl-PL")}
-                              </span>
-                            </div>
-                      ) : (
-                        <span style={{ color: "#9CA3AF" }}>Brak oznaczenia importu</span>
-                      )}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                         <span style={{ fontWeight: 600 }}>Import {company.importBatch?.name ?? "?"}</span>
+                         <span style={{ fontSize: "0.75rem", color: "#6B7280" }}>
+                            Język: {company.importBatch?.language ?? "?"}
+                          </span>
+                          <span style={{ fontSize: "0.75rem", color: "#6B7280" }}>
+                            Dodano: {company.importBatch?.createdAt ? new Date(company.importBatch.createdAt).toLocaleString("pl-PL") : "?"}
+                          </span>
+                        </div>
                       </td>
+                    <td style={cellCenteredStyle}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          console.log("[Verify] Klik przycisku Podgląd", company.id);
+                          setDetailCompany(company);
+                        }}
+                        style={{
+                          border: "1px solid #C4B5FD",
+                          backgroundColor: "#EEF2FF",
+                          color: "#4338CA",
+                          borderRadius: "0.5rem",
+                          padding: "0.35rem 0.75rem",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        Podgląd
+                      </button>
+                    </td>
                     <td style={cellStyle}>
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
               <button
@@ -1107,14 +1154,14 @@ export default function CompanyVerifyPage() {
               })}
             </tbody>
           </table>
-            </div>
+        </div>
       )}
 
-        <div
-          style={{
-            display: "flex",
+      <div
+        style={{
+          display: "flex",
           justifyContent: "space-between",
-            alignItems: "center",
+          alignItems: "center",
           marginTop: "1.5rem",
           flexWrap: "wrap",
           gap: "1rem",
@@ -1122,35 +1169,124 @@ export default function CompanyVerifyPage() {
       >
         <div style={{ fontSize: "0.875rem", color: "#4B5563" }}>
           Strona {page} z {totalPages} • Łącznie rekordów: {total}
-            </div>
+        </div>
         <div style={{ display: "flex", gap: "0.75rem" }}>
-                <button
-                  type="button"
+          <button
+            type="button"
             onClick={() => handlePageChange(page - 1)}
             disabled={page === 1}
-                  style={{
+            style={{
               ...secondaryActionStyle,
               cursor: page === 1 ? "not-allowed" : "pointer",
               opacity: page === 1 ? 0.6 : 1,
             }}
           >
             Poprzednia
-                </button>
-                <button
-                  type="button"
+          </button>
+          <button
+            type="button"
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= totalPages}
-                  style={{
+            style={{
               ...secondaryActionStyle,
               cursor: page >= totalPages ? "not-allowed" : "pointer",
               opacity: page >= totalPages ? 0.6 : 1,
             }}
           >
             Następna
-                </button>
+          </button>
+        </div>
+      </div>
+
+      {detailCompany && (
+        <div style={detailModalStyle}>
+          <div style={detailCardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 style={{ margin: 0 }}>{detailCompany.name}</h3>
+                <p style={{ color: "#4B5563", margin: "0.25rem 0" }}>
+                  {detailCompany.industry || "—"}
+                  {detailCompany.country ? ` • ${detailCompany.country}` : ""}
+                  {detailCompany.city ? ` • ${detailCompany.city}` : ""}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setDetailCompany(null)}
+                style={{
+                  border: "none",
+                  backgroundColor: "transparent",
+                  color: "#6B7280",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                }}
+                aria-label="Zamknij podgląd firmy"
+              >
+                ✕
+              </button>
+            </div>
+
+            <section>
+              <h4 style={{ marginBottom: "0.5rem", color: "#111827" }}>Segmentacja</h4>
+              <div style={{ color: "#1F2937" }}>
+                {detailCompany.classificationClass || "—"}
+                {detailCompany.classificationSubClass ? ` / ${detailCompany.classificationSubClass}` : ""}
+                {typeof detailCompany.classificationConfidence === "number"
+                  ? ` (score: ${detailCompany.classificationConfidence.toFixed(1)})`
+                  : ""}
+              </div>
+              {detailCompany.classificationSignals.length > 0 && (
+                <div style={{ marginTop: "0.5rem", display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                  {detailCompany.classificationSignals.map((signal, idx) => (
+                    <span
+                      key={`signal-${idx}`}
+                      style={{
+                        backgroundColor: "#F3F4F6",
+                        borderRadius: "9999px",
+                        padding: "0.25rem 0.6rem",
+                        fontSize: "0.75rem",
+                        color: "#4B5563",
+                      }}
+                    >
+                      {signal}
+                    </span>
+                  ))}
                 </div>
-                </div>
+              )}
+            </section>
+
+            <section>
+              <h4 style={{ marginBottom: "0.5rem", color: "#111827" }}>Opis firmy</h4>
+              <p style={{ color: "#1F2937", lineHeight: 1.6 }}>
+                {detailCompany.description || "Brak opisu"}
+              </p>
+            </section>
+
+            <section>
+              <h4 style={{ marginBottom: "0.5rem", color: "#111827" }}>Opis działalności</h4>
+              <p style={{ color: "#1F2937", lineHeight: 1.6 }}>
+                {detailCompany.activityDescription || "Brak danych"}
+              </p>
+            </section>
+
+            {detailCompany.website && (
+              <section>
+                <h4 style={{ marginBottom: "0.5rem", color: "#111827" }}>Strona www</h4>
+                <a
+                  href={detailCompany.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#2563EB", textDecoration: "underline" }}
+                >
+                  {detailCompany.website}
+                </a>
+              </section>
+            )}
+          </div>
+        </div>
+      )}
+
+    </div>
   );
 }
 

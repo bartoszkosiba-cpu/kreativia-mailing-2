@@ -148,10 +148,10 @@ export default function CompanySelectionPage() {
         }}
       >
         <Link
-          href="/company-selection/import"
+          href="/company-selection/import-mass"
           style={{
             padding: "0.75rem 1.5rem",
-            backgroundColor: "#3B82F6",
+            backgroundColor: "#2563EB",
             color: "white",
             borderRadius: "0.5rem",
             textDecoration: "none",
@@ -198,19 +198,6 @@ export default function CompanySelectionPage() {
           }}
         >
           Kryteria weryfikacji
-        </Link>
-        <Link
-          href="/company-selection/segments"
-          style={{
-            padding: "0.75rem 1.5rem",
-            backgroundColor: "#059669",
-            color: "white",
-            borderRadius: "0.5rem",
-            textDecoration: "none",
-            display: "inline-block",
-          }}
-        >
-          Segmenty i branże
         </Link>
         <Link
           href="/company-selection/personas"

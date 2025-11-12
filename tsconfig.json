@@ -47,8 +47,12 @@
       ],
       "@/utils/*": [
         "src/utils/*"
+      ],
+      "@/config/*": [
+        "src/config/*"
       ]
     },
+    "customConditions": ["node"],
     "esModuleInterop": true,
     "plugins": [
       {
@@ -64,6 +68,8 @@
   ],
   "exclude": [
     "node_modules",
-    "backups/**/*"
+    "backups/**/*",
+    "prisma/seedIndustryRules.ts",
+    "scripts/reclassifyCompanies.ts"
   ]
 }

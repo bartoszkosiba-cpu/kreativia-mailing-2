@@ -118,34 +118,22 @@ export default function Navbar() {
 
   // Menu dla modułu Wyboru Leadów
   const leadSelectionNavItems: NavItem[] = [
-    { 
-      href: "/company-selection", 
-      label: "Dashboard"
+    {
+      href: "/company-selection/processes/import",
+      label: "Import i klasyfikacja",
     },
-    { 
-      href: "/company-selection/import", 
-      label: "Import CSV"
+    {
+      href: "/company-selection/processes/selections",
+      label: "Selekcje tematyczne",
     },
-    { 
-      href: "/company-selection/verify", 
-      label: "Weryfikacja"
+    {
+      href: "/company-selection/processes/verification",
+      label: "Weryfikacja & Lead export",
     },
-    { 
-      href: "/company-selection/selections", 
-      label: "Nowa baza firm"
+    {
+      href: "/company-selection/settings",
+      label: "Ustawienia",
     },
-    { 
-      href: "/company-selection/blocked", 
-      label: "Zablokowane firmy"
-    },
-    { 
-      href: "/company-selection/segments", 
-      label: "Segmenty i branże"
-    },
-    { 
-      href: "/company-selection/logs", 
-      label: "Logi"
-    }
   ];
 
   const navItems: NavItem[] = selectedModule === 'CRM' 
