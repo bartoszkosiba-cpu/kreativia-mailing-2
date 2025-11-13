@@ -141,7 +141,8 @@ export async function sendNextEmailFromQueue(
                   firstName: true,
                   lastName: true,
                   company: true,
-                  language: true
+                  language: true,
+                  greetingForm: true
                 }
               }
             }
@@ -441,7 +442,8 @@ export async function sendNextEmailFromQueue(
                   firstName: true,
                   lastName: true,
                   company: true,
-                  language: true
+                  language: true,
+                  greetingForm: true
                 }
               }
             }

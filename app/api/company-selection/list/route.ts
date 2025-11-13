@@ -223,7 +223,7 @@ export async function GET(req: NextRequest) {
       try {
         const signals: string[] = JSON.parse(row.classificationSignals);
         for (const signal of signals) {
-          if (!signal.startsWith(\"industry-rule:\")) continue;
+          if (!signal.startsWith("industry-rule:")) continue;
           const parts = signal.split(":");
           const code = parts[1];
           const score = Number(parts[2]);

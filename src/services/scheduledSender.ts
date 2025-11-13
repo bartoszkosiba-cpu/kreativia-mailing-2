@@ -120,6 +120,20 @@ export async function sendSingleEmail(
     const languageMismatch = campaignLanguage !== leadLanguage;
     
     let greetingForm: string | null = null;
+
+    // ✅ Upewnij się, że mamy powitanie – jeśli nie przyszło z kolejki, dociągnij z bazy
+    greetingForm = lead.greetingForm ?? null;
+    if (!greetingForm && lead.id) {
+      try {
+        const dbLead = await db.lead.findUnique({
+          where: { id: lead.id },
+          select: { greetingForm: true }
+        });
+        greetingForm = dbLead?.greetingForm ?? null;
+      } catch (fetchError) {
+        console.error(`[SENDER] ❌ Błąd pobierania greetingForm z bazy (lead ${lead.id}):`, fetchError);
+      }
+    }
     
     if (languageMismatch) {
       // ✅ RÓŻNE JĘZYKI: Wygeneruj powitanie w języku kampanii
@@ -149,7 +163,7 @@ export async function sendSingleEmail(
       }
     } else {
       // ✅ TAKI SAM JĘZYK: Użyj istniejącego powitania z bazy
-      greetingForm = lead.greetingForm;
+      // greetingForm już ustawione powyżej (z kolejki lub z bazy)
       if (greetingForm) {
         console.log(`[SENDER] Używam powitania z bazy: "${greetingForm}" (język: ${leadLanguage})`);
       }

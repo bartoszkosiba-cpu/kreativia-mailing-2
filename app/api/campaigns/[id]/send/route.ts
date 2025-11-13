@@ -113,7 +113,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (campaign.CampaignLead.length === 0) {
           throw new Error('Brak leadów w kampanii po filtrowaniu');
         }
-        const testLead = campaign.CampaignLead[0].lead;
+        const pickLeadWithGreeting = campaign.CampaignLead.find(({ lead }) => {
+          const greeting = lead.greetingForm?.trim();
+          if (!greeting) return false;
+          const defaultGreeting = getDefaultGreetingForLanguage(lead.language || 'pl').trim().toLowerCase();
+          return greeting.toLowerCase() !== defaultGreeting;
+        });
+
+        const testLead = pickLeadWithGreeting?.lead ?? campaign.CampaignLead[0].lead;
 
         // Pobierz dostępną skrzynkę mailową (round-robin) - jak w normalnej wysyłce
         let mailbox = null;
