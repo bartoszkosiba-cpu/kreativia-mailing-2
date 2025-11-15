@@ -120,7 +120,7 @@ export async function sendSingleEmail(
     const languageMismatch = campaignLanguage !== leadLanguage;
     
     let greetingForm: string | null = null;
-
+    
     // ✅ Upewnij się, że mamy powitanie – jeśli nie przyszło z kolejki, dociągnij z bazy
     greetingForm = lead.greetingForm ?? null;
     if (!greetingForm && lead.id) {

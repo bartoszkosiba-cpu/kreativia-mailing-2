@@ -134,6 +134,7 @@ export default function CompanyOverviewPage() {
   const [industryAggregation, setIndustryAggregation] = useState<AggregationItem[]>([]);
   const [classAggregation, setClassAggregation] = useState<AggregationItem[]>([]);
   const [subClassAggregation, setSubClassAggregation] = useState<AggregationItem[]>([]);
+  const [infoExpanded, setInfoExpanded] = useState(false);
 
   useEffect(() => {
     async function loadSummary() {
@@ -189,6 +190,10 @@ export default function CompanyOverviewPage() {
         if (needsReviewFilter) params.set("needsReview", needsReviewFilter);
 
         const url = `/api/company-selection/list?${params.toString()}`;
+        if (industryFilter.length > 0) {
+          console.log("[Overview Frontend] DEBUG - Wysyłam filtr branży:", industryFilter);
+          console.log("[Overview Frontend] DEBUG - URL:", url);
+        }
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -465,13 +470,15 @@ export default function CompanyOverviewPage() {
       ];
     }
 
-    if (!classLabel && matches.length === 0) {
-      return <span style={{ color: "#9CA3AF" }}>Brak oznaczeń</span>;
+    // Sprawdzamy tylko specjalizacje (klasy PS/WK/WKK ukryte)
+    if (matches.length === 0) {
+      return <span style={{ color: "#9CA3AF" }}>Brak specjalizacji</span>;
     }
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-        {classLabel && (
+        {/* Klasy PS/WK/WKK ukryte - nie pokazujemy */}
+        {/* {classLabel && (
           <span
             style={{
               display: "inline-flex",
@@ -497,7 +504,7 @@ export default function CompanyOverviewPage() {
               <span style={{ color: "#B91C1C", fontSize: "0.7rem", fontWeight: 700 }}>• Review</span>
             )}
           </span>
-        )}
+        )} */}
 
         {matches.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
@@ -509,38 +516,11 @@ export default function CompanyOverviewPage() {
                   alignItems: "center",
                   gap: "0.45rem",
                   fontSize: "0.82rem",
-                  color: match.isPrimary ? "#111827" : match.meetsThreshold ? "#1F2937" : "#6B7280",
+                  color: "#1F2937",
                 }}
               >
                 <span style={{ fontWeight: match.isPrimary ? 600 : 500 }}>{match.label}</span>
                 <span style={{ color: "#6B7280", fontSize: "0.75rem" }}>score {match.score}</span>
-                {match.isPrimary ? (
-                  <span
-                    style={{
-                      padding: "0.15rem 0.45rem",
-                      borderRadius: "9999px",
-                      backgroundColor: "#DCFCE7",
-                      color: "#047857",
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    główna
-                  </span>
-                ) : match.meetsThreshold ? (
-                  <span
-                    style={{
-                      padding: "0.15rem 0.45rem",
-                      borderRadius: "9999px",
-                      backgroundColor: "#DBEAFE",
-                      color: "#1D4ED8",
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    aktywna
-                  </span>
-                ) : null}
               </div>
             ))}
           </div>
@@ -563,6 +543,137 @@ export default function CompanyOverviewPage() {
     setPage(1);
   };
 
+  const PaginationControls = ({ position }: { position: "top" | "bottom" }) => {
+    if (totalPages <= 1) return null;
+
+    // Generujemy listę numerów stron do wyświetlenia
+    const getPageNumbers = () => {
+      const pages: (number | string)[] = [];
+      const maxVisible = 7; // ile numerów stron pokazać
+
+      if (totalPages <= maxVisible) {
+        // Jeśli mało stron, pokazujemy wszystkie
+        for (let i = 1; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        // Zawsze pokazujemy pierwszą stronę
+        pages.push(1);
+
+        let startPage = Math.max(2, page - 2);
+        let endPage = Math.min(totalPages - 1, page + 2);
+
+        // Dostosowujemy zakres, aby zawsze pokazać około 7 numerów
+        if (page <= 4) {
+          endPage = Math.min(maxVisible - 1, totalPages - 1);
+          startPage = 2;
+        } else if (page >= totalPages - 3) {
+          startPage = Math.max(2, totalPages - maxVisible + 2);
+          endPage = totalPages - 1;
+        }
+
+        // Dodajemy "..." jeśli potrzeba
+        if (startPage > 2) {
+          pages.push("...");
+        }
+
+        // Dodajemy zakres stron wokół aktualnej
+        for (let i = startPage; i <= endPage; i++) {
+          pages.push(i);
+        }
+
+        // Dodajemy "..." jeśli potrzeba
+        if (endPage < totalPages - 1) {
+          pages.push("...");
+        }
+
+        // Zawsze pokazujemy ostatnią stronę
+        pages.push(totalPages);
+      }
+
+      return pages;
+    };
+
+    const pageNumbers = getPageNumbers();
+
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          disabled={page === 1 || tableLoading}
+          style={{
+            padding: "0.45rem 0.75rem",
+            borderRadius: "0.5rem",
+            border: "1px solid #D1D5DB",
+            backgroundColor: page === 1 || tableLoading ? "#F3F4F6" : "white",
+            color: "#374151",
+            cursor: page === 1 || tableLoading ? "not-allowed" : "pointer",
+            fontSize: "0.85rem",
+            fontWeight: 500,
+          }}
+        >
+          ←
+        </button>
+
+        {pageNumbers.map((pageNum, index) => {
+          if (pageNum === "...") {
+            return (
+              <span key={`ellipsis-${index}`} style={{ padding: "0 0.5rem", color: "#6B7280", fontSize: "0.85rem" }}>
+                ...
+              </span>
+            );
+          }
+
+          const pageNumber = pageNum as number;
+          const isActive = pageNumber === page;
+
+          return (
+            <button
+              key={pageNumber}
+              type="button"
+              onClick={() => setPage(pageNumber)}
+              disabled={tableLoading}
+              style={{
+                padding: "0.45rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid",
+                borderColor: isActive ? "#2563EB" : "#D1D5DB",
+                backgroundColor: isActive ? "#2563EB" : "white",
+                color: isActive ? "white" : "#374151",
+                cursor: tableLoading ? "not-allowed" : "pointer",
+                fontSize: "0.85rem",
+                fontWeight: isActive ? 600 : 500,
+                minWidth: "2.5rem",
+                textAlign: "center",
+              }}
+            >
+              {pageNumber}
+            </button>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          disabled={page >= totalPages || tableLoading}
+          style={{
+            padding: "0.45rem 0.75rem",
+            borderRadius: "0.5rem",
+            border: "1px solid #D1D5DB",
+            backgroundColor: page >= totalPages || tableLoading ? "#F3F4F6" : "white",
+            color: "#374151",
+            cursor: page >= totalPages || tableLoading ? "not-allowed" : "pointer",
+            fontSize: "0.85rem",
+            fontWeight: 500,
+          }}
+        >
+          →
+        </button>
+      </div>
+    );
+  };
+
   type FilterOption = {
     value: string;
     label: string;
@@ -577,12 +688,14 @@ export default function CompanyOverviewPage() {
 
   const FilterRow = ({
     title,
+    description,
     options,
     selected,
     onToggle,
     isFirst = false,
   }: {
     title: string;
+    description?: string;
     options: FilterOption[];
     selected: string[];
     onToggle: (value: string) => void;
@@ -605,13 +718,21 @@ export default function CompanyOverviewPage() {
       >
         <div
           style={{
-            flex: "0 0 180px",
+            flex: "0 0 220px",
             fontSize: "0.9rem",
             fontWeight: 600,
             color: "#111827",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.25rem",
           }}
         >
-          {title}
+          <span>{title}</span>
+          {description && (
+            <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280" }}>
+              {description}
+            </span>
+          )}
         </div>
         <div
           style={{
@@ -660,10 +781,79 @@ return (
       <div>
         <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.35rem" }}>Proces 1 ▸ Przegląd bazy</div>
         <h1 style={{ fontSize: "1.9rem", fontWeight: 700, color: "#111827", marginBottom: "0.5rem" }}>Przegląd bazy firm</h1>
-        <p style={{ fontSize: "1rem", lineHeight: 1.6, color: "#374151", maxWidth: "760px" }}>
-          To jest centralne miejsce do monitorowania jakości danych. Skorzystaj z filtrów, aby wyszukać konkretne firmy,
-          skontrolować oznaczenia segmentów, uzupełnić braki lub przygotować listę rekordów do dalszej pracy.
-        </p>
+        
+        <div style={{ 
+          padding: "1rem", 
+          backgroundColor: "#F9FAFB", 
+          borderRadius: "0.75rem", 
+          border: "1px solid #E5E7EB",
+          marginBottom: "1rem",
+          maxWidth: "900px"
+        }}>
+          <button
+            onClick={() => setInfoExpanded(!infoExpanded)}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              backgroundColor: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: "0",
+              textAlign: "left",
+            }}
+          >
+            <h2 style={{ fontSize: "1rem", fontWeight: 600, color: "#111827", margin: 0 }}>
+              Do czego służy ta strona? {infoExpanded ? "▼" : "▶"}
+            </h2>
+          </button>
+          
+          {infoExpanded && (
+            <div style={{ marginTop: "1rem" }}>
+              <p style={{ fontSize: "0.95rem", lineHeight: 1.7, color: "#374151", marginBottom: "1rem" }}>
+                To jest <strong>centralne miejsce do klasyfikowania firm</strong> z zewnętrznej bazy. 
+                Firmy pochodzą z zewnętrznych źródeł i mają przypisane <strong>branże</strong>. 
+                Tutaj dodajesz im nasze <strong>specjalizacje</strong> - kategorie, które definiują typ klienta z perspektywy Kreativii 
+                (np. "Wykonawca stoisk targowych", "Pośrednik reklamowy").
+              </p>
+
+              <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem", marginTop: "1rem" }}>
+                Co widzisz?
+              </h3>
+              <ul style={{ fontSize: "0.9rem", lineHeight: 1.7, color: "#4B5563", margin: 0, paddingLeft: "1.5rem", marginBottom: "1rem" }}>
+                <li><strong>Statystyki</strong> - ile firm masz w bazie (łącznie i według branż)</li>
+                <li><strong>Tabela firm</strong> - wszystkie firmy z zewnętrznej bazy: nazwa, opis, branża (z bazy), specjalizacja (nasza klasyfikacja), źródło importu</li>
+                <li><strong>Filtry</strong> - możesz filtrować po specjalizacjach, branżach, rynkach</li>
+                <li><strong>Paginacja</strong> - przechodzenie między stronami wyników</li>
+              </ul>
+
+              <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem", marginTop: "1rem" }}>
+                Co możesz zrobić?
+              </h3>
+              <ul style={{ fontSize: "0.9rem", lineHeight: 1.7, color: "#4B5563", margin: 0, paddingLeft: "1.5rem", marginBottom: "1rem" }}>
+                <li><strong>Przeglądać firmy</strong> - zobacz wszystkie firmy z zewnętrznej bazy, ich branże i przypisane specjalizacje</li>
+                <li><strong>Sprawdzać klasyfikacje</strong> - zobacz jakie specjalizacje zostały automatycznie przypisane firmom</li>
+                <li><strong>Filtrować</strong> - znajdź konkretne firmy według specjalizacji, branży, rynku</li>
+                <li><strong>Szukać</strong> - użyj wyszukiwarki, aby znaleźć firmę po nazwie lub opisie</li>
+                <li><strong>Kontrolować jakość</strong> - sprawdź czy firmy mają przypisane specjalizacje i kompletne dane</li>
+              </ul>
+
+              <div style={{ 
+                marginTop: "1rem", 
+                padding: "0.75rem", 
+                backgroundColor: "#EEF2FF", 
+                borderRadius: "0.5rem",
+                borderLeft: "3px solid #6366F1"
+              }}>
+                <strong style={{ fontSize: "0.85rem", color: "#4338CA" }}>Wskazówka:</strong>
+                <span style={{ fontSize: "0.85rem", color: "#4B5563", marginLeft: "0.5rem" }}>
+                  Firmy zablokowane są automatycznie ukryte. Jeśli chcesz je zobaczyć, wybierz status "BLOCKED" w filtrach.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <section style={{ display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
@@ -685,7 +875,8 @@ return (
           <span style={{ fontSize: "0.8rem", color: "#9CA3AF" }}>Na podstawie segmentacji w systemie</span>
         </div>
 
-        {classStats.map((entry) => (
+        {/* Klasy ukryte - nie używamy */}
+        {/* {classStats.map((entry) => (
           <div
             key={entry.classCode}
             style={{
@@ -708,7 +899,7 @@ return (
               </span>
             )}
           </div>
-        ))}
+        ))} */}
       </section>
 
       {topIndustries.length > 0 && (
@@ -858,15 +1049,25 @@ return (
             flexDirection: "column",
           }}
         >
-          <FilterRow
+          {/* Filtr klas (PS, WK, WKK) ukryty - nie używamy */}
+          {/* <FilterRow
             title="Klasy"
             options={classFilterOptions}
             selected={classFilter}
             onToggle={(value) => toggleFilterValue(value, setClassFilter)}
             isFirst
+          /> */}
+          <FilterRow
+            title="Branże"
+            description="Ogólna kategoria biznesowa firmy pochodząca z zewnętrznej bazy (np. Marketing & Advertising)"
+            options={industryFilterOptions}
+            selected={industryFilter}
+            onToggle={(value) => toggleFilterValue(value, setIndustryFilter)}
+            isFirst
           />
           <FilterRow
             title="Specjalizacje"
+            description="Typ klienta z perspektywy Kreativii - nasza klasyfikacja dodawana do firm (np. Wykonawca stoisk targowych)"
             options={specializationOptions.map(({ value, label, count }) => ({
               value,
               label,
@@ -877,26 +1078,24 @@ return (
           />
           <FilterRow
             title="Rynki"
+            description="Kraj lub region działania firmy (PL, DE, FR, EN)"
             options={marketFilterOptions}
             selected={marketFilter}
             onToggle={(value) => toggleFilterValue(value, setMarketFilter)}
           />
-          <FilterRow
-            title="Branże"
-            options={industryFilterOptions}
-            selected={industryFilter}
-            onToggle={(value) => toggleFilterValue(value, setIndustryFilter)}
-          />
         </div>
 
         <div style={{ borderRadius: "0.75rem", border: "1px solid #E5E7EB", overflow: "hidden" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "0.9rem 1.2rem", backgroundColor: "#F9FAFB" }}>
-              <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>
-                Łącznie rekordów: {totalCount?.toLocaleString("pl-PL")}
-              </span>
-              <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>
-                Strona {page} z {totalPages}
-              </span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.9rem 1.2rem", backgroundColor: "#F9FAFB" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>
+                  Łącznie rekordów: {totalCount?.toLocaleString("pl-PL")}
+                </span>
+                <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>
+                  Strona {page} z {totalPages}
+                </span>
+              </div>
+              <PaginationControls position="top" />
             </div>
 
           {tableLoading ? (
@@ -915,7 +1114,7 @@ return (
                 <tr>
                   <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.8rem", color: "#6B7280" }}>Firma</th>
                   <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.8rem", color: "#6B7280" }}>Opis</th>
-                  <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.8rem", color: "#6B7280" }}>Segment / Specjalizacja</th>
+                  <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.8rem", color: "#6B7280" }}>Specjalizacja</th>
                   <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.8rem", color: "#6B7280" }}>Branża</th>
                   <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.8rem", color: "#6B7280" }}>Import</th>
                 </tr>
@@ -980,42 +1179,11 @@ return (
           )}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
           <span style={{ fontSize: "0.85rem", color: "#6B7280" }}>
             Wyświetlono {companies.length} z {totalCount?.toLocaleString("pl-PL")}
           </span>
-          <div style={{ display: "flex", gap: "0.6rem" }}>
-            <button
-              type="button"
-              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              disabled={page === 1 || tableLoading}
-              style={{
-                padding: "0.55rem 0.9rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #D1D5DB",
-                backgroundColor: page === 1 || tableLoading ? "#F3F4F6" : "white",
-                color: "#374151",
-                cursor: page === 1 || tableLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              Poprzednia
-            </button>
-            <button
-              type="button"
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-              disabled={page >= totalPages || tableLoading}
-              style={{
-                padding: "0.55rem 0.9rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #D1D5DB",
-                backgroundColor: page >= totalPages || tableLoading ? "#F3F4F6" : "white",
-                color: "#374151",
-                cursor: page >= totalPages || tableLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              Następna
-            </button>
-          </div>
+          <PaginationControls position="bottom" />
         </div>
       </section>
     </div>

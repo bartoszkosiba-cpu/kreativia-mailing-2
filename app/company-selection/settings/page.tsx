@@ -4,6 +4,25 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { COMPANY_SPECIALIZATIONS } from "@/config/companySpecializations";
 
+interface SpecializationFromDB {
+  id: number;
+  code: string;
+  label: string;
+  description: string;
+  companyClass: string;
+  createdBy: string;
+  createdAt: string;
+  firstCompanyId: number | null;
+  firstCompanyName: string | null;
+  firstCompanyReason: string | null;
+  aiConfidence: number | null;
+  companyCount?: number; // Liczba firm z tą specjalizacją
+  firstCompany: {
+    id: number;
+    name: string;
+  } | null;
+}
+
 interface IndustryRule {
   industry: string;
   specializationCode: string;
@@ -28,9 +47,14 @@ interface IndustrySuggestion {
 export default function CompanySelectionSettingsPage() {
   const [rules, setRules] = useState<IndustryRule[]>([]);
   const [suggestions, setSuggestions] = useState<IndustrySuggestion[]>([]);
+  const [specializations, setSpecializations] = useState<SpecializationFromDB[]>([]);
   const [loadingRules, setLoadingRules] = useState(true);
   const [loadingSuggestions, setLoadingSuggestions] = useState(true);
+  const [loadingSpecializations, setLoadingSpecializations] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedSpecs, setExpandedSpecs] = useState<Set<string>>(new Set());
+  const [filterClass, setFilterClass] = useState<string>("");
+  const [filterCreatedBy, setFilterCreatedBy] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -85,8 +109,31 @@ export default function CompanySelectionSettingsPage() {
       }
     }
 
+    async function loadSpecializations() {
+      setLoadingSpecializations(true);
+      try {
+        const response = await fetch("/api/company-selection/specializations");
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        if (!cancelled && data.success) {
+          setSpecializations(data.specializations ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Błąd pobierania specjalizacji:", err);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSpecializations(false);
+        }
+      }
+    }
+
     loadRules();
     loadSuggestions();
+    loadSpecializations();
 
     return () => {
       cancelled = true;
@@ -102,6 +149,32 @@ export default function CompanySelectionSettingsPage() {
     }
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [rules]);
+
+  const filteredSpecializations = useMemo(() => {
+    return specializations.filter((spec) => {
+      if (filterClass && spec.companyClass !== filterClass) return false;
+      if (filterCreatedBy && spec.createdBy !== filterCreatedBy) return false;
+      return true;
+    });
+  }, [specializations, filterClass, filterCreatedBy]);
+
+  const toggleSpec = (code: string) => {
+    const newExpanded = new Set(expandedSpecs);
+    if (newExpanded.has(code)) {
+      newExpanded.delete(code);
+    } else {
+      newExpanded.add(code);
+    }
+    setExpandedSpecs(newExpanded);
+  };
+
+  const toggleAll = () => {
+    if (expandedSpecs.size === filteredSpecializations.length) {
+      setExpandedSpecs(new Set());
+    } else {
+      setExpandedSpecs(new Set(filteredSpecializations.map((s) => s.code)));
+    }
+  };
 
   return (
     <div style={{ padding: "2rem", display: "flex", flexDirection: "column", gap: "2rem" }}>
@@ -130,48 +203,298 @@ export default function CompanySelectionSettingsPage() {
       )}
 
       <section style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-        <h2 style={{ margin: 0 }}>Specjalizacje</h2>
-        <p style={{ color: "#4B5563", maxWidth: "720px" }}>
-          Zobacz katalog specjalizacji, którym przypisujemy branże. Każda specjalizacja
-          wskazuje klasę (PS/WK/WKK) oraz opisuje typ klientów.
-        </p>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: "1rem",
-          }}
-        >
-          {COMPANY_SPECIALIZATIONS.map((spec) => (
-            <div
-              key={spec.code}
-              style={{
-                border: "1px solid #E5E7EB",
-                borderRadius: "0.75rem",
-                padding: "1rem",
-                backgroundColor: "#F9FAFB",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.5rem",
-              }}
-            >
-              <span
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 400px" }}>
+            <h2 style={{ margin: 0 }}>Specjalizacje</h2>
+            <p style={{ color: "#4B5563", maxWidth: "720px", marginTop: "0.5rem" }}>
+              Katalog specjalizacji - każda wskazuje klasę (PS/WK/WKK) i opisuje typ klientów. 
+              Specjalizacje utworzone przez AI oznaczone są kolorem żółtym.
+            </p>
+          </div>
+          {!loadingSpecializations && (
+            <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+              {/* Podsumowanie firm sklasyfikowanych przez AI */}
+              <div
                 style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  color: "#4338CA",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "0.5rem",
+                  backgroundColor: "#EFF6FF",
+                  border: "1px solid #93C5FD",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
                 }}
               >
-                {spec.companyClass}
-              </span>
-              <h3 style={{ margin: 0 }}>{spec.label}</h3>
-              <p style={{ margin: 0, color: "#4B5563", lineHeight: 1.5 }}>
-                {spec.description}
-              </p>
+                <span style={{ fontSize: "0.75rem", color: "#475569", fontWeight: 500 }}>
+                  Firmy sklasyfikowane przez AI
+                </span>
+                <span style={{ fontSize: "1.25rem", color: "#1E40AF", fontWeight: 700 }}>
+                  {filteredSpecializations.reduce((sum, spec) => sum + (spec.companyCount || 0), 0)}
+                </span>
+              </div>
+              {filteredSpecializations.length > 0 && (
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <button
+                    onClick={toggleAll}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #D1D5DB",
+                      backgroundColor: "white",
+                      color: "#374151",
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {expandedSpecs.size === filteredSpecializations.length ? "Zwiń wszystkie" : "Rozwiń wszystkie"}
+                  </button>
+                  <span style={{ color: "#6B7280", fontSize: "0.875rem" }}>
+                    {filteredSpecializations.length} specjalizacji
+                  </span>
+                  <span style={{ color: "#6B7280", fontSize: "0.875rem" }}>
+                    ({filteredSpecializations.filter((s) => (s.companyCount || 0) > 0).length} z firmami)
+                  </span>
+                </div>
+              )}
             </div>
-          ))}
+          )}
+        </div>
+
+        {/* Filtry */}
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <label style={{ fontSize: "0.875rem", color: "#374151", fontWeight: 500 }}>Klasa:</label>
+            <select
+              value={filterClass}
+              onChange={(e) => setFilterClass(e.target.value)}
+              style={{
+                padding: "0.5rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #D1D5DB",
+                fontSize: "0.875rem",
+              }}
+            >
+              <option value="">Wszystkie</option>
+              <option value="PS">PS</option>
+              <option value="WK">WK</option>
+              <option value="WKK">WKK</option>
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <label style={{ fontSize: "0.875rem", color: "#374151", fontWeight: 500 }}>Typ:</label>
+            <select
+              value={filterCreatedBy}
+              onChange={(e) => setFilterCreatedBy(e.target.value)}
+              style={{
+                padding: "0.5rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #D1D5DB",
+                fontSize: "0.875rem",
+              }}
+            >
+              <option value="">Wszystkie</option>
+              <option value="MANUAL">Manualne</option>
+              <option value="AI">Utworzone przez AI</option>
+            </select>
+          </div>
+          {(filterClass || filterCreatedBy) && (
+            <button
+              onClick={() => {
+                setFilterClass("");
+                setFilterCreatedBy("");
+              }}
+              style={{
+                padding: "0.5rem 1rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #D1D5DB",
+                backgroundColor: "white",
+                color: "#374151",
+                fontSize: "0.875rem",
+                cursor: "pointer",
+              }}
+            >
+              Wyczyść filtry
+            </button>
+          )}
+        </div>
+
+        {/* Tabela specjalizacji */}
+        <div
+          style={{
+            border: "1px solid #E5E7EB",
+            borderRadius: "0.75rem",
+            overflow: "hidden",
+            backgroundColor: "white",
+          }}
+        >
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead style={{ backgroundColor: "#F9FAFB", borderBottom: "2px solid #E5E7EB" }}>
+              <tr>
+                <th style={{ padding: "0.75rem", textAlign: "left", fontSize: "0.875rem", fontWeight: 600, color: "#374151", width: "50px" }}></th>
+                <th style={{ padding: "0.75rem", textAlign: "left", fontSize: "0.875rem", fontWeight: 600, color: "#374151", width: "80px" }}>Klasa</th>
+                <th style={{ padding: "0.75rem", textAlign: "left", fontSize: "0.875rem", fontWeight: 600, color: "#374151" }}>Kod</th>
+                <th style={{ padding: "0.75rem", textAlign: "left", fontSize: "0.875rem", fontWeight: 600, color: "#374151" }}>Nazwa</th>
+                <th style={{ padding: "0.75rem", textAlign: "left", fontSize: "0.875rem", fontWeight: 600, color: "#374151", width: "100px" }}>Firmy</th>
+                <th style={{ padding: "0.75rem", textAlign: "left", fontSize: "0.875rem", fontWeight: 600, color: "#374151", width: "120px" }}>Typ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingSpecializations && filteredSpecializations.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ padding: "2rem", textAlign: "center", color: "#6B7280" }}>
+                    Ładowanie specjalizacji...
+                  </td>
+                </tr>
+              )}
+              {!loadingSpecializations && filteredSpecializations.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ padding: "2rem", textAlign: "center", color: "#6B7280" }}>
+                    Brak specjalizacji
+                  </td>
+                </tr>
+              )}
+              {filteredSpecializations.map((spec, index) => {
+                const isAICreated = spec.createdBy === "AI";
+                const isExpanded = expandedSpecs.has(spec.code);
+                return (
+                  <>
+                    <tr
+                      key={spec.code}
+                      style={{
+                        backgroundColor: isAICreated ? "#FFFBEB" : index % 2 === 0 ? "white" : "#F9FAFB",
+                        borderBottom: "1px solid #E5E7EB",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => toggleSpec(spec.code)}
+                    >
+                      <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                        <span style={{ fontSize: "0.875rem", color: "#6B7280" }}>
+                          {isExpanded ? "▼" : "▶"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "0.75rem" }}>
+                        <span
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            borderRadius: "0.375rem",
+                            backgroundColor: spec.companyClass === "PS" ? "#DBEAFE" : spec.companyClass === "WK" ? "#D1FAE5" : "#FCE7F3",
+                            color: spec.companyClass === "PS" ? "#1E40AF" : spec.companyClass === "WK" ? "#065F46" : "#9F1239",
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {spec.companyClass}
+                        </span>
+                      </td>
+                      <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.875rem", color: "#1F2937" }}>
+                        {spec.code}
+                      </td>
+                      <td style={{ padding: "0.75rem", fontWeight: 500, color: "#111827" }}>
+                        {spec.label}
+                        {isAICreated && (
+                          <span
+                            style={{
+                              marginLeft: "0.5rem",
+                              padding: "0.125rem 0.375rem",
+                              borderRadius: "0.25rem",
+                              backgroundColor: "#FCD34D",
+                              color: "#92400E",
+                              fontSize: "0.7rem",
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            AI
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                        <span
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            borderRadius: "0.375rem",
+                            backgroundColor: (spec.companyCount || 0) > 0 ? "#D1FAE5" : "#F3F4F6",
+                            color: (spec.companyCount || 0) > 0 ? "#065F46" : "#6B7280",
+                            fontSize: "0.875rem",
+                            fontWeight: 600,
+                            minWidth: "40px",
+                            display: "inline-block",
+                            textAlign: "center",
+                          }}
+                        >
+                          {spec.companyCount || 0}
+                        </span>
+                      </td>
+                      <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#6B7280" }}>
+                        {spec.createdBy === "AI" ? "AI" : "Manualna"}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr
+                        style={{
+                          backgroundColor: isAICreated ? "#FFFBEB" : index % 2 === 0 ? "white" : "#F9FAFB",
+                          borderBottom: "1px solid #E5E7EB",
+                        }}
+                      >
+                        <td colSpan={6} style={{ padding: "0 0.75rem 0.75rem 0.75rem" }}>
+                          <div style={{ paddingLeft: "2.5rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                            <div>
+                              <strong style={{ fontSize: "0.875rem", color: "#374151" }}>Opis:</strong>
+                              <p style={{ margin: "0.25rem 0 0 0", color: "#4B5563", fontSize: "0.875rem", lineHeight: 1.6 }}>
+                                {spec.description}
+                              </p>
+                            </div>
+                            {isAICreated && (
+                              <div
+                                style={{
+                                  padding: "0.75rem",
+                                  borderRadius: "0.5rem",
+                                  backgroundColor: "#FEF3C7",
+                                  border: "1px solid #FCD34D",
+                                  fontSize: "0.875rem",
+                                }}
+                              >
+                                <div style={{ fontWeight: 600, color: "#92400E", marginBottom: "0.5rem" }}>
+                                  Informacje o utworzeniu przez AI:
+                                </div>
+                                <div style={{ color: "#78350F", lineHeight: 1.6, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                                  <div>
+                                    <strong>Utworzona:</strong> {new Date(spec.createdAt).toLocaleString("pl-PL")}
+                                  </div>
+                                  {spec.firstCompanyName && (
+                                    <div>
+                                      <strong>Przez firmę:</strong> {spec.firstCompanyName}
+                                      {spec.firstCompanyId && (
+                                        <span style={{ color: "#6B7280", fontSize: "0.75rem", marginLeft: "0.5rem" }}>
+                                          (ID: {spec.firstCompanyId})
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {spec.firstCompanyReason && (
+                                    <div style={{ marginTop: "0.25rem", fontStyle: "italic" }}>
+                                      <strong>Powód:</strong> {spec.firstCompanyReason}
+                                    </div>
+                                  )}
+                                  {spec.aiConfidence !== null && (
+                                    <div>
+                                      <strong>Confidence AI:</strong> {Math.round(spec.aiConfidence * 100)}%
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </section>
 

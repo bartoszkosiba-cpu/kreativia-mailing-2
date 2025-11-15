@@ -39,6 +39,8 @@ function buildCompanyFilter(
 ): Prisma.CompanyWhereInput {
   const where: Prisma.CompanyWhereInput = {
     market,
+    // Automatycznie wykluczamy firmy zablokowane z selekcji
+    verificationStatus: { not: "BLOCKED" },
   };
 
   const { industries, segments, subSegments, importBatchIds, verificationStatuses, onlyNeedsReview } =
@@ -60,9 +62,21 @@ function buildCompanyFilter(
     where.importBatchId = { in: importBatchIds };
   }
 
+  // Jeśli użytkownik JAWNO chce zobaczyć BLOCKED, pozwalamy (dla Overview)
   if (verificationStatuses && verificationStatuses.length > 0) {
-    where.verificationStatus = { in: verificationStatuses };
+    // Jeśli jest "BLOCKED" w liście, usuwamy automatyczne wykluczenie
+    if (verificationStatuses.includes("BLOCKED")) {
+      where.verificationStatus = { in: verificationStatuses };
+    } else {
+      // Jeśli nie ma BLOCKED, filtrujemy tylko wybrane statusy (wykluczenie BLOCKED już jest na górze)
+      const filteredStatuses = verificationStatuses.filter((s) => s !== "BLOCKED");
+      if (filteredStatuses.length > 0) {
+        where.verificationStatus = { in: filteredStatuses };
+      }
+      // Jeśli wszystkie statusy były BLOCKED, pozostaje wykluczenie z góry
+    }
   }
+  // Jeśli nie ma verificationStatuses, wykluczenie BLOCKED już jest na górze funkcji (domyślnie)
 
   if (onlyNeedsReview) {
     where.classificationNeedsReview = true;

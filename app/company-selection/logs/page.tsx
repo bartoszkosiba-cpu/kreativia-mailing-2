@@ -20,43 +20,43 @@ const moduleDescriptions: Record<string, ModuleInfo> = {
   "company-import": {
     name: "Import CSV",
     description: "Logi importu firm z plików CSV",
-    icon: "📥",
+    icon: "",
     color: "#3B82F6",
   },
   "company-verification-ai": {
     name: "AI Weryfikacja",
     description: "Logi z procesu weryfikacji AI (analiza firm)",
-    icon: "🤖",
+    icon: "",
     color: "#8B5CF6",
   },
   "company-criteria-chat": {
     name: "Czat z agentem",
     description: "Logi z czatu z agentem AI (definiowanie kryteriów)",
-    icon: "💬",
+    icon: "",
     color: "#F59E0B",
   },
   "progress": {
     name: "Progress tracking",
     description: "Logi z endpoint progress (śledzenie postępu weryfikacji)",
-    icon: "📊",
+    icon: "",
     color: "#EF4444",
   },
   "apollo": {
     name: "Apollo API",
     description: "Logi integracji z Apollo.io (wyszukiwanie firm i pracowników)",
-    icon: "🔍",
+    icon: "",
     color: "#06B6D4",
   },
   "persona-criteria": {
     name: "Persony – zapis",
     description: "Logi zapisów konfiguracji person i błędów walidacji",
-    icon: "🗂️",
+    icon: "",
     color: "#F97316",
   },
   "persona-criteria-chat": {
     name: "Persony – czat",
     description: "Logi rozmów z agentem AI przy definiowaniu person",
-    icon: "👥",
+    icon: "",
     color: "#2563EB",
   },
 };
@@ -113,7 +113,7 @@ export default function LogsIndexPage() {
       moduleDescriptions[module] || {
         name: module,
         description: "Logi modułu",
-        icon: "📄",
+        icon: "",
         color: "#6B7280",
       }
     );

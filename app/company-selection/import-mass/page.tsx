@@ -298,6 +298,10 @@ export default function CompanyMassImportPage() {
         return "Brak nazwy";
       case "missing_website":
         return "Brak strony www";
+      case "missing_activity_description":
+        return "Brak opisu działalności";
+      case "missing_industry":
+        return "Brak branży";
       case "duplicate":
         return "Duplikat nazwy (pominięty)";
       case "error":
@@ -708,11 +712,11 @@ export default function CompanyMassImportPage() {
                   }}
                 >
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem" }}>
-                    <span>📄 Wyszło z pliku: {totalRows.toLocaleString("pl-PL")} rekordów</span>
-                    <span>➕ Zaimportowano: {aggregatedResult.imported.toLocaleString("pl-PL")}</span>
-                    <span>🔁 Zaktualizowano: {aggregatedResult.updated.toLocaleString("pl-PL")}</span>
-                    <span>⏭️ Pominięto: {aggregatedResult.skipped.toLocaleString("pl-PL")}</span>
-                    <span>🆔 ID partii: {currentBatchId}</span>
+                    <span>Wyszło z pliku: {totalRows.toLocaleString("pl-PL")} rekordów</span>
+                    <span>Zaimportowano: {aggregatedResult.imported.toLocaleString("pl-PL")}</span>
+                    <span>Zaktualizowano: {aggregatedResult.updated.toLocaleString("pl-PL")}</span>
+                    <span>Pominięto: {aggregatedResult.skipped.toLocaleString("pl-PL")}</span>
+                    <span>ID partii: {currentBatchId}</span>
                   </div>
 
                   {aggregatedResult.skipped > 0 && (

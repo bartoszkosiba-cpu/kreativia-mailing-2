@@ -1023,6 +1023,8 @@ model Company {
   verificationLogs CompanyVerificationLog[]
   personaVerifications PersonaVerificationResult[]
   selectionMemberships CompanySelectionCompany[]
+  classifications CompanyClassification[]
+  createdSpecializations CompanySpecialization[] // Specjalizacje utworzone przez tę firmę
 
   @@index([verificationStatus])
   @@index([verifiedAt])
@@ -1046,6 +1048,51 @@ model CompanyTagScore {
 
   @@unique([companyId, tagCode])
   @@index([tagCode])
+}
+
+model CompanyClassification {
+  id                Int      @id @default(autoincrement())
+  companyId         Int
+  specializationCode String
+  score             Int      // 1-5 scoring
+  confidence        Float?   // 0.0-1.0 confidence from AI
+  isPrimary         Boolean  @default(false) // Main specialization
+  reason            String?  // AI explanation
+  source            String   @default("AI") // AI | MANUAL | RULES
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, specializationCode])
+  @@index([companyId])
+  @@index([specializationCode])
+  @@index([isPrimary])
+  @@index([score])
+}
+
+model CompanySpecialization {
+  id                Int      @id @default(autoincrement())
+  code              String   @unique // np. PS_AGENCY, AI_PROMO_PRODUCER
+  label             String   // Nazwa specjalizacji (PL)
+  description       String   // Opis specjalizacji
+  companyClass      String   // PS | WK | WKK
+  createdBy         String   @default("MANUAL") // MANUAL | AI
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Jeśli stworzona przez AI:
+  firstCompanyId    Int?     // ID pierwszej firmy, która wymusiła utworzenie tej specjalizacji
+  firstCompanyName  String?  // Nazwa pierwszej firmy
+  firstCompanyReason String? // Powód utworzenia (uzasadnienie AI)
+  aiConfidence      Float?   // Confidence z klasyfikacji, która utworzyła specjalizację
+  
+  firstCompany      Company? @relation(fields: [firstCompanyId], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@index([companyClass])
+  @@index([createdBy])
+  @@index([createdAt])
 }
 
 model CompanySelection {

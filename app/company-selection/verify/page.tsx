@@ -909,10 +909,10 @@ export default function CompanyVerifyPage() {
             Postęp weryfikacji ({progress.processed}/{progress.total}) – {progress.percentage}%
             </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", fontSize: "0.875rem" }}>
-            <span>✅ Zakwalifikowane: {progress.qualified}</span>
-            <span>❌ Odrzucone: {progress.rejected}</span>
-            <span>⚖️ Wymagają przeglądu: {progress.needsReview}</span>
-            <span>⚠️ Błędy: {progress.errors}</span>
+            <span>Zakwalifikowane: {progress.qualified}</span>
+            <span>Odrzucone: {progress.rejected}</span>
+            <span>Wymagają przeglądu: {progress.needsReview}</span>
+            <span>Błędy: {progress.errors}</span>
             {progress.currentCompanyName && (
               <span>Aktualnie: {progress.currentCompanyName}</span>
             )}

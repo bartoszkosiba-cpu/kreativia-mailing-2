@@ -206,6 +206,7 @@ export default function CompanySelectionsPage() {
   const [excludeCompanyIds, setExcludeCompanyIds] = useState<Set<number>>(new Set());
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [infoExpanded, setInfoExpanded] = useState(false);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -593,11 +594,81 @@ export default function CompanySelectionsPage() {
       <h1 style={{ fontSize: "2rem", fontWeight: 700, marginBottom: "0.75rem" }}>
         Nowa baza firm
       </h1>
-      <p style={{ color: "#4B5563", marginBottom: "2rem", maxWidth: "820px", lineHeight: 1.5 }}>
-        Stwórz własną selekcję firm na podstawie segmentów, branż i rynku. Możesz przygotować
-        podgląd, wykluczyć pojedyncze firmy i zapisać selekcję do dalszej pracy (kryteria AI,
-        weryfikacja, persony).
-      </p>
+
+      <div style={{ 
+        padding: "1rem", 
+        backgroundColor: "#F0FDF4", 
+        borderRadius: "0.75rem", 
+        border: "1px solid #BBF7D0",
+        marginBottom: "2rem",
+        maxWidth: "900px"
+      }}>
+        <button
+          onClick={() => setInfoExpanded(!infoExpanded)}
+          style={{
+            width: "100%",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            backgroundColor: "transparent",
+            border: "none",
+            cursor: "pointer",
+            padding: "0",
+            textAlign: "left",
+          }}
+        >
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, color: "#111827", margin: 0 }}>
+            Do czego służy ta strona? {infoExpanded ? "▼" : "▶"}
+          </h2>
+        </button>
+
+        {infoExpanded && (
+          <div style={{ marginTop: "1rem" }}>
+            <p style={{ fontSize: "0.95rem", lineHeight: 1.7, color: "#374151", marginBottom: "1rem" }}>
+              To jest <strong>kreator selekcji firm</strong> - narzędzie do wyselekcjonowania firm do dalszego etapu weryfikacji. 
+              Firmy w bazie mają już przypisane <strong>specjalizacje</strong> (z etapu klasyfikacji AI) i <strong>branże</strong>. 
+              Tutaj wybierasz filtry (rynek, specjalizacja, branża, partia importu), oglądasz podgląd wyników, 
+              wykluczasz niechciane firmy i zapisujesz selekcję do <strong>dalszego etapu wyselekcjonowania person</strong> - 
+              weryfikacji pracowników tych firm.
+            </p>
+
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem", marginTop: "1rem" }}>
+              Co widzisz?
+            </h3>
+            <ul style={{ fontSize: "0.9rem", lineHeight: 1.7, color: "#4B5563", margin: 0, paddingLeft: "1.5rem", marginBottom: "1rem" }}>
+              <li><strong>Parametry selekcji</strong> - nazwa, rynek, język (ustawiasz na górze)</li>
+              <li><strong>Filtry</strong> - wybierasz specjalizacje, branże i partie importu (firmy zablokowane są automatycznie wykluczane)</li>
+              <li><strong>Podgląd firm</strong> - zobacz które firmy wejdą do selekcji przed zapisaniem</li>
+              <li><strong>Lista zapisanych selekcji</strong> - wszystkie wcześniej utworzone bazy gotowe do weryfikacji person</li>
+            </ul>
+
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem", marginTop: "1rem" }}>
+              Co możesz zrobić?
+            </h3>
+            <ul style={{ fontSize: "0.9rem", lineHeight: 1.7, color: "#4B5563", margin: 0, paddingLeft: "1.5rem", marginBottom: "1rem" }}>
+              <li><strong>Utworzyć nową bazę firm</strong> - wybierz filtry (specjalizacje, branże), kliknij "Pokaż podgląd", sprawdź firmy, wyklucz niechciane i zapisz</li>
+              <li><strong>Przygotować podgląd</strong> - zobacz ile firm pasuje do wybranych filtrów, zanim zapiszesz selekcję</li>
+              <li><strong>Wykluczyć firmy</strong> - zaznacz checkbox "Wyklucz" przy firmach, których nie chcesz w selekcji</li>
+              <li><strong>Zapisać selekcję</strong> - zapisz bazę z nazwą i opisem - będzie dostępna do dalszego etapu wyselekcjonowania person (weryfikacji pracowników)</li>
+              <li><strong>Przeglądać zapisane selekcje</strong> - zobacz wszystkie utworzone bazy poniżej</li>
+            </ul>
+
+            <div style={{ 
+              marginTop: "1rem", 
+              padding: "0.75rem", 
+              backgroundColor: "#DBEAFE", 
+              borderRadius: "0.5rem",
+              borderLeft: "3px solid #2563EB"
+            }}>
+              <strong style={{ fontSize: "0.85rem", color: "#1E40AF" }}>Ważne:</strong>
+              <span style={{ fontSize: "0.85rem", color: "#4B5563", marginLeft: "0.5rem" }}>
+                Firmy zablokowane są automatycznie wykluczane z selekcji. Najpierw ustaw filtry, potem kliknij "Pokaż podgląd", 
+                sprawdź wyniki i dopiero wtedy zapisz selekcję. Zapisana selekcja będzie dostępna do dalszego etapu - wyselekcjonowania person.
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div style={{ display: "grid", gap: "1.5rem" }}>
         <section style={cardStyle}>
@@ -651,7 +722,12 @@ export default function CompanySelectionsPage() {
               />
             </div>
             <div>
-              <label style={labelStyle}>Rynek *</label>
+              <label style={labelStyle}>
+                Rynek *
+                <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
+                  Kraj lub region (PL, DE, FR, EN)
+                </span>
+              </label>
               <select
                 value={market}
                 onChange={(event) => setMarket(event.target.value as MarketOption)}
@@ -706,34 +782,12 @@ export default function CompanySelectionsPage() {
             }}
           >
             <div>
-              <label style={labelStyle}>Segmenty</label>
-              <div style={{ display: "grid", gap: "0.4rem" }}>
-                {uniqueSegments.map((segment) => (
-                  <label
-                    key={segment.code}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSegments.includes(segment.code)}
-                      onChange={() => setSelectedSegments((state) => toggleSelection(state, segment.code))}
-                    />
-                    <span>
-                      {segment.label}{" "}
-                      <span style={{ color: "#6B7280", fontSize: "0.75rem" }}>({segment.count})</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Specjalizacje</label>
+              <label style={labelStyle}>
+                Specjalizacje
+                <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
+                  Typ klienta z perspektywy Kreativii (np. "Wykonawca stoisk targowych")
+                </span>
+              </label>
               <div style={{ maxHeight: "220px", overflowY: "auto", paddingRight: "0.5rem" }}>
                 {uniqueSubSegments.map((segment) => (
                   <label
@@ -765,7 +819,12 @@ export default function CompanySelectionsPage() {
             </div>
 
             <div>
-              <label style={labelStyle}>Branże</label>
+              <label style={labelStyle}>
+                Branże
+                <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
+                  Ogólna kategoria biznesowa firmy (np. "Marketing & Advertising")
+                </span>
+              </label>
               <div style={{ maxHeight: "220px", overflowY: "auto", paddingRight: "0.5rem" }}>
                 {industries.map((industry) => (
                   <label
@@ -797,7 +856,12 @@ export default function CompanySelectionsPage() {
             </div>
 
             <div>
-              <label style={labelStyle}>Partie importu</label>
+              <label style={labelStyle}>
+                Partie importu
+                <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
+                  Z jakiego pliku CSV pochodzi firma
+                </span>
+              </label>
               <div style={{ maxHeight: "220px", overflowY: "auto", paddingRight: "0.5rem" }}>
                 {batches.map((batch) => (
                   <label

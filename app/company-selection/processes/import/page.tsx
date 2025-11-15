@@ -105,12 +105,12 @@ export default function ImportProcessPage() {
         </section>
 
         <section style={cardStyle}>
-          <Link href="/company-selection/overview" style={titleSecondaryLinkStyle}>
-            Przegląd bazy
+          <Link href="/company-selection/classify" style={titleSecondaryLinkStyle}>
+            Klasyfikacja AI
           </Link>
           <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
-            Przeglądaj wszystkie firmy wraz z oznaczeniami klas, specjalizacji i branż. Wykorzystaj filtry, by znaleźć
-            rekordy wymagające uwagi lub naprawić pojedyncze wpisy.
+            Przeglądaj wszystkie firmy i klasyfikuj je automatycznie przy użyciu AI. Zaznacz firmy do klasyfikacji,
+            śledź postęp i zarządzaj specjalizacjami firm w jednym miejscu.
           </p>
         </section>
 

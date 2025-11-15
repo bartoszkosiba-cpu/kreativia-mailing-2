@@ -174,6 +174,19 @@ export default function CompanySelectionPage() {
           Masowy import CSV
         </Link>
         <Link
+          href="/company-selection/classify"
+          style={{
+            padding: "0.75rem 1.5rem",
+            backgroundColor: "#F59E0B",
+            color: "white",
+            borderRadius: "0.5rem",
+            textDecoration: "none",
+            display: "inline-block",
+          }}
+        >
+          Klasyfikacja AI
+        </Link>
+        <Link
           href="/company-selection/verify"
           style={{
             padding: "0.75rem 1.5rem",

@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
       "company_verification",
       "company_criteria_chat",
       "company_criteria_generate",
+      "company_classification", // Klasyfikacja AI firm
     ];
 
     const now = new Date();

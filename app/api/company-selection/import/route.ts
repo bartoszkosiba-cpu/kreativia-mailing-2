@@ -208,6 +208,8 @@ export async function POST(req: NextRequest) {
         // Normalizuj podstawowe pola tekstowe
         company.name = company.name?.toString().trim();
         company.website = company.website?.toString().trim() || null;
+        company.activityDescription = company.activityDescription?.toString().trim() || null;
+        company.industry = company.industry?.toString().trim() || null;
 
         // Jeśli brak nazwy, pomiń
         if (!company.name || company.name.trim() === "") {
@@ -225,6 +227,24 @@ export async function POST(req: NextRequest) {
             logger.warn("company-import", `Pominięto firmę bez strony www: "${company.name}" (wiersz ${i + 1})`);
           }
           registerSkip("missing_website", company.name ?? undefined);
+          continue;
+        }
+
+        // Jeśli brak opisu działalności, pomiń
+        if (!company.activityDescription || company.activityDescription.trim() === "") {
+          if (skippedCount < 5) {
+            logger.warn("company-import", `Pominięto firmę bez opisu działalności: "${company.name}" (wiersz ${i + 1})`);
+          }
+          registerSkip("missing_activity_description", company.name ?? undefined);
+          continue;
+        }
+
+        // Jeśli brak branży, pomiń
+        if (!company.industry || company.industry.trim() === "") {
+          if (skippedCount < 5) {
+            logger.warn("company-import", `Pominięto firmę bez branży: "${company.name}" (wiersz ${i + 1})`);
+          }
+          registerSkip("missing_industry", company.name ?? undefined);
           continue;
         }
 

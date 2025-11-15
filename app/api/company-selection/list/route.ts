@@ -59,14 +59,25 @@ export async function GET(req: NextRequest) {
       .map((entry) => entry.trim())
       .filter(Boolean);
     const needsReview = searchParams.get("needsReview");
+    const classificationSource = searchParams.get("classificationSource"); // "AI" | "NOT_AI" | null
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const search = searchParams.get("search");
 
     const filterConditions: FilterCondition[] = [];
 
+    // Domyślnie wykluczamy firmy zablokowane (chyba że użytkownik JAWNO wybierze status BLOCKED)
     if (status && status !== "ALL") {
-      filterConditions.push({ key: "status", condition: { verificationStatus: status } });
+      if (status === "BLOCKED") {
+        // Jeśli użytkownik chce zobaczyć BLOCKED, pokazujemy tylko BLOCKED
+        filterConditions.push({ key: "status", condition: { verificationStatus: "BLOCKED" } });
+      } else {
+        // Dla innych statusów, pokazujemy tylko wybrane (BLOCKED jest wykluczone)
+        filterConditions.push({ key: "status", condition: { verificationStatus: status } });
+      }
+    } else {
+      // Jeśli nie wybrano statusu - domyślnie wykluczamy BLOCKED
+      filterConditions.push({ key: "status", condition: { verificationStatus: { not: "BLOCKED" } } });
     }
 
     if (industriesFilter.length === 1) {
@@ -119,6 +130,31 @@ export async function GET(req: NextRequest) {
       filterConditions.push({ key: "needsReview", condition: { classificationNeedsReview: false } });
     }
 
+    // Filtr klasyfikacji AI: "AI" = ma klasyfikację AI, "NOT_AI" = nie ma klasyfikacji AI
+    if (classificationSource === "AI") {
+      filterConditions.push({ 
+        key: "classificationSource", 
+        condition: { 
+          classifications: {
+            some: {
+              source: "AI",
+            },
+          },
+        },
+      });
+    } else if (classificationSource === "NOT_AI") {
+      filterConditions.push({ 
+        key: "classificationSource", 
+        condition: { 
+          classifications: {
+            none: {
+              source: "AI",
+            },
+          },
+        },
+      });
+    }
+
     if (marketsFilter.length > 0) {
       filterConditions.push({
         key: "market",
@@ -169,6 +205,14 @@ export async function GET(req: NextRequest) {
     }
 
     const whereFull = buildWhere(filterConditions);
+    
+    // Debug: Sprawdzamy, czy filtr branży jest poprawnie zastosowany do agregacji specjalizacji
+    const specializationWhere = buildWhere(filterConditions, ["subClass", "class"]);
+    if (industriesFilter.length > 0) {
+      console.log("[Company List] DEBUG - Filtr branży:", industriesFilter);
+      console.log("[Company List] DEBUG - Wszystkie filterConditions:", filterConditions.map(f => f.key));
+      console.log("[Company List] DEBUG - specializationWhere (po wykluczeniu subClass, class):", JSON.stringify(specializationWhere, null, 2));
+    }
 
     const [companies, total, classAggregationRaw, subClassAggregationRaw, marketAggregationRaw, industryAggregationRaw, signalRows] =
       await Promise.all([
@@ -179,6 +223,15 @@ export async function GET(req: NextRequest) {
           orderBy: { createdAt: "desc" },
           include: {
             importBatch: true,
+            classifications: {
+              where: {
+                source: "AI",
+              },
+              orderBy: [
+                { isPrimary: "desc" },
+                { score: "desc" },
+              ],
+            },
           },
         }),
         db.company.count({ where: whereFull }),
@@ -189,22 +242,28 @@ export async function GET(req: NextRequest) {
         }),
         db.company.groupBy({
           by: ["classificationSubClass"],
-          where: buildWhere(filterConditions, ["subClass"]),
+          where: specializationWhere,
           _count: { _all: true },
         }),
+        // Agregacja rynków - rynki są filtrem nadrzędnym, więc specjalizacja NIE filtruje agregacji rynków
+        // Wykluczamy filtry rynków (market) i specjalizacji (subClass), ale zachowujemy filtr branży (industry)
         db.company.groupBy({
           by: ["market"],
-          where: buildWhere(filterConditions, ["market"]),
+          where: buildWhere(filterConditions, ["market", "subClass", "class"]),
           _count: { _all: true },
         }),
+        // Agregacja branży - branża jest filtrem nadrzędnym, więc specjalizacja NIE filtruje agregacji branży
+        // Wykluczamy TYLKO filtry specjalizacji (subClass) i klasyfikacji (class), zachowujemy filtr branży (industry)
         db.company.groupBy({
           by: ["industry"],
-          where: buildWhere(filterConditions, ["industry"]),
+          where: buildWhere(filterConditions, ["subClass", "class"]),
           _count: { _all: true },
         }),
         db.company.findMany({
-          where: buildWhere(filterConditions, ["subClass"]),
+          where: specializationWhere,
           select: {
+            id: true,
+            classificationSubClass: true,
             classificationSignals: true,
           },
         }),
@@ -216,10 +275,20 @@ export async function GET(req: NextRequest) {
         specializationCountMap.set(String(entry.classificationSubClass), entry._count._all);
       }
     }
+    
+    if (industriesFilter.length > 0) {
+      console.log("[Company List] DEBUG - Liczba specjalizacji z subClassAggregationRaw:", subClassAggregationRaw.length);
+      console.log("[Company List] DEBUG - Przykładowe specjalizacje z subClassAggregationRaw:", subClassAggregationRaw.slice(0, 3).map(e => `${e.classificationSubClass}: ${e._count._all}`));
+      console.log("[Company List] DEBUG - Liczba firm w signalRows:", signalRows.length);
+      console.log("[Company List] DEBUG - specializationCountMap przed dodaniem signals:", Array.from(specializationCountMap.entries()).slice(0, 5));
+    }
 
     const allowedClasses = new Set(classificationClasses);
+    // Agregacja z classificationSignals - liczymy tylko specjalizacje z sygnałów,
+    // które NIE są już w classificationSubClass (aby uniknąć podwójnego liczenia)
     for (const row of signalRows) {
       if (!row.classificationSignals) continue;
+      const directSubClass = row.classificationSubClass;
       try {
         const signals: string[] = JSON.parse(row.classificationSignals);
         for (const signal of signals) {
@@ -228,6 +297,10 @@ export async function GET(req: NextRequest) {
           const code = parts[1];
           const score = Number(parts[2]);
           if (!code || Number.isNaN(score) || score < 3) continue;
+          
+          // Pomijamy specjalizacje, które są już w classificationSubClass (aby uniknąć podwójnego liczenia)
+          if (directSubClass === code) continue;
+          
           const specClass = CLASS_BY_SPECIALIZATION.get(code);
           if (allowedClasses.size > 0 && specClass && !allowedClasses.has(specClass)) {
             continue;
@@ -243,8 +316,13 @@ export async function GET(req: NextRequest) {
       value,
       count,
     }));
+    
+    if (industriesFilter.length > 0) {
+      console.log("[Company List] DEBUG - Finalna agregacja specjalizacji:", specializationAggregation.slice(0, 5).map(e => `${e.value}: ${e.count}`));
+      console.log("[Company List] DEBUG - Wszystkie specjalizacje w odpowiedzi:", specializationAggregation.length);
+    }
 
-    return NextResponse.json({
+    const responseData = {
       companies: companies.map((company) => ({
         ...company,
         classificationSignals: company.classificationSignals
@@ -278,7 +356,13 @@ export async function GET(req: NextRequest) {
             count: entry._count._all,
           })),
       },
-    });
+    };
+    
+    if (industriesFilter.length > 0) {
+      console.log("[Company List] DEBUG - Zwracam agregację specjalizacji (pierwsze 5):", responseData.aggregations.subClass.slice(0, 5));
+    }
+    
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error("[Company List] Błąd:", error);
     return NextResponse.json(
