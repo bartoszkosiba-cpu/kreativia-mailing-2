@@ -9,7 +9,7 @@ type ClassificationProgressRecord = {
   classified: number;
   skipped: number;
   errors: number;
-  status: "processing" | "completed" | "error";
+  status: "processing" | "completed" | "error" | "cancelled";
   currentCompanyName?: string;
   lastUpdate: number;
   startTime: number;
@@ -112,7 +112,7 @@ export function updateProgress(
     classified?: number;
     skipped?: number;
     errors?: number;
-    status?: "processing" | "completed" | "error";
+    status?: "processing" | "completed" | "error" | "cancelled";
     currentCompanyName?: string;
     errorDetails?: Array<{ companyId: number; companyName: string; error: string }>;
     newSpecializations?: Array<{

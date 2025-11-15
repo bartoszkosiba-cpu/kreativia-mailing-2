@@ -66,10 +66,9 @@ AI używa tylko 2 kolumn:
 
 ### 6. Strony Modułu
 
-1. **Import** (`/company-selection/import`) - Import CSV
-2. **Klasyfikacja AI** (`/company-selection/classify`) - **NOWA** - Automatyczna klasyfikacja paczek firm
-3. **Przegląd Bazy** (`/company-selection/overview`) - Przegląd zaklasyfikowanych firm
-4. **Zablokowane** (`/company-selection/blocked`) - Firma zablokowane
+1. **Import** (`/company-selection/import-mass`) - Import CSV
+2. **Klasyfikacja AI** (`/company-selection/classify`) - Przegląd i klasyfikacja firm z AI
+3. **Zablokowane** (`/company-selection/blocked`) - Firma zablokowane
 
 ### 7. API Endpoints
 

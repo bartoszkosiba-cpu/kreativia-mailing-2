@@ -68,8 +68,6 @@ export default function CompanyMassImportPage() {
   const [batchMarket, setBatchMarket] = useState<
     (typeof MARKET_OPTIONS)[number]["value"]
   >("PL");
-  const [isClearing, setIsClearing] = useState(false);
-  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const progressPercent = useMemo(() => {
     if (totalRows === 0) return 0;
@@ -87,46 +85,8 @@ export default function CompanyMassImportPage() {
     setAggregatedResult(null);
     setChunkDetails([]);
     setCurrentBatchId(null);
-    setDeleteMessage(null);
   }, []);
 
-  const handleDeleteAllCompanies = async () => {
-    if (
-      !window.confirm(
-        "Czy na pewno chcesz usunąć wszystkie firmy, importy i powiązania? Tej operacji nie da się cofnąć."
-      )
-    ) {
-      return;
-    }
-
-    try {
-      setIsClearing(true);
-      setError(null);
-      setDeleteMessage(null);
-
-      const response = await fetch("/api/company-selection/import/reset", {
-        method: "POST",
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || "Nie udało się wyczyścić bazy firm");
-      }
-
-      setFile(null);
-      resetState();
-      setDeleteMessage(
-        `Baza firm została wyczyszczona. Usunięto ${data?.removedCompanies ?? 0} rekordów.`
-      );
-    } catch (deleteError) {
-      console.error("[Mass Import] Błąd czyszczenia bazy:", deleteError);
-      setError(
-        deleteError instanceof Error ? deleteError.message : "Nie udało się wyczyścić bazy firm"
-      );
-    } finally {
-      setIsClearing(false);
-    }
-  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -315,7 +275,7 @@ export default function CompanyMassImportPage() {
     <div style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>
       <div style={{ marginBottom: "2rem" }}>
         <Link
-          href="/company-selection"
+          href="/company-selection/processes/import"
           style={{
             color: "#3B82F6",
             textDecoration: "none",
@@ -323,7 +283,7 @@ export default function CompanyMassImportPage() {
             display: "inline-block",
           }}
         >
-          ← Powrót do modułu wyboru leadów
+          ← Powrót do procesu importu
         </Link>
         <h1 style={{ fontSize: "2rem", marginTop: "1rem" }}>
           Masowy import firm z CSV
@@ -332,56 +292,6 @@ export default function CompanyMassImportPage() {
           Ten tryb wysyła plik w paczkach po {CHUNK_SIZE} rekordów, dzięki czemu import dużych baz
           odbywa się bez zacięć i z widocznym paskiem postępu.
         </p>
-      </div>
-
-      <div
-        style={{
-          padding: "2rem",
-          backgroundColor: "white",
-          borderRadius: "0.5rem",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          marginBottom: "2rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1rem",
-        }}
-      >
-        <h2 style={{ margin: 0 }}>Czyszczenie bazy firm</h2>
-        <p style={{ margin: 0, color: "#4B5563", maxWidth: "680px" }}>
-          Usuwa wszystkie firmy, partie importów, wyniki weryfikacji i powiązania z selekcjami. Używaj tylko na
-          środowisku testowym lub przed ponownym importem.
-        </p>
-        {deleteMessage && (
-          <div
-            style={{
-              padding: "0.75rem 1rem",
-              borderRadius: "0.5rem",
-              backgroundColor: "#DCFCE7",
-              border: "1px solid #BBF7D0",
-              color: "#065F46",
-            }}
-          >
-            {deleteMessage}
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={handleDeleteAllCompanies}
-          disabled={isClearing || isImporting}
-          style={{
-            alignSelf: "flex-start",
-            padding: "0.75rem 1.5rem",
-            borderRadius: "0.5rem",
-            border: "1px solid #DC2626",
-            backgroundColor: isClearing || isImporting ? "#FEE2E2" : "#EF4444",
-            color: "white",
-            fontWeight: 600,
-            cursor: isClearing || isImporting ? "not-allowed" : "pointer",
-            transition: "background-color 0.2s ease",
-          }}
-        >
-          {isClearing ? "Czyścimy bazę…" : "Usuń wszystkie firmy"}
-        </button>
       </div>
 
       <div

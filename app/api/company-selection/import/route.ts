@@ -221,15 +221,6 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Jeśli brak strony www, pomiń
-        if (!company.website) {
-          if (skippedCount < 5) {
-            logger.warn("company-import", `Pominięto firmę bez strony www: "${company.name}" (wiersz ${i + 1})`);
-          }
-          registerSkip("missing_website", company.name ?? undefined);
-          continue;
-        }
-
         // Jeśli brak opisu działalności, pomiń
         if (!company.activityDescription || company.activityDescription.trim() === "") {
           if (skippedCount < 5) {

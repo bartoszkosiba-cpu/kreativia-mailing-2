@@ -99,10 +99,24 @@ export async function POST(req: NextRequest) {
       try {
         // Klasyfikuj w paczkach po CHUNK_SIZE firm
         for (let i = 0; i < companies.length; i += CHUNK_SIZE) {
+          // Sprawdź czy proces został anulowany
+          const currentProgress = getProgress(progressId);
+          if (!currentProgress || currentProgress.status === "cancelled") {
+            logger.info("company-classification-api", `Klasyfikacja anulowana przez użytkownika (progressId: ${progressId})`);
+            break;
+          }
+
           const chunk = companies.slice(i, i + CHUNK_SIZE);
 
           // Klasyfikuj każdą firmę w paczce
           for (let j = 0; j < chunk.length; j++) {
+            // Sprawdź czy proces został anulowany (przed każdą firmą)
+            const progressCheck = getProgress(progressId);
+            if (!progressCheck || progressCheck.status === "cancelled") {
+              logger.info("company-classification-api", `Klasyfikacja anulowana przez użytkownika (progressId: ${progressId})`);
+              break;
+            }
+
             const company = chunk[j];
             const currentIndex = i + j + 1;
 
@@ -240,6 +254,13 @@ export async function POST(req: NextRequest) {
           });
 
           for (let k = 0; k < rateLimitRetryQueue.length; k++) {
+            // Sprawdź czy proces został anulowany (przed każdą firmą z retry)
+            const progressCheck = getProgress(progressId);
+            if (!progressCheck || progressCheck.status === "cancelled") {
+              logger.info("company-classification-api", `Klasyfikacja anulowana podczas retry (progressId: ${progressId})`);
+              break;
+            }
+
             const company = rateLimitRetryQueue[k];
             const retryIndex = companies.length + k + 1;
 
@@ -570,6 +591,76 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
     logger.error("company-classification-api", "Błąd pobierania postępu/statystyk", null, errorObj);
+    return NextResponse.json(
+      {
+        success: false,
+        error: errorObj.message,
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/company-selection/classify?progressId=xxx
+ * Anuluje trwającą klasyfikację
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+    const progressId = searchParams.get("progressId");
+
+    if (!progressId) {
+      return NextResponse.json(
+        { error: "Wymagany parametr progressId" },
+        { status: 400 }
+      );
+    }
+
+    const progress = getProgress(progressId);
+    if (!progress) {
+      return NextResponse.json(
+        { error: "Postęp nie znaleziony (może być już zakończony lub wygasły)" },
+        { status: 404 }
+      );
+    }
+
+    // Sprawdź czy można anulować (tylko jeśli jest w trakcie)
+    if (progress.status !== "processing") {
+      return NextResponse.json(
+        { error: `Nie można anulować - status: ${progress.status}` },
+        { status: 400 }
+      );
+    }
+
+    // Oznacz jako anulowany
+    updateProgress(progressId, {
+      status: "cancelled",
+      currentCompanyName: "Anulowano przez użytkownika",
+    });
+
+    logger.info("company-classification-api", `Klasyfikacja anulowana przez użytkownika (progressId: ${progressId})`, {
+      total: progress.total,
+      processed: progress.processed,
+      classified: progress.classified,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Klasyfikacja została anulowana",
+      progress: {
+        progressId,
+        status: "cancelled",
+        total: progress.total,
+        processed: progress.processed,
+        classified: progress.classified,
+        skipped: progress.skipped,
+        errors: progress.errors,
+      },
+    });
+  } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    logger.error("company-classification-api", "Błąd anulowania klasyfikacji", null, errorObj);
     return NextResponse.json(
       {
         success: false,

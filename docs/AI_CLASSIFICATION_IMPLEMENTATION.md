@@ -55,7 +55,7 @@ sqlite3 prisma/dev.db < prisma/migrations/20250112000000_add_company_classificat
 2. **Klasyfikacja AI** → `/company-selection/classify`
    - Wybierz paczkę
    - Kliknij "Rozpocznij klasyfikację AI"
-3. **Przegląd wyników** → `/company-selection/overview`
+3. **Przegląd wyników** → `/company-selection/classify`
 
 ## 📊 Przykład użycia
 

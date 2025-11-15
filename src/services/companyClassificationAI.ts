@@ -264,11 +264,31 @@ export async function classifyCompanyWithAI(
 
   const specializationsList = Array.from(allSpecializationsMap.values());
 
-  // Prompt dla AI
+  // Grupuj specjalizacje po klasach - używamy PEŁNYCH opisów (GPT-4o-mini jest wystarczająco tani)
+  const specializationsByClass = {
+    PS: specializationsList.filter((s) => s.class === "PS"),
+    WK: specializationsList.filter((s) => s.class === "WK"),
+    WKK: specializationsList.filter((s) => s.class === "WKK"),
+  };
+
   const systemPrompt = `Jesteś ekspertem w klasyfikacji firm. Twoim zadaniem jest przypisanie firm do odpowiednich specjalizacji na podstawie Keywords i Short Description.
 
-DOSTĘPNE SPECJALIZACJE:
-${specializationsList.map((s) => `- ${s.code}: ${s.label} (${s.description})`).join("\n")}
+WAŻNE - OBSŁUGA RÓŻNYCH JĘZYKÓW:
+- Dane firmy (Keywords, Short Description) mogą być w różnych językach: polskim (PL), angielskim (EN), niemieckim (DE), francuskim (FR)
+- Opisy specjalizacji zawierają zarówno polskie, jak i angielskie odpowiedniki (w nawiasach)
+- Musisz rozpoznawać dopasowania niezależnie od języka danych firmy
+- Przykład: "drugstore" (EN) = "drogeria" (PL) → WKK_RETAIL_COSMETICS
+- Używaj semantycznego dopasowania - szukaj podobnych konceptów, nie tylko identycznych słów
+
+DOSTĘPNE SPECJALIZACJE (użyj dokładnie tych kodów):
+PS (Producent/Supplier):
+${specializationsByClass.PS.map((s) => `- ${s.code}: ${s.label} (${s.description})`).join("\n")}
+
+WK (Wykonawca/Contractor):
+${specializationsByClass.WK.map((s) => `- ${s.code}: ${s.label} (${s.description})`).join("\n")}
+
+WKK (Sieć detaliczna/Retail Chain):
+${specializationsByClass.WKK.map((s) => `- ${s.code}: ${s.label} (${s.description})`).join("\n")}
 
 WAŻNE - ZASADY KLASYFIKACJI:
 1. PRIORYTET: Używaj istniejących specjalizacji, nawet jeśli nie są idealne!
@@ -334,7 +354,7 @@ WAŻNE: Używaj TYLKO kodów z listy dostępnych specjalizacji. Jeśli żadna ni
     apiKey: process.env.OPENAI_API_KEY,
   });
 
-  const MODEL = "gpt-4o"; // Używamy GPT-4o dla lepszej jakości klasyfikacji
+  const MODEL = "gpt-4o-mini"; // GPT-4o-mini: 10x tańszy, jakość wystarczająca dla klasyfikacji
 
   logger.debug("company-classification-ai", "Wywołuję AI dla klasyfikacji", {
     companyName: companyData.name,
@@ -384,21 +404,6 @@ WAŻNE: Używaj TYLKO kodów z listy dostępnych specjalizacji. Jeśli żadna ni
 
   try {
     const response = await callAIWithRetry();
-
-    // Track token usage and costs
-    if (response.usage) {
-      const { trackTokenUsage } = await import("@/services/tokenTracker");
-      await trackTokenUsage({
-        operation: "company_classification",
-        model: MODEL,
-        promptTokens: response.usage.prompt_tokens,
-        completionTokens: response.usage.completion_tokens,
-        metadata: {
-          companyId: companyData.id,
-          companyName: companyData.name,
-        },
-      });
-    }
 
     const rawResponse = response.choices[0]?.message?.content;
     if (!rawResponse) {

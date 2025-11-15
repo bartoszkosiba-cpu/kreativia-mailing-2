@@ -102,6 +102,16 @@ interface PaginationMeta {
   totalPages: number;
 }
 
+interface ImportBatchListItem {
+  id: number;
+  name: string;
+  language: string;
+  market: string;
+  totalRows: number;
+  processedRows: number;
+  createdAt: string;
+}
+
 export default function CompanyClassificationPage() {
   const [companies, setCompanies] = useState<CompanyItem[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
@@ -124,7 +134,7 @@ export default function CompanyClassificationPage() {
     classified: number;
     skipped: number;
     errors: number;
-    status: "processing" | "completed" | "error";
+    status: "processing" | "completed" | "error" | "cancelled";
     currentCompanyName?: string;
     percentage: number;
     elapsed: number;
@@ -163,7 +173,10 @@ export default function CompanyClassificationPage() {
   const [dailyCosts, setDailyCosts] = useState<{ totalCostPLN: number; totalCostUSD: number; totalCalls: number } | null>(null);
   const [marketFilter, setMarketFilter] = useState<string[]>([]);
   const [industryFilter, setIndustryFilter] = useState<string[]>([]);
-  const [classificationSourceFilter, setClassificationSourceFilter] = useState("");
+  const [classificationSourceFilter, setClassificationSourceFilter] = useState("NOT_AI"); // Domyślnie pokazuj firmy bez klasyfikacji AI
+  const [importBatchId, setImportBatchId] = useState<string>(""); // Filtr partii importu CSV
+  const [importBatches, setImportBatches] = useState<ImportBatchListItem[]>([]);
+  const [importBatchesLoading, setImportBatchesLoading] = useState(false);
   const [expandedCompanies, setExpandedCompanies] = useState<Set<number>>(new Set()); // ID rozwiniętych firm
   const [marketAggregation, setMarketAggregation] = useState<AggregationItem[]>([]);
   const [industryAggregation, setIndustryAggregation] = useState<AggregationItem[]>([]);
@@ -185,6 +198,7 @@ export default function CompanyClassificationPage() {
         marketFilter.forEach((value) => params.append("market", value));
         industryFilter.forEach((value) => params.append("industry", value));
         if (classificationSourceFilter) params.set("classificationSource", classificationSourceFilter);
+        if (importBatchId) params.set("importBatchId", importBatchId);
 
         const url = `/api/company-selection/list?${params.toString()}`;
         const response = await fetch(url);
@@ -236,7 +250,38 @@ export default function CompanyClassificationPage() {
     }
 
     loadCompanies();
-  }, [page, searchValue, subClassFilter, marketFilter, industryFilter, classificationSourceFilter]);
+  }, [page, searchValue, subClassFilter, marketFilter, industryFilter, classificationSourceFilter, importBatchId]);
+
+  // Pobierz listę partii importu przy montowaniu komponentu
+  useEffect(() => {
+    async function loadImportBatches() {
+      try {
+        setImportBatchesLoading(true);
+        const response = await fetch("/api/company-selection/imports?limit=200");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setImportBatches(
+          (data.batches ?? []).map((batch: any) => ({
+            id: batch.id,
+            name: batch.name,
+            language: batch.language,
+            market: batch.market,
+            totalRows: batch.totalRows ?? 0,
+            processedRows: batch.processedRows ?? 0,
+            createdAt: batch.createdAt,
+          }))
+        );
+      } catch (error) {
+        console.error("[Classify] Błąd ładowania partii importu:", error);
+      } finally {
+        setImportBatchesLoading(false);
+      }
+    }
+
+    loadImportBatches();
+  }, []);
 
   const specializationOptions = useMemo(() => {
     const options: Array<{ value: string; label: string; classCode: string; count: number }> = [];
@@ -339,7 +384,8 @@ export default function CompanyClassificationPage() {
     setSubClassFilter([]);
     setMarketFilter([]);
     setIndustryFilter([]);
-    setClassificationSourceFilter("");
+    setClassificationSourceFilter("NOT_AI"); // Reset do domyślnej wartości
+    setImportBatchId("");
     setSelectedCompanyIds(new Set());
     setPage(1);
   };
@@ -477,6 +523,7 @@ export default function CompanyClassificationPage() {
         marketFilter.forEach((value) => params.append("market", value));
         industryFilter.forEach((value) => params.append("industry", value));
         if (classificationSourceFilter) params.set("classificationSource", classificationSourceFilter);
+        if (importBatchId) params.set("importBatchId", importBatchId);
 
         const url = `/api/company-selection/list?${params.toString()}`;
         const response = await fetch(url);
@@ -570,6 +617,7 @@ export default function CompanyClassificationPage() {
             marketFilter.forEach((value) => params.append("market", value));
             industryFilter.forEach((value) => params.append("industry", value));
             if (classificationSourceFilter) params.set("classificationSource", classificationSourceFilter);
+            if (importBatchId) params.set("importBatchId", importBatchId);
 
             const url = `/api/company-selection/list?${params.toString()}`;
             const refreshResponse = await fetch(url);
@@ -601,9 +649,15 @@ export default function CompanyClassificationPage() {
           }
 
           // Jeśli zakończone, ale nie mamy jeszcze statystyk - wykonaj jeszcze jedno zapytanie po chwili
-          if (data.progress.status === "completed" || data.progress.status === "error") {
+          if (data.progress.status === "completed" || data.progress.status === "error" || data.progress.status === "cancelled") {
+            // Jeśli anulowano - zatrzymaj od razu (nie odświeżaj listy, nie czyść zaznaczeń)
+            if (data.progress.status === "cancelled") {
+              setIsClassifying(false);
+              setProgressId(null);
+              return; // Nie wykonuj reszty kodu (odświeżanie itp.)
+            }
             // Jeśli zakończone ale brak statystyk - poczekaj i pobierz jeszcze raz (max 3 próby)
-            if (data.progress.status === "completed" && (!data.progress.specializationStats || data.progress.specializationStats.length === 0)) {
+            else if (data.progress.status === "completed" && (!data.progress.specializationStats || data.progress.specializationStats.length === 0)) {
               // Sprawdź ile już było prób retry (przechowuj w stanie)
               const retryCount = (data.progress as any).__retryCount || 0;
               if (retryCount < 3) {
@@ -651,6 +705,7 @@ export default function CompanyClassificationPage() {
             marketFilter.forEach((value) => params.append("market", value));
             industryFilter.forEach((value) => params.append("industry", value));
             if (classificationSourceFilter) params.set("classificationSource", classificationSourceFilter);
+            if (importBatchId) params.set("importBatchId", importBatchId);
 
             const url = `/api/company-selection/list?${params.toString()}`;
             const refreshResponse = await fetch(url);
@@ -678,6 +733,41 @@ export default function CompanyClassificationPage() {
 
     return () => clearInterval(interval);
   }, [progressId, isClassifying, page, searchValue, subClassFilter, marketFilter, industryFilter, classificationSourceFilter]);
+
+  const handleCancelClassification = async () => {
+    if (!progressId) {
+      setError("Brak ID postępu do anulowania");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/company-selection/classify?progressId=${progressId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Błąd anulowania klasyfikacji");
+      }
+
+      const data = await response.json();
+      console.log("[Classify] Klasyfikacja anulowana:", data);
+      
+      // Zaktualizuj status na cancelled
+      if (progress) {
+        setProgress({
+          ...progress,
+          status: "cancelled",
+        });
+      }
+      
+      setIsClassifying(false);
+      setProgressId(null);
+    } catch (error) {
+      console.error("[Classify] Błąd anulowania klasyfikacji:", error);
+      setError(error instanceof Error ? error.message : "Nie udało się anulować klasyfikacji");
+    }
+  };
 
   const handleClassifySelected = async () => {
     if (selectedCompanyIds.size === 0) {
@@ -1361,6 +1451,36 @@ export default function CompanyClassificationPage() {
                 );
               })}
             </div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <select
+                value={importBatchId}
+                onChange={(event) => {
+                  setImportBatchId(event.target.value);
+                  setPage(1);
+                }}
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #D1D5DB",
+                  backgroundColor: "white",
+                  color: "#1F2937",
+                  fontSize: "0.9rem",
+                  minWidth: "280px",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="">Wszystkie partie importu</option>
+                {importBatchesLoading && <option value="" disabled>Ładowanie...</option>}
+                {!importBatchesLoading && importBatches.length === 0 && (
+                  <option value="" disabled>Brak partii importu</option>
+                )}
+                {!importBatchesLoading && importBatches.map((batch) => (
+                  <option key={batch.id} value={String(batch.id)}>
+                    {batch.name} ({batch.language} • {batch.market}) - {batch.processedRows} firm
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               type="button"
               onClick={handleClearFilters}
@@ -1419,8 +1539,8 @@ export default function CompanyClassificationPage() {
           <div
             style={{
               padding: "1.25rem",
-              backgroundColor: "#EFF6FF",
-              border: "2px solid #93C5FD",
+              backgroundColor: progress?.status === "completed" ? "#F0FDF4" : progress?.status === "error" ? "#FEF2F2" : progress?.status === "cancelled" ? "#FFFBEB" : "#EFF6FF",
+              border: progress?.status === "completed" ? "2px solid #86EFAC" : progress?.status === "error" ? "2px solid #FCA5A5" : progress?.status === "cancelled" ? "2px solid #FCD34D" : "2px solid #93C5FD",
               borderRadius: "0.75rem",
               display: "flex",
               flexDirection: "column",
@@ -1429,11 +1549,35 @@ export default function CompanyClassificationPage() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <strong style={{ fontSize: "1.1rem", color: progress?.status === "completed" ? "#059669" : progress?.status === "error" ? "#DC2626" : "#1E40AF" }}>
-                  {progress?.status === "completed" ? "Klasyfikacja zakończona" : progress?.status === "error" ? "Błąd klasyfikacji" : "Klasyfikacja AI w toku..."}
-                </strong>
-                {progress?.status === "completed" ? (
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+                  <strong style={{ fontSize: "1.1rem", color: progress?.status === "completed" ? "#059669" : progress?.status === "error" ? "#DC2626" : progress?.status === "cancelled" ? "#F59E0B" : "#1E40AF" }}>
+                    {progress?.status === "completed" ? "Klasyfikacja zakończona" : progress?.status === "error" ? "Błąd klasyfikacji" : progress?.status === "cancelled" ? "Klasyfikacja anulowana" : "Klasyfikacja AI w toku..."}
+                  </strong>
+                  {progress?.status === "processing" && (
+                    <button
+                      onClick={handleCancelClassification}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        borderRadius: "0.5rem",
+                        border: "1px solid #DC2626",
+                        backgroundColor: "white",
+                        color: "#DC2626",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Przerwij
+                    </button>
+                  )}
+                </div>
+                {progress?.status === "cancelled" ? (
+                  <div style={{ fontSize: "0.9rem", color: "#F59E0B", marginTop: "0.35rem", fontWeight: 600 }}>
+                    Klasyfikacja została przerwana. Zaklasyfikowano {progress.classified} firm z {progress.total} ({progress.processed} przetworzono).
+                  </div>
+                ) : progress?.status === "completed" ? (
                   <div style={{ fontSize: "0.9rem", color: "#059669", marginTop: "0.35rem", fontWeight: 600 }}>
                     Zaklasyfikowano {progress.classified} firm, pominięto {progress.skipped}, błędów: {progress.errors}
                     {progress.specializationStats && progress.specializationStats.length > 0 && (

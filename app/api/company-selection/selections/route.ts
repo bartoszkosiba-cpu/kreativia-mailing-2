@@ -62,7 +62,7 @@ function buildCompanyFilter(
     where.importBatchId = { in: importBatchIds };
   }
 
-  // Jeśli użytkownik JAWNO chce zobaczyć BLOCKED, pozwalamy (dla Overview)
+  // Jeśli użytkownik JAWNO chce zobaczyć BLOCKED, pozwalamy
   if (verificationStatuses && verificationStatuses.length > 0) {
     // Jeśli jest "BLOCKED" w liście, usuwamy automatyczne wykluczenie
     if (verificationStatuses.includes("BLOCKED")) {
