@@ -8,14 +8,21 @@ import { startReminderCron } from './notificationReminderCron';
 // Globalna flaga zapobiegająca wielokrotnej inicjalizacji
 let cronInitialized = false;
 
-// Uruchom cron job tylko raz, przy pierwszym imporcie
+// Globalny kill-switch dla wszystkich cronów (tymczasowe wyłączenie automatycznej wysyłki)
+const CRON_DISABLED = process.env.CRON_DISABLED === '1' || process.env.CRON_DISABLED === 'true';
+
+// Uruchom cron job tylko raz, przy pierwszym imporcie (o ile nie wyłączono)
 if (typeof window === 'undefined' && !cronInitialized) {
   // Tylko po stronie serwera (nie w przeglądarce) i tylko raz
   cronInitialized = true;
-  console.log('[INIT] Inicjalizacja cron jobs...');
-  startEmailCron();
-  startWarmupCron(); // NOWY SYSTEM WARMUP
-  // startReminderCron(); // ❌ WYŁĄCZONE - System przypomnień o zainteresowanych
+  if (CRON_DISABLED) {
+    console.warn('[INIT] CRON_DISABLED aktywny – automatyczne zadania (kampanie, warmup, follow-upy, materiały) są WYŁĄCZONE');
+  } else {
+    console.log('[INIT] Inicjalizacja cron jobs...');
+    startEmailCron();
+    startWarmupCron(); // NOWY SYSTEM WARMUP
+    // startReminderCron(); // ❌ WYŁĄCZONE - System przypomnień o zainteresowanych
+  }
 }
 
 export {};

@@ -25,61 +25,69 @@ function normalizeStringArray(source?: unknown, max = 50): string[] {
 }
 
 type SelectionFilters = {
-  industries?: string[];
-  segments?: string[];
-  subSegments?: string[];
-  importBatchIds?: number[];
-  verificationStatuses?: string[];
-  onlyNeedsReview?: boolean;
+  // NOWY MODEL: filtry oparte o AI CompanyClassification
+  specializationCodes?: string[]; // kody specjalizacji (multi)
+  onlyPrimary?: boolean; // czy brać tylko isPrimary
+  minScore?: number; // 1..5
+  minConfidence?: number; // 0.0..1.0
+  languages?: string[]; // PL/EN/DE/FR (z CompanyImportBatch.language)
+  importBatchIds?: number[]; // multi
 };
 
 function buildCompanyFilter(
   market: MarketCode,
   filters: SelectionFilters
 ): Prisma.CompanyWhereInput {
+  const {
+    specializationCodes = [],
+    onlyPrimary = false,
+    minScore,
+    minConfidence,
+    languages = [],
+    importBatchIds = [],
+  } = filters;
+
   const where: Prisma.CompanyWhereInput = {
     market,
-    // Automatycznie wykluczamy firmy zablokowane z selekcji
+    // Zawsze wykluczamy zablokowane firmy
     verificationStatus: { not: "BLOCKED" },
   };
 
-  const { industries, segments, subSegments, importBatchIds, verificationStatuses, onlyNeedsReview } =
-    filters;
-
-  if (industries && industries.length > 0) {
-    where.industry = { in: industries };
-  }
-
-  if (segments && segments.length > 0) {
-    where.classificationClass = { in: segments };
-  }
-
-  if (subSegments && subSegments.length > 0) {
-    where.classificationSubClass = { in: subSegments };
-  }
-
-  if (importBatchIds && importBatchIds.length > 0) {
+  // Filtr po partiach importu (multi)
+  if (importBatchIds.length > 0) {
     where.importBatchId = { in: importBatchIds };
   }
 
-  // Jeśli użytkownik JAWNO chce zobaczyć BLOCKED, pozwalamy
-  if (verificationStatuses && verificationStatuses.length > 0) {
-    // Jeśli jest "BLOCKED" w liście, usuwamy automatyczne wykluczenie
-    if (verificationStatuses.includes("BLOCKED")) {
-      where.verificationStatus = { in: verificationStatuses };
-    } else {
-      // Jeśli nie ma BLOCKED, filtrujemy tylko wybrane statusy (wykluczenie BLOCKED już jest na górze)
-      const filteredStatuses = verificationStatuses.filter((s) => s !== "BLOCKED");
-      if (filteredStatuses.length > 0) {
-        where.verificationStatus = { in: filteredStatuses };
-      }
-      // Jeśli wszystkie statusy były BLOCKED, pozostaje wykluczenie z góry
-    }
+  // Filtr po językach (na partii importu)
+  if (languages.length > 0) {
+    where.importBatch = {
+      language: { in: languages.map((l) => String(l).toUpperCase()) },
+    } as any;
   }
-  // Jeśli nie ma verificationStatuses, wykluczenie BLOCKED już jest na górze funkcji (domyślnie)
 
-  if (onlyNeedsReview) {
-    where.classificationNeedsReview = true;
+  // Filtry AI: CompanyClassification
+  // Jeśli wskazano specjalizacje lub progi, wymagamy dopasowania w tabeli klasyfikacji
+  if (specializationCodes.length > 0 || Number.isFinite(minScore) || Number.isFinite(minConfidence) || onlyPrimary) {
+    where.classifications = {
+      some: {
+        ...(specializationCodes.length > 0 ? { specializationCode: { in: specializationCodes } } : {}),
+        ...(onlyPrimary ? { isPrimary: true } : {}),
+        ...(Number.isFinite(minScore) ? { score: { gte: Number(minScore) } } : {}),
+        ...(Number.isFinite(minConfidence)
+          ? {
+              // confidence jest opcjonalne -> traktujemy null jak 0.0, więc filtrujemy tylko wartości >= minConfidence
+              confidence: { gte: Number(minConfidence) },
+            }
+          : {}),
+        source: "AI",
+      },
+    };
+  } else {
+    // Jeśli nie podano żadnych kryteriów AI, i tak ograniczamy do firm posiadających klasyfikację AI,
+    // bo moduł pracuje wyłącznie na AI
+    where.classifications = {
+      some: { source: "AI" },
+    };
   }
 
   return where;
@@ -90,10 +98,21 @@ function sanitizeSelectionFilters(rawFilters: unknown): SelectionFilters {
     return {};
   }
   const filters = rawFilters as Record<string, unknown>;
-  const industries = normalizeStringArray(filters.industries);
-  const segments = normalizeStringArray(filters.segments);
-  const subSegments = normalizeStringArray(filters.subSegments);
-  const verificationStatuses = normalizeStringArray(filters.verificationStatuses);
+  const specializationCodes = normalizeStringArray(filters.specializationCodes, 200);
+  const languages = normalizeStringArray(filters.languages, 10);
+  const onlyPrimary = Boolean(filters.onlyPrimary);
+  const minScore =
+    typeof filters.minScore === "number"
+      ? filters.minScore
+      : typeof filters.minScore === "string"
+      ? Number(filters.minScore)
+      : undefined;
+  const minConfidence =
+    typeof filters.minConfidence === "number"
+      ? filters.minConfidence
+      : typeof filters.minConfidence === "string"
+      ? Number(filters.minConfidence)
+      : undefined;
   const importBatchIds = Array.isArray(filters.importBatchIds)
     ? (filters.importBatchIds as unknown[])
         .map((value) => {
@@ -104,12 +123,12 @@ function sanitizeSelectionFilters(rawFilters: unknown): SelectionFilters {
     : [];
 
   return {
-    industries,
-    segments,
-    subSegments,
-    verificationStatuses,
+    specializationCodes,
+    languages,
+    onlyPrimary,
+    minScore: Number.isFinite(minScore as number) ? (minScore as number) : undefined,
+    minConfidence: Number.isFinite(minConfidence as number) ? (minConfidence as number) : undefined,
     importBatchIds,
-    onlyNeedsReview: Boolean(filters.onlyNeedsReview),
   };
 }
 
@@ -166,6 +185,7 @@ export async function GET(req: NextRequest) {
       name: selection.name,
       market: selection.market,
       language: selection.language,
+      filters: selection.filters,
       description: selection.description,
       totalCompanies: selection.totalCompanies,
       activeCompanies: selection.activeCompanies,
@@ -195,6 +215,41 @@ export async function POST(req: NextRequest) {
   let companyIds: number[] = [];
   try {
     const body = await req.json();
+    // Szybka ścieżka: liczniki per specjalizacja dla aktualnych filtrów (bez wymogu nazwy)
+    if (body?.mode === "specCounts") {
+      const marketForStats = normalizeMarket(body.market);
+      if (!marketForStats) {
+        return NextResponse.json({ success: false, error: "Niepoprawny rynek" }, { status: 400 });
+      }
+      const rawFilters = sanitizeSelectionFilters(body.filters);
+      // Pomijamy specializationCodes – liczymy dla każdej specjalizacji osobno
+      const filtersNoSpec: SelectionFilters = {
+        ...rawFilters,
+        specializationCodes: [],
+      };
+      const whereCompanyNoSpec = buildCompanyFilter(marketForStats, filtersNoSpec);
+      const onlyPrimary = Boolean(rawFilters.onlyPrimary);
+      const minScore = rawFilters.minScore;
+      const minConfidence = rawFilters.minConfidence;
+
+      const grouped = await db.companyClassification.groupBy({
+        by: ["specializationCode"],
+        where: {
+          source: "AI",
+          ...(onlyPrimary ? { isPrimary: true } : {}),
+          ...(Number.isFinite(minScore as number) ? { score: { gte: Number(minScore) } } : {}),
+          ...(Number.isFinite(minConfidence as number) ? { confidence: { gte: Number(minConfidence) } } : {}),
+          company: whereCompanyNoSpec,
+        },
+        _count: { _all: true },
+      });
+
+      const counts: Record<string, number> = {};
+      for (const row of grouped) {
+        counts[row.specializationCode] = row._count._all;
+      }
+      return NextResponse.json({ success: true, counts });
+    }
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const description = typeof body.description === "string" ? body.description.trim() : undefined;
     const language = typeof body.language === "string" ? body.language.trim() : undefined;
@@ -231,46 +286,80 @@ export async function POST(req: NextRequest) {
     const totalAfterExclusions = filteredIds.length;
 
     if (dryRun) {
+      const page = Number.isFinite(Number(body.page)) && Number(body.page) > 0 ? Number(body.page) : 1;
+      const pageSizeCandidate = Number.isFinite(Number(body.pageSize)) && Number(body.pageSize) > 0 ? Number(body.pageSize) : (body.previewLimit ?? DEFAULT_PREVIEW_LIMIT);
+      const pageSize = Math.min(Math.max(1, pageSizeCandidate), 300);
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize;
+      const pageIds = filteredIds.slice(start, end);
+
       if (filteredIds.length === 0) {
         return NextResponse.json({
           success: true,
           totalMatches,
           totalAfterExclusions,
+          page,
+          pageSize,
+          totalPages: 0,
           preview: [],
         });
       }
 
-      const previewCompanies = await db.company.findMany({
-        where: {
-          id: { in: filteredIds.slice(0, previewLimit) },
-        },
+      // Pobierz podgląd z dopasowanymi klasyfikacjami AI spełniającymi filtry
+      const previewBase = await db.company.findMany({
+        where: { id: { in: pageIds } },
         select: {
           id: true,
           name: true,
+          description: true,
+          activityDescription: true,
+          keywords: true,
           industry: true,
+          website: true,
+          country: true,
+          city: true,
+          street: true,
+          postalCode: true,
           market: true,
-          classificationClass: true,
-          classificationSubClass: true,
           verificationStatus: true,
           importBatch: {
-            select: {
-              id: true,
-              name: true,
-              language: true,
-              market: true,
+            select: { id: true, name: true, language: true, market: true },
+          },
+          classifications: {
+            where: {
+              source: "AI",
+              ...(filters.specializationCodes && filters.specializationCodes.length > 0
+                ? { specializationCode: { in: filters.specializationCodes } }
+                : {}),
+              ...(filters.onlyPrimary ? { isPrimary: true } : {}),
+              ...(Number.isFinite(filters.minScore as number)
+                ? { score: { gte: Number(filters.minScore) } }
+                : {}),
+              ...(Number.isFinite(filters.minConfidence as number)
+                ? { confidence: { gte: Number(filters.minConfidence) } }
+                : {}),
             },
+            select: {
+              specializationCode: true,
+              score: true,
+              confidence: true,
+              isPrimary: true,
+              reason: true,
+            },
+            orderBy: [{ isPrimary: "desc" }, { score: "desc" }],
           },
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { id: "asc" },
       });
 
       return NextResponse.json({
         success: true,
         totalMatches,
         totalAfterExclusions,
-        preview: previewCompanies,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(totalAfterExclusions / pageSize)),
+        preview: previewBase,
       });
     }
 
@@ -347,5 +436,6 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
 
 

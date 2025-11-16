@@ -16,6 +16,8 @@ export interface ProcessingResult {
  * Przetwarza pojedynczą odpowiedź z maila
  */
 export async function processReply(email: ParsedEmail, toEmail?: string): Promise<ProcessingResult> {
+  // Globalna flaga: zablokuj wszelkie automatyczne odpowiedzi wychodzące (OOO/redirect/autoreplies)
+  const AUTOREPLIES_DISABLED = process.env.DISABLE_AUTOREPLIES === '1' || process.env.DISABLE_AUTOREPLIES === 'true';
   const actionsTaken: string[] = [];
   
   console.log(`[PROCESSOR] Start przetwarzania: ${email.subject} od ${email.from}`);
@@ -756,6 +758,16 @@ Link do szczegółów: http://localhost:3000/inbox/${reply.id}
                   // 🚀 WYSYŁKA NATYCHMIASTOWA dla kampanii bez harmonogramu (testy manualne)
                   // Obsługuje statusy: DRAFT (przed pierwszą wysyłką), COMPLETED (po wysyłce), IN_PROGRESS (wzno wiona)
                   if (!targetCampaign.scheduledAt) {
+                    if (AUTOREPLIES_DISABLED) {
+                      console.log(`[PROCESSOR] ⏸️ AUTOREPLIES wyłączone – pomijam natychmiastową wysyłkę OOO lead`);
+                      actionsTaken.push('AUTOREPLY_SKIPPED');
+                      // Zapisz tylko logikę bez wysyłki (np. zaplanowanie follow-upów już zostało wykonane powyżej)
+                      return {
+                        replyId: reply.id,
+                        classification: "OOO",
+                        actionsTaken
+                      };
+                    }
                     console.log(`[PROCESSOR] 🚀 Kampania bez harmonogramu (status: ${campaignStatus}) - wysyłam OOO lead natychmiast!`);
                     
                     try {

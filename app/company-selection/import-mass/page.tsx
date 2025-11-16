@@ -28,7 +28,6 @@ interface ImportError {
 
 interface ImportChunkResult {
   imported?: number;
-  updated?: number;
   skipped?: number;
   errorCount?: number;
   errors?: ImportError[];
@@ -39,7 +38,6 @@ interface ImportChunkResult {
 
 interface AggregatedResult {
   imported: number;
-  updated: number;
   skipped: number;
   errorCount: number;
   processedRows: number;
@@ -129,7 +127,6 @@ export default function CompanyMassImportPage() {
 
     const aggregated: AggregatedResult = {
       imported: 0,
-      updated: 0,
       skipped: 0,
       errorCount: 0,
       processedRows: 0,
@@ -182,7 +179,6 @@ export default function CompanyMassImportPage() {
         }
 
         aggregated.imported += data.imported ?? 0;
-        aggregated.updated += data.updated ?? 0;
         aggregated.skipped += data.skipped ?? 0;
         aggregated.errorCount += data.errorCount ?? 0;
         aggregated.processedRows += chunk.length;
@@ -256,8 +252,6 @@ export default function CompanyMassImportPage() {
     switch (reason) {
       case "missing_name":
         return "Brak nazwy";
-      case "missing_website":
-        return "Brak strony www";
       case "missing_activity_description":
         return "Brak opisu działalności";
       case "missing_industry":
@@ -602,7 +596,6 @@ export default function CompanyMassImportPage() {
                 }}
               >
                 <SummaryCard label="Zaimportowane (łącznie)" value={aggregatedResult.imported} color="#10B981" />
-                <SummaryCard label="Zaktualizowane (łącznie)" value={aggregatedResult.updated} color="#3B82F6" />
                 <SummaryCard label="Pominięte (łącznie)" value={aggregatedResult.skipped} color="#6B7280" />
                 <SummaryCard label="Błędy (łącznie)" value={aggregatedResult.errorCount} color="#EF4444" />
               </div>
@@ -624,7 +617,6 @@ export default function CompanyMassImportPage() {
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem" }}>
                     <span>Wyszło z pliku: {totalRows.toLocaleString("pl-PL")} rekordów</span>
                     <span>Zaimportowano: {aggregatedResult.imported.toLocaleString("pl-PL")}</span>
-                    <span>Zaktualizowano: {aggregatedResult.updated.toLocaleString("pl-PL")}</span>
                     <span>Pominięto: {aggregatedResult.skipped.toLocaleString("pl-PL")}</span>
                     <span>ID partii: {currentBatchId}</span>
                   </div>
@@ -699,7 +691,6 @@ export default function CompanyMassImportPage() {
                       <th style={headerCellStyle}>Paczka</th>
                       <th style={headerCellStyle}>Wiersze</th>
                       <th style={headerCellStyle}>Zaimportowane</th>
-                      <th style={headerCellStyle}>Zaktualizowane</th>
                       <th style={headerCellStyle}>Pominięte</th>
                       <th style={headerCellStyle}>Błędy</th>
                     </tr>
@@ -710,7 +701,6 @@ export default function CompanyMassImportPage() {
                         <td style={rowCellStyle}>#{chunk}</td>
                         <td style={rowCellStyle}>{rows}</td>
                         <td style={rowCellStyle}>{result.imported ?? 0}</td>
-                        <td style={rowCellStyle}>{result.updated ?? 0}</td>
                         <td style={rowCellStyle}>{result.skipped ?? 0}</td>
                         <td style={rowCellStyle}>{result.errorCount ?? 0}</td>
                       </tr>

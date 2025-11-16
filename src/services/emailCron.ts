@@ -26,6 +26,11 @@ let isDailyReportCronTaskRunning = false;
  * Uruchamia automatyczne pobieranie maili co 15 minut
  */
 export function startEmailCron() {
+  // Kill-switch: globalne wyłączenie wszystkich zadań cron
+  if (process.env.CRON_DISABLED === '1' || process.env.CRON_DISABLED === 'true') {
+    console.warn('[CRON] CRON_DISABLED aktywny – pomijam startEmailCron()');
+    return;
+  }
   // Jeśli cron już działa, nie uruchamiaj ponownie
   if (emailCronJob) {
     console.log('[CRON] Email cron już działa');
@@ -140,6 +145,9 @@ export function startEmailCron() {
   // Wyślij zaplanowane odpowiedzi z materiałami (to NIE jest V1, więc zostaje)
   let isMaterialResponseCronRunning = false;
   const materialResponseCron = cron.schedule('*/2 * * * *', async () => {
+    if (process.env.DISABLE_MATERIAL_SENDER === '1' || process.env.DISABLE_MATERIAL_SENDER === 'true') {
+      return; // wyłączone flagą
+    }
     // ✅ ZABEZPIECZENIE: Zapobiega równoległemu uruchomieniu (duplikaty)
     if (isMaterialResponseCronRunning) {
       console.log('[CRON] ⚠️ Material Response cron już działa - pomijam');
@@ -220,19 +228,28 @@ export function startEmailCron() {
       console.error('[CRON] ✗ Błąd prefetch świąt:', error.message);
     }
     
-    console.log('[CRON] 🔄 Sprawdzam follow-upy...');
-    try {
-      await autoCreateFollowUps();
-    } catch (error: any) {
-      console.error('[CRON] ✗ Błąd follow-upów:', error.message);
+    if (!(process.env.DISABLE_AUTO_CREATE_FOLLOWUPS === '1' || process.env.DISABLE_AUTO_CREATE_FOLLOWUPS === 'true')) {
+      console.log('[CRON] 🔄 Sprawdzam follow-upy...');
+      try {
+        await autoCreateFollowUps();
+      } catch (error: any) {
+        console.error('[CRON] ✗ Błąd follow-upów:', error.message);
+      }
+    } else {
+      console.log('[CRON] ⏸️ Auto-create follow-ups wyłączone flagą');
     }
     
-    console.log('[CRON] 🤖 Sprawdzam AUTO_FOLLOWUP...');
-    try {
-      await processAutoFollowUps();
-    } catch (error: any) {
-      console.error('[CRON] ✗ Błąd AUTO_FOLLOWUP:', error.message);
-    } finally {
+    if (!(process.env.DISABLE_AUTO_FOLLOWUP === '1' || process.env.DISABLE_AUTO_FOLLOWUP === 'true')) {
+      console.log('[CRON] 🤖 Sprawdzam AUTO_FOLLOWUP...');
+      try {
+        await processAutoFollowUps();
+      } catch (error: any) {
+        console.error('[CRON] ✗ Błąd AUTO_FOLLOWUP:', error.message);
+      } finally {
+        isHolidayCronTaskRunning = false;
+      }
+    } else {
+      console.log('[CRON] ⏸️ AUTO_FOLLOWUP wyłączony flagą');
       isHolidayCronTaskRunning = false;
     }
   });

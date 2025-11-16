@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { PreviewTable } from "../../components/PreviewTable";
 
 type SelectionDetails = {
   id: number;
@@ -117,6 +118,57 @@ export default function SelectionDetailsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
+  // EDIT MODE (reuse creator filters)
+  type LanguageOption = "PL" | "EN" | "DE" | "FR";
+  const [selectedSubSegments, setSelectedSubSegments] = useState<string[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<LanguageOption[]>([]);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
+  const [onlyPrimary, setOnlyPrimary] = useState(true);
+  const [minScore, setMinScore] = useState<number>(3);
+  const [minConfidence, setMinConfidence] = useState<number>(0.6);
+  const [previewCompanies, setPreviewCompanies] = useState<any[]>([]);
+  const [previewTotals, setPreviewTotals] = useState<{ total: number; afterExclusions: number }>({ total: 0, afterExclusions: 0 });
+  const [previewPage, setPreviewPage] = useState(1);
+  const [previewTotalPages, setPreviewTotalPages] = useState(1);
+  const PREVIEW_PAGE_SIZE = 50;
+  const [saving, setSaving] = useState(false);
+  const [specializations, setSpecializations] = useState<Array<{ code: string; label: string; companyClass: string }>>([]);
+  const [excludeCompanyIds, setExcludeCompanyIds] = useState<Set<number>>(new Set());
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"saved" | "filter">("saved"); // "saved" = zapisane firmy, "filter" = podgląd na podstawie filtrów
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [showPreviewInEdit, setShowPreviewInEdit] = useState(false);
+  const [originalFilters, setOriginalFilters] = useState<{
+    selectedSubSegments: string[];
+    selectedLanguages: LanguageOption[];
+    selectedBatchIds: number[];
+    onlyPrimary: boolean;
+    minScore: number;
+    minConfidence: number;
+  } | null>(null);
+
+  useEffect(() => {
+    async function loadSpecializations() {
+      try {
+        const response = await fetch("/api/company-selection/specializations");
+        if (response.ok) {
+          const data = await response.json();
+          const list: Array<{ code: string; label: string; companyClass: string }> = Array.isArray(data?.specializations)
+            ? data.specializations.map((s: any) => ({
+                code: s.code,
+                label: s.label,
+                companyClass: s.companyClass,
+              }))
+            : [];
+          setSpecializations(list);
+        }
+      } catch (error) {
+        console.error("Błąd ładowania specjalizacji", error);
+      }
+    }
+    loadSpecializations();
+  }, []);
+
   useEffect(() => {
     if (!selectionId) {
       setError("Niepoprawne ID selekcji");
@@ -153,14 +205,195 @@ export default function SelectionDetailsPage() {
         throw new Error(data.error || "Błąd pobierania selekcji");
       }
 
-      setSelection(data.selection ?? null);
-      setCompanies(data.companies ?? []);
-      setStats(data.stats ?? []);
-      setPagination(data.pagination ?? pagination);
+      const sel = data.selection ?? null;
+      setSelection(sel);
+      // Initialize edit filters from saved selection.filters if available
+      try {
+        const parsed = sel?.filters ? JSON.parse(sel.filters) : {};
+        setSelectedSubSegments(Array.isArray(parsed?.specializationCodes) ? parsed.specializationCodes : []);
+        setOnlyPrimary(Boolean(parsed?.onlyPrimary ?? true));
+        if (typeof parsed?.minScore === "number") setMinScore(parsed.minScore);
+        if (typeof parsed?.minConfidence === "number") setMinConfidence(parsed.minConfidence);
+        setSelectedLanguages(
+          Array.isArray(parsed?.languages)
+            ? (parsed.languages.filter((l: any) => typeof l === "string") as LanguageOption[])
+            : []
+        );
+        setSelectedBatchIds(
+          Array.isArray(parsed?.importBatchIds)
+            ? parsed.importBatchIds.filter((n: any) => Number.isFinite(Number(n))).map((n: any) => Number(n))
+            : []
+        );
+        // Save original filter values for comparison
+        setOriginalFilters({
+          selectedSubSegments: Array.isArray(parsed?.specializationCodes) ? parsed.specializationCodes : [],
+          selectedLanguages: Array.isArray(parsed?.languages)
+            ? (parsed.languages.filter((l: any) => typeof l === "string") as LanguageOption[])
+            : [],
+          selectedBatchIds: Array.isArray(parsed?.importBatchIds)
+            ? parsed.importBatchIds.filter((n: any) => Number.isFinite(Number(n))).map((n: any) => Number(n))
+            : [],
+          onlyPrimary: Boolean(parsed?.onlyPrimary ?? true),
+          minScore: typeof parsed?.minScore === "number" ? parsed.minScore : 3,
+          minConfidence: typeof parsed?.minConfidence === "number" ? parsed.minConfidence : 0.6,
+        });
+        // Load saved companies (not preview based on filters)
+        if (sel) {
+          await loadSavedCompanies(1);
+        }
+      } catch {
+        // ignore parse errors, but still try to load saved companies if selection exists
+        if (sel) {
+          await loadSavedCompanies(1);
+        }
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Błąd pobierania selekcji");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSavedCompanies = async (page = previewPage) => {
+    if (!selectionId) return;
+    try {
+      setPreviewLoading(true);
+      const url = new URL(window.location.origin + `/api/company-selection/selections/${selectionId}`);
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("limit", String(PREVIEW_PAGE_SIZE));
+      const response = await fetch(url.toString());
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || data.details || "Błąd pobierania firm");
+      }
+      const total = data.pagination?.total ?? 0;
+      setPreviewTotals({ total, afterExclusions: total });
+      setPreviewCompanies(data.preview ?? []);
+      setPreviewTotalPages(data.pagination?.totalPages ?? 1);
+      setPreviewPage(page);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handlePreview = async (page = previewPage, selOverride?: SelectionDetails | null) => {
+    const sel = selOverride ?? selection;
+    if (!sel) return;
+    try {
+      setPreviewLoading(true);
+      const response = await fetch("/api/company-selection/selections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: sel.name,
+          language: sel.language,
+          market: sel.market,
+          dryRun: true,
+          page,
+          pageSize: PREVIEW_PAGE_SIZE,
+          filters: {
+            specializationCodes: selectedSubSegments,
+            onlyPrimary,
+            minScore,
+            minConfidence,
+            languages: selectedLanguages,
+            importBatchIds: selectedBatchIds,
+          },
+          excludeCompanyIds: Array.from(excludeCompanyIds),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || data.details || "Błąd generowania podglądu");
+      }
+      setPreviewTotals({ total: data.totalMatches ?? 0, afterExclusions: data.totalAfterExclusions ?? 0 });
+      setPreviewCompanies(data.preview ?? []);
+      setPreviewTotalPages(data.totalPages ?? 1);
+      setPreviewPage(page);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const toggleExclude = (companyId: number) => {
+    setExcludeCompanyIds((current) => {
+      const newSet = new Set(current);
+      if (newSet.has(companyId)) {
+        newSet.delete(companyId);
+      } else {
+        newSet.add(companyId);
+      }
+      return newSet;
+    });
+  };
+
+  // Auto-refresh disabled - show saved companies by default, use "Odśwież podgląd" button for filter-based preview
+
+  const hasChanges = (): boolean => {
+    return excludeCompanyIds.size > 0;
+  };
+
+  const handleSave = async () => {
+    if (!selection) return;
+    try {
+      setSaving(true);
+      // Parse current filters to keep them unchanged
+      const parsed = selection.filters ? JSON.parse(selection.filters) : {};
+      const response = await fetch(`/api/company-selection/selections/${selection.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          market: selection.market,
+          language: selection.language,
+          filters: {
+            specializationCodes: Array.isArray(parsed?.specializationCodes) ? parsed.specializationCodes : [],
+            onlyPrimary: Boolean(parsed?.onlyPrimary ?? true),
+            minScore: typeof parsed?.minScore === "number" ? parsed.minScore : 3,
+            minConfidence: typeof parsed?.minConfidence === "number" ? parsed.minConfidence : 0.6,
+            languages: Array.isArray(parsed?.languages) ? parsed.languages : [],
+            importBatchIds: Array.isArray(parsed?.importBatchIds) ? parsed.importBatchIds : [],
+          },
+          excludeCompanyIds: Array.from(excludeCompanyIds),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || data.details || "Błąd zapisu selekcji");
+      }
+      setExcludeCompanyIds(new Set());
+      setIsEditMode(false);
+      await loadSelection(selection.id, pagination.page, statusFilter, searchQuery);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Błąd zapisu");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selection) return;
+    const confirmed = window.confirm(
+      `Czy na pewno chcesz usunąć selekcję "${selection.name}"? Ta operacja jest nieodwracalna i usunie wszystkie powiązane dane.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/company-selection/selections/${selection.id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || data.details || "Nie udało się usunąć selekcji");
+      }
+      router.push("/company-selection/selections");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Błąd usuwania selekcji");
     }
   };
 
@@ -284,6 +517,7 @@ export default function SelectionDetailsPage() {
                 </p>
               )}
             </div>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
             <button
               type="button"
               onClick={() => router.push(`/company-selection/criteria?id=${selection.id}`)}
@@ -299,6 +533,22 @@ export default function SelectionDetailsPage() {
             >
               Przejdź do kryteriów AI
             </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                style={{
+                  padding: "0.65rem 1rem",
+                  borderRadius: "0.75rem",
+                  border: "1px solid #DC2626",
+                  color: "#FFFFFF",
+                  backgroundColor: "#DC2626",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Usuń selekcję
+              </button>
+            </div>
           </div>
 
           <div
@@ -349,207 +599,96 @@ export default function SelectionDetailsPage() {
         </div>
       )}
 
-      <div
-        style={{
-          backgroundColor: "white",
-          border: "1px solid #E5E7EB",
-          borderRadius: "0.75rem",
-          padding: "1.5rem",
-          boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "1rem",
-            marginBottom: "1.25rem",
-            alignItems: "center",
-          }}
-        >
-          <form
-            onSubmit={handleSearch}
-            style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexGrow: 1 }}
+      {/* Edit mode: only exclude companies */}
+      {!isEditMode ? (
+        <div style={{ marginTop: "1rem" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditMode(true);
+              setExcludeCompanyIds(new Set());
+            }}
+            style={{
+              padding: "0.55rem 1rem",
+              borderRadius: "0.5rem",
+              border: "1px solid #2563EB",
+              backgroundColor: "white",
+              color: "#2563EB",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
           >
-            <input
-              type="text"
-              placeholder="Szukaj po nazwie lub branży"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              style={inputStyle}
-            />
+            Edytuj
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditMode(false);
+              setExcludeCompanyIds(new Set());
+            }}
+            style={{
+              padding: "0.55rem 1rem",
+              borderRadius: "0.5rem",
+              border: "1px solid #D1D5DB",
+              backgroundColor: "white",
+              color: "#374151",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Anuluj
+          </button>
+          {excludeCompanyIds.size > 0 && (
             <button
-              type="submit"
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !selection}
               style={{
                 padding: "0.55rem 1rem",
                 borderRadius: "0.5rem",
                 border: "none",
-                backgroundColor: "#2563EB",
+                backgroundColor: saving ? "#6EE7B7" : "#10B981",
                 color: "white",
-                fontWeight: 600,
-                cursor: "pointer",
+                fontWeight: 700,
+                cursor: saving ? "not-allowed" : "pointer",
               }}
             >
-              Szukaj
+              {saving ? "Zapisuję..." : "Zapisz"}
             </button>
-          </form>
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            style={{ ...inputStyle, maxWidth: "200px" }}
-          >
-            <option value="ALL">Wszystkie statusy</option>
-            <option value="PENDING">PENDING</option>
-            <option value="QUALIFIED">QUALIFIED</option>
-            <option value="REJECTED">REJECTED</option>
-            <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
-            <option value="BLOCKED">BLOCKED</option>
-          </select>
+          )}
         </div>
+      )}
 
-        {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "#6B7280" }}>
-            Ładuję firmy z selekcji...
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto", borderRadius: "0.75rem", border: "1px solid #E5E7EB" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.9rem",
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: "#F3F4F6" }}>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Firma</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Branża</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Segment</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Status</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Import</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Akcje</th>
-                </tr>
-              </thead>
-              <tbody>
-                {companies.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: "1rem", textAlign: "center", color: "#6B7280" }}>
-                      Brak firm spełniających kryteria.
-                    </td>
-                  </tr>
-                )}
-                {companies.map((membership) => (
-                  <tr key={membership.id} style={{ borderTop: "1px solid #E5E7EB" }}>
-                    <td style={{ padding: "0.75rem" }}>
-                      <div style={{ fontWeight: 600 }}>{membership.company.name}</div>
-                      <div style={{ color: "#6B7280", fontSize: "0.8rem" }}>
-                        Rynek: {membership.company.market ?? "—"}
-                      </div>
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>{membership.company.industry ?? "—"}</td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <div>{membership.company.classificationClass ?? "—"}</div>
-                      {membership.company.classificationSubClass && (
-                        <div style={{ color: "#6B7280", fontSize: "0.75rem" }}>
-                          {membership.company.classificationSubClass}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          padding: "0.25rem 0.5rem",
-                          borderRadius: "9999px",
-                          fontWeight: 600,
-                          fontSize: "0.75rem",
-                          ...getStatusStyle(membership.status),
-                        }}
-                      >
-                        {membership.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      {membership.company.importBatch ? (
-                        <div>
-                          <div>{membership.company.importBatch.name}</div>
-                          <div style={{ color: "#6B7280", fontSize: "0.75rem" }}>
-                            {membership.company.importBatch.language} • {membership.company.importBatch.market}
-                          </div>
-                        </div>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCompany(membership.companyId)}
-                        style={{
-                          padding: "0.4rem 0.75rem",
-                          borderRadius: "0.5rem",
-                          border: "1px solid #DC2626",
-                          backgroundColor: "white",
-                          color: "#B91C1C",
-                          cursor: "pointer",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Usuń z selekcji
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {pagination.totalPages > 1 && (
-          <div
-            style={{
-              marginTop: "1.25rem",
-              display: "flex",
-              gap: "0.5rem",
-              flexWrap: "wrap",
-              alignItems: "center",
+      {previewCompanies.length > 0 && (
+        <div style={{ marginTop: "1rem" }}>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem", color: "#111827" }}>
+            Zapisane firmy ({previewTotals.afterExclusions})
+          </h2>
+          {isEditMode && (
+            <p style={{ marginBottom: "1rem", color: "#4B5563", fontSize: "0.9rem" }}>
+              Zaznacz firmy, które chcesz wykluczyć z selekcji, a następnie kliknij "Zapisz".
+            </p>
+          )}
+          <PreviewTable
+            companies={previewCompanies as any}
+            total={previewTotals.total}
+            totalAfterExclusions={previewTotals.afterExclusions}
+            page={previewPage}
+            totalPages={previewTotalPages}
+            pageSize={PREVIEW_PAGE_SIZE}
+            onChangePage={async (p) => {
+              await loadSavedCompanies(p);
             }}
-          >
-            <button
-              type="button"
-              onClick={() => goToPage(Math.max(1, pagination.page - 1))}
-              disabled={pagination.page === 1}
-              style={{
-                padding: "0.45rem 0.85rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #D1D5DB",
-                backgroundColor: "white",
-                cursor: pagination.page === 1 ? "not-allowed" : "pointer",
-              }}
-            >
-              Poprzednia
-            </button>
-            <span style={{ color: "#4B5563", fontSize: "0.9rem" }}>
-              Strona {pagination.page} z {pagination.totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => goToPage(Math.min(pagination.totalPages, pagination.page + 1))}
-              disabled={pagination.page >= pagination.totalPages}
-              style={{
-                padding: "0.45rem 0.85rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #D1D5DB",
-                backgroundColor: "white",
-                cursor: pagination.page >= pagination.totalPages ? "not-allowed" : "pointer",
-              }}
-            >
-              Następna
-            </button>
-          </div>
-        )}
-      </div>
+            specializations={specializations}
+            excludeCompanyIds={excludeCompanyIds}
+            onToggleExclude={toggleExclude}
+            showExcludeButtons={isEditMode}
+          />
+        </div>
+      )}
     </div>
   );
 }

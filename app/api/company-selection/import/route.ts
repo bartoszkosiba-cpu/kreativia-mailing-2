@@ -39,8 +39,7 @@ export async function POST(req: NextRequest) {
 
     let batchMarket = incomingBatchMarket ?? null;
 
-    console.log(`[Company Import] Otrzymano request, typ danych:`, typeof companies);
-    console.log(`[Company Import] Liczba firm:`, Array.isArray(companies) ? companies.length : 'NIE JEST TABLICĄ');
+    logger.debug("company-import", `Otrzymano request, typ danych: ${typeof companies}, liczba firm: ${Array.isArray(companies) ? companies.length : 'NIE JEST TABLICĄ'}`);
 
     if (!Array.isArray(companies) || companies.length === 0) {
       return NextResponse.json(
@@ -103,11 +102,9 @@ export async function POST(req: NextRequest) {
     }
 
     let importedCount = 0;
-    let updatedCount = 0;
     let skippedCount = 0;
     const errors: Array<{ row: number; error: string; data: Record<string, unknown> }> = [];
     const skippedDetails: Record<string, { count: number; examples: string[] }> = {};
-    const skippedExamples: Record<string, string[]> = {};
 
     const registerSkip = (reason: string, name?: string | null) => {
       skippedCount++;
@@ -117,13 +114,6 @@ export async function POST(req: NextRequest) {
         entry.examples.push(name);
       }
       skippedDetails[reason] = entry;
-      if (name) {
-        const list = skippedExamples[reason] ?? [];
-        if (list.length < 10) {
-          list.push(name);
-        }
-        skippedExamples[reason] = list;
-      }
     };
 
     for (let i = 0; i < companies.length; i++) {
@@ -298,7 +288,6 @@ export async function POST(req: NextRequest) {
       data: {
         processedRows: { increment: companies.length },
         importedCount: { increment: importedCount },
-        updatedCount: { increment: updatedCount },
         skippedCount: { increment: skippedCount },
         errorCount: { increment: errors.length },
         updatedAt: new Date(),
@@ -317,14 +306,13 @@ export async function POST(req: NextRequest) {
 
     logger.info(
       "company-import",
-      `Zakończono import (batchId: ${batchId}): ${importedCount} zaimportowanych, ${updatedCount} zaktualizowanych, ${skippedCount} pominiętych, łącznie w bazie: ${totalInDb}`,
+      `Zakończono import (batchId: ${batchId}): ${importedCount} zaimportowanych, ${skippedCount} pominiętych, łącznie w bazie: ${totalInDb}`,
       { skipped: skipSummary }
     );
 
     return NextResponse.json({
       success: true,
       imported: importedCount,
-      updated: updatedCount,
       skipped: skippedCount,
       total: companies.length,
       totalInDb: totalInDb,
@@ -335,9 +323,10 @@ export async function POST(req: NextRequest) {
       skippedDetails,
     });
   } catch (error) {
-    console.error("[Company Import] Błąd:", error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    logger.error("company-import", "Błąd importu firm", null, errorObj);
     return NextResponse.json(
-      { error: "Błąd importu firm", details: error instanceof Error ? error.message : String(error) },
+      { error: "Błąd importu firm", details: errorObj.message },
       { status: 500 }
     );
   }

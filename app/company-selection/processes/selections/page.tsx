@@ -9,16 +9,24 @@ const containerStyle = {
   gap: "2rem",
 };
 
+const breadcrumbsStyle = {
+  fontSize: "0.85rem",
+  color: "#6B7280",
+  marginBottom: "0.5rem",
+};
+
 const headingStyle = {
   fontSize: "1.75rem",
   fontWeight: 700,
   color: "#111827",
+  marginBottom: "0.75rem",
 };
 
 const introStyle = {
   fontSize: "1rem",
   lineHeight: 1.6,
   color: "#374151",
+  marginBottom: "1.75rem",
   maxWidth: "720px",
 };
 
@@ -31,6 +39,7 @@ const cardStyle = {
   border: "1px solid #E5E7EB",
   backgroundColor: "white",
   boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
+  minHeight: "180px",
 };
 
 const gridStyle = {
@@ -39,21 +48,22 @@ const gridStyle = {
   gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
 };
 
-const linkStyle = {
+const titlePrimaryLinkStyle = {
   display: "inline-flex",
   alignItems: "center",
-  gap: "0.5rem",
-  padding: "0.65rem 1.2rem",
+  gap: "0.45rem",
+  padding: "0.7rem 1.1rem",
   borderRadius: "0.65rem",
-  backgroundColor: "#8B5CF6",
+  backgroundColor: "#2563EB",
   color: "white",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: "1.05rem",
   textDecoration: "none",
 };
 
-const secondaryLinkStyle = {
-  ...linkStyle,
-  backgroundColor: "#4338CA",
+const titleSecondaryLinkStyle = {
+  ...titlePrimaryLinkStyle,
+  backgroundColor: "#4B5563",
 };
 
 const checklistStyle = {
@@ -70,7 +80,7 @@ export default function SelectionsProcessPage() {
   return (
     <div style={containerStyle}>
       <div>
-        <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.5rem" }}>Proces 2</div>
+        <div style={breadcrumbsStyle}>Proces 2</div>
         <h1 style={headingStyle}>Selekcje tematyczne</h1>
         <p style={introStyle}>
           W tym etapie przygotowujemy bazy pod konkretne potrzeby – np. wykonawców stoisk targowych. Pracujemy na
@@ -81,29 +91,23 @@ export default function SelectionsProcessPage() {
 
       <div style={gridStyle}>
         <section style={cardStyle}>
-          <div>
-            <h2 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#111827" }}>Zapisane selekcje</h2>
-            <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
-              Podgląd wszystkich utworzonych baz. Sprawdzisz tutaj statystyki, aktywne kryteria oraz status pracy dla
-              każdej selekcji.
-            </p>
-          </div>
-          <Link href="/company-selection/selections" style={linkStyle}>
-            Otwórz listę selekcji
+          <Link href="/company-selection/selections" style={titlePrimaryLinkStyle}>
+            Zapisane selekcje
           </Link>
+          <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
+            Podgląd wszystkich utworzonych baz. Sprawdzisz tutaj statystyki, aktywne kryteria oraz status pracy dla
+            każdej selekcji.
+          </p>
         </section>
 
         <section style={cardStyle}>
-          <div>
-            <h2 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#111827" }}>Utwórz nową bazę</h2>
-            <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
-              Uruchom kreator, wybierz filtry (segment, branża, import) i zapisz nową bazę tematyczną. Podgląd rowerów
-              pokaże dokładnie, które firmy wejdą do selekcji.
-            </p>
-          </div>
-          <Link href="/company-selection/selections?create=1" style={secondaryLinkStyle}>
-            Startuj kreator selekcji
+          <Link href="/company-selection/selections?create=1" style={titleSecondaryLinkStyle}>
+            Utwórz nową bazę
           </Link>
+          <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
+            Uruchom kreator, wybierz filtry (segment, branża, import) i zapisz nową bazę tematyczną. Podgląd wyników
+            pokaże dokładnie, które firmy wejdą do selekcji.
+          </p>
         </section>
       </div>
 

@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { PreviewTable } from "../components/PreviewTable";
 
 type MarketOption = "PL" | "DE" | "FR" | "EN";
 type LanguageOption = "PL" | "EN" | "DE" | "FR";
@@ -28,13 +30,20 @@ type ImportBatchOption = {
   createdAt: string;
 };
 
+type SpecializationOption = {
+  code: string;
+  label: string;
+  companyClass: string;
+};
+
 type PreviewCompany = {
   id: number;
   name: string;
   industry: string | null;
   market: string | null;
-  classificationClass: string | null;
-  classificationSubClass: string | null;
+  description?: string | null;
+  activityDescription?: string | null;
+  keywords?: string | null;
   verificationStatus: string | null;
   importBatch?: {
     id: number;
@@ -42,6 +51,13 @@ type PreviewCompany = {
     language: string;
     market: string;
   } | null;
+  classifications?: Array<{
+    specializationCode: string;
+    score: number;
+    confidence: number | null;
+    isPrimary: boolean;
+    reason?: string | null;
+  }>;
 };
 
 type SelectionListItem = {
@@ -49,6 +65,7 @@ type SelectionListItem = {
   name: string;
   market: string;
   language: string | null;
+  filters?: string | null;
   description?: string | null;
   totalCompanies: number;
   activeCompanies: number;
@@ -176,11 +193,14 @@ const chipStyle: CSSProperties = {
 };
 
 export default function CompanySelectionsPage() {
+  const searchParams = useSearchParams();
+  const isCreateMode = (searchParams.get("create") ?? "") === "1";
   const [loading, setLoading] = useState(true);
   const [segments, setSegments] = useState<SegmentSummary[]>([]);
   const [industries, setIndustries] = useState<IndustrySummary[]>([]);
   const [initialIndustries, setInitialIndustries] = useState<IndustrySummary[]>([]);
   const [batches, setBatches] = useState<ImportBatchOption[]>([]);
+  const [specializations, setSpecializations] = useState<SpecializationOption[]>([]);
   const [selections, setSelections] = useState<SelectionListItem[]>([]);
   const [selectionsLoading, setSelectionsLoading] = useState(false);
 
@@ -193,6 +213,11 @@ export default function CompanySelectionsPage() {
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
   const [onlyNeedsReview, setOnlyNeedsReview] = useState(false);
+  // NOWE FILTRY AI - wartości domyślne z ustaleń
+  const [selectedLanguages, setSelectedLanguages] = useState<LanguageOption[]>([]);
+  const [onlyPrimary, setOnlyPrimary] = useState(true);
+  const [minScore, setMinScore] = useState<number>(3);
+  const [minConfidence, setMinConfidence] = useState<number>(0.6);
   const [countLoading, setCountLoading] = useState(false);
   const [countError, setCountError] = useState<string | null>(null);
 
@@ -203,18 +228,93 @@ export default function CompanySelectionsPage() {
     total: 0,
     afterExclusions: 0,
   });
+  const [specCounts, setSpecCounts] = useState<Record<string, number>>({});
+  const [previewPage, setPreviewPage] = useState(1);
+  const [previewTotalPages, setPreviewTotalPages] = useState(1);
+  const PREVIEW_PAGE_SIZE = 50;
+  const [expandedPreview, setExpandedPreview] = useState<Set<number>>(new Set());
   const [excludeCompanyIds, setExcludeCompanyIds] = useState<Set<number>>(new Set());
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [selectionSaved, setSelectionSaved] = useState(false);
   const [infoExpanded, setInfoExpanded] = useState(false);
+
+  // Grupowanie specjalizacji: PS / WK / WKK (z podgrupą Retail dla WKK)
+  type GroupKey = "PS" | "WK" | "WKK_RETAIL" | "WKK_OTHER";
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<GroupKey, boolean>>({
+    PS: false,
+    WK: false,
+    WKK_RETAIL: false,
+    WKK_OTHER: false,
+  });
+
+  const groupedSpecializations = useMemo(() => {
+    const groups: Record<GroupKey, SpecializationOption[]> = {
+      PS: [],
+      WK: [],
+      WKK_RETAIL: [],
+      WKK_OTHER: [],
+    };
+    for (const s of specializations) {
+      if (s.companyClass === "PS") {
+        groups.PS.push(s);
+      } else if (s.companyClass === "WK") {
+        groups.WK.push(s);
+      } else if (s.companyClass === "WKK") {
+        if (s.code.startsWith("WKK_RETAIL_")) {
+          groups.WKK_RETAIL.push(s);
+        } else {
+          groups.WKK_OTHER.push(s);
+        }
+      }
+    }
+    // Sortuj alfabetycznie w grupach
+    (Object.keys(groups) as GroupKey[]).forEach((k) => {
+      groups[k] = groups[k].slice().sort((a, b) => a.label.localeCompare(b.label, "pl"));
+    });
+    return groups;
+  }, [specializations]);
+
+  const toggleGroupCollapse = (key: GroupKey) => {
+    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+  const selectGroup = (key: GroupKey) => {
+    const codes = new Set(selectedSubSegments);
+    groupedSpecializations[key].forEach((s) => codes.add(s.code));
+    setSelectedSubSegments(Array.from(codes));
+  };
+  const clearGroup = (key: GroupKey) => {
+    const codesToRemove = new Set(groupedSpecializations[key].map((s) => s.code));
+    setSelectedSubSegments((prev) => prev.filter((c) => !codesToRemove.has(c)));
+  };
+
+  // Buduje listę stron z elipsami (np. 1 … 5 6 7 … 20)
+  const buildPageList = (total: number, current: number): Array<number | string> => {
+    const pages: Array<number | string> = [];
+    if (!Number.isFinite(total) || total <= 0) return [1];
+    if (total <= 9) {
+      for (let i = 1; i <= total; i++) pages.push(i);
+      return pages;
+    }
+    const add = (p: number | string) => pages.push(p);
+    add(1);
+    if (current > 4) add("…");
+    const start = Math.max(2, current - 2);
+    const end = Math.min(total - 1, current + 2);
+    for (let i = start; i <= end; i++) add(i);
+    if (current < total - 3) add("…");
+    add(total);
+    return pages;
+  };
 
   useEffect(() => {
     async function loadInitialData() {
       try {
         setLoading(true);
-        const [summaryResponse, batchesResponse] = await Promise.all([
+        const [summaryResponse, batchesResponse, specsResponse] = await Promise.all([
           fetch("/api/company-selection/segments-summary"),
           fetch("/api/company-selection/imports?limit=500"),
+          fetch("/api/company-selection/specializations"),
         ]);
 
         if (summaryResponse.ok) {
@@ -239,6 +339,17 @@ export default function CompanySelectionsPage() {
               createdAt: batch.createdAt,
             }))
           );
+        }
+        if (specsResponse.ok) {
+          const specsData = await specsResponse.json();
+          const list: SpecializationOption[] = Array.isArray(specsData?.specializations)
+            ? specsData.specializations.map((s: any) => ({
+                code: s.code,
+                label: s.label,
+                companyClass: s.companyClass,
+              }))
+            : [];
+          setSpecializations(list);
         }
       } catch (error) {
         console.error("Błąd ładowania danych początkowych", error);
@@ -474,12 +585,15 @@ export default function CompanySelectionsPage() {
           language,
           market,
           dryRun: true,
+          page: previewPage,
+          pageSize: PREVIEW_PAGE_SIZE,
           filters: {
-            industries: selectedIndustries,
-            segments: selectedSegments,
-            subSegments: selectedSubSegments,
+            specializationCodes: selectedSubSegments,
+            onlyPrimary,
+            minScore,
+            minConfidence,
+            languages: selectedLanguages,
             importBatchIds: selectedBatchIds,
-            onlyNeedsReview,
           },
           excludeCompanyIds: Array.from(excludeCompanyIds),
         }),
@@ -495,6 +609,7 @@ export default function CompanySelectionsPage() {
         afterExclusions: data.totalAfterExclusions ?? 0,
       });
       setPreviewCompanies(data.preview ?? []);
+      setPreviewTotalPages(data.totalPages ?? 1);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Błąd generowania podglądu");
     } finally {
@@ -524,11 +639,12 @@ export default function CompanySelectionsPage() {
           market,
           dryRun: false,
           filters: {
-            industries: selectedIndustries,
-            segments: selectedSegments,
-            subSegments: selectedSubSegments,
+            specializationCodes: selectedSubSegments,
+            onlyPrimary,
+            minScore,
+            minConfidence,
+            languages: selectedLanguages,
             importBatchIds: selectedBatchIds,
-            onlyNeedsReview,
           },
           excludeCompanyIds: Array.from(excludeCompanyIds),
         }),
@@ -540,6 +656,7 @@ export default function CompanySelectionsPage() {
       }
 
       setFormSuccess(`Selekcja "${data.selection?.name}" została utworzona.`);
+      setSelectionSaved(true);
       setPreviewCompanies([]);
       setPreviewTotals({ total: 0, afterExclusions: 0 });
       setExcludeCompanyIds(new Set());
@@ -548,6 +665,72 @@ export default function CompanySelectionsPage() {
       setFormError(error instanceof Error ? error.message : "Błąd tworzenia selekcji");
     } finally {
       setCreateLoading(false);
+    }
+  };
+
+  // Reset selectionSaved gdy użytkownik zmienia dane
+  useEffect(() => {
+    if (selectionSaved) {
+      setSelectionSaved(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, description, market, language, selectedSubSegments, selectedLanguages, selectedBatchIds, onlyPrimary, minScore, minConfidence, excludeCompanyIds.size]);
+
+  // Live-podgląd: automatycznie odświeżaj przy zmianie progów/filtrów (z debouncem)
+  useEffect(() => {
+    if (loading) return;
+    const debounce = setTimeout(() => {
+      setPreviewPage(1);
+      void handlePreview();
+    }, 350);
+    return () => clearTimeout(debounce);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSubSegments, selectedLanguages, selectedBatchIds, onlyPrimary, minScore, minConfidence, market]);
+
+  // Liczniki per specjalizacja (dla aktualnych filtrów, bez wymogu wybranej specjalizacji)
+  useEffect(() => {
+    if (loading) return;
+    const controller = new AbortController();
+    const run = async () => {
+      try {
+        const response = await fetch("/api/company-selection/selections", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            mode: "specCounts",
+            market,
+            filters: {
+              // Nie przekazujemy specializationCodes – backend liczy globalnie dla filtrów
+              onlyPrimary,
+              minScore,
+              minConfidence,
+              languages: selectedLanguages,
+              importBatchIds: selectedBatchIds,
+            },
+          }),
+        });
+        const data = await response.json();
+        if (response.ok && data?.success) {
+          setSpecCounts(data.counts ?? {});
+        }
+      } catch {
+        // cicho ignorujemy błędy liczników
+      }
+    };
+    run();
+    return () => controller.abort();
+  }, [loading, market, selectedLanguages, selectedBatchIds, onlyPrimary, minScore, minConfidence]);
+
+  const formatVerificationStatus = (status: string | null | undefined): { label: string; color: string; bg: string } => {
+    switch (status) {
+      case "VERIFIED":
+        return { label: "Zweryfikowana", color: "#065F46", bg: "#D1FAE5" };
+      case "BLOCKED":
+        return { label: "Zablokowana", color: "#991B1B", bg: "#FEE2E2" };
+      case "PENDING":
+      default:
+        return { label: "Brak weryfikacji Perso", color: "#1D4ED8", bg: "#DBEAFE" };
     }
   };
 
@@ -564,20 +747,16 @@ export default function CompanySelectionsPage() {
   };
 
   const clearFilters = () => {
-    setSelectedSegments([]);
-    setSelectedSubSegments([]);
-    setSelectedIndustries([]);
-    setSelectedBatchIds([]);
-    setOnlyNeedsReview(false);
-    setExcludeCompanyIds(new Set());
-    setPreviewCompanies([]);
-    setPreviewTotals({ total: 0, afterExclusions: 0 });
+    // Czyść tylko progi AI i przełącznik "Tylko główna"
+    setMinScore(3);
+    setMinConfidence(0.6);
+    setOnlyPrimary(true);
   };
 
   return (
     <div style={{ padding: "2rem", maxWidth: "1280px", margin: "0 auto" }}>
       <Link
-        href="/company-selection"
+        href="/company-selection/processes/selections"
         style={{
           color: "#2563EB",
           textDecoration: "none",
@@ -588,21 +767,25 @@ export default function CompanySelectionsPage() {
           fontWeight: 500,
         }}
       >
-        ← Powrót do modułu
+        ← Powrót do procesu selekcji
       </Link>
 
       <h1 style={{ fontSize: "2rem", fontWeight: 700, marginBottom: "0.75rem" }}>
-        Nowa baza firm
+        {isCreateMode ? "Nowa baza firm" : "Zapisane selekcje"}
       </h1>
 
-      <div style={{ 
-        padding: "1rem", 
-        backgroundColor: "#F0FDF4", 
-        borderRadius: "0.75rem", 
-        border: "1px solid #BBF7D0",
-        marginBottom: "2rem",
-        maxWidth: "900px"
-      }}>
+      {isCreateMode ? (
+        <>
+            <div
+              style={{
+          padding: "1rem",
+          backgroundColor: "#F0FDF4",
+          borderRadius: "0.75rem",
+          border: "1px solid #BBF7D0",
+          marginBottom: "2rem",
+          maxWidth: "900px",
+        }}
+      >
         <button
           onClick={() => setInfoExpanded(!infoExpanded)}
           style={{
@@ -622,86 +805,34 @@ export default function CompanySelectionsPage() {
           </h2>
         </button>
 
-        {infoExpanded && (
+        {infoExpanded ? (
           <div style={{ marginTop: "1rem" }}>
             <p style={{ fontSize: "0.95rem", lineHeight: 1.7, color: "#374151", marginBottom: "1rem" }}>
-              To jest <strong>kreator selekcji firm</strong> - narzędzie do wyselekcjonowania firm do dalszego etapu weryfikacji. 
-              Firmy w bazie mają już przypisane <strong>specjalizacje</strong> (z etapu klasyfikacji AI) i <strong>branże</strong>. 
-              Tutaj wybierasz filtry (rynek, specjalizacja, branża, partia importu), oglądasz podgląd wyników, 
-              wykluczasz niechciane firmy i zapisujesz selekcję do <strong>dalszego etapu wyselekcjonowania person</strong> - 
-              weryfikacji pracowników tych firm.
+              To jest <strong>kreator selekcji firm</strong> – wybierasz filtry, oglądasz podgląd firm, wykluczasz niechciane i zapisujesz selekcję do
+              etapu weryfikacji person.
             </p>
-
-            <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem", marginTop: "1rem" }}>
-              Co widzisz?
-            </h3>
-            <ul style={{ fontSize: "0.9rem", lineHeight: 1.7, color: "#4B5563", margin: 0, paddingLeft: "1.5rem", marginBottom: "1rem" }}>
-              <li><strong>Parametry selekcji</strong> - nazwa, rynek, język (ustawiasz na górze)</li>
-              <li><strong>Filtry</strong> - wybierasz specjalizacje, branże i partie importu (firmy zablokowane są automatycznie wykluczane)</li>
-              <li><strong>Podgląd firm</strong> - zobacz które firmy wejdą do selekcji przed zapisaniem</li>
-              <li><strong>Lista zapisanych selekcji</strong> - wszystkie wcześniej utworzone bazy gotowe do weryfikacji person</li>
-            </ul>
-
-            <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem", marginTop: "1rem" }}>
-              Co możesz zrobić?
-            </h3>
-            <ul style={{ fontSize: "0.9rem", lineHeight: 1.7, color: "#4B5563", margin: 0, paddingLeft: "1.5rem", marginBottom: "1rem" }}>
-              <li><strong>Utworzyć nową bazę firm</strong> - wybierz filtry (specjalizacje, branże), kliknij "Pokaż podgląd", sprawdź firmy, wyklucz niechciane i zapisz</li>
-              <li><strong>Przygotować podgląd</strong> - zobacz ile firm pasuje do wybranych filtrów, zanim zapiszesz selekcję</li>
-              <li><strong>Wykluczyć firmy</strong> - zaznacz checkbox "Wyklucz" przy firmach, których nie chcesz w selekcji</li>
-              <li><strong>Zapisać selekcję</strong> - zapisz bazę z nazwą i opisem - będzie dostępna do dalszego etapu wyselekcjonowania person (weryfikacji pracowników)</li>
-              <li><strong>Przeglądać zapisane selekcje</strong> - zobacz wszystkie utworzone bazy poniżej</li>
-            </ul>
-
-            <div style={{ 
-              marginTop: "1rem", 
-              padding: "0.75rem", 
-              backgroundColor: "#DBEAFE", 
-              borderRadius: "0.5rem",
-              borderLeft: "3px solid #2563EB"
-            }}>
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "0.75rem",
+                backgroundColor: "#DBEAFE",
+                borderRadius: "0.5rem",
+                borderLeft: "3px solid #2563EB",
+              }}
+            >
               <strong style={{ fontSize: "0.85rem", color: "#1E40AF" }}>Ważne:</strong>
               <span style={{ fontSize: "0.85rem", color: "#4B5563", marginLeft: "0.5rem" }}>
-                Firmy zablokowane są automatycznie wykluczane z selekcji. Najpierw ustaw filtry, potem kliknij "Pokaż podgląd", 
-                sprawdź wyniki i dopiero wtedy zapisz selekcję. Zapisana selekcja będzie dostępna do dalszego etapu - wyselekcjonowania person.
+                Firmy zablokowane są automatycznie wykluczane. Najpierw ustaw filtry, kliknij „Pokaż podgląd”, sprawdź wyniki i zapisz selekcję.
               </span>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       <div style={{ display: "grid", gap: "1.5rem" }}>
+        {/* Sekcja danych selekcji – przeniesiona powyżej Parametrów selekcji */}
         <section style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Parametry selekcji</h2>
-          {formError && (
-            <div
-              style={{
-                marginBottom: "1rem",
-                padding: "0.75rem",
-                backgroundColor: "#FEE2E2",
-                border: "1px solid #FCA5A5",
-                color: "#B91C1C",
-                borderRadius: "0.5rem",
-              }}
-            >
-              {formError}
-            </div>
-          )}
-          {formSuccess && (
-            <div
-              style={{
-                marginBottom: "1rem",
-                padding: "0.75rem",
-                backgroundColor: "#ECFDF5",
-                border: "1px solid #6EE7B7",
-                color: "#047857",
-                borderRadius: "0.5rem",
-              }}
-            >
-              {formSuccess}
-            </div>
-          )}
-
+          <h2 style={sectionTitleStyle}>Dane selekcji</h2>
           <div
             style={{
               display: "grid",
@@ -757,7 +888,6 @@ export default function CompanySelectionsPage() {
               </select>
             </div>
           </div>
-
           <label style={labelStyle}>Opis selekcji (opcjonalnie)</label>
           <textarea
             value={description}
@@ -766,32 +896,106 @@ export default function CompanySelectionsPage() {
             style={{ ...inputStyle, minHeight: "90px" }}
             disabled={createLoading}
           />
+        </section>
 
-          <hr style={{ margin: "1.5rem 0", borderTop: "1px solid #E5E7EB" }} />
+        {/* Nowa sekcja: Zapis selekcji (przeniesiona pod Dane selekcji) */}
+        <section
+            style={{
+            ...cardStyle,
+            backgroundColor: "#D1FAE5", // ciemniejsza zieleń niż wcześniej
+            border: "1px solid #34D399",
+            padding: "0.6rem",
+          }}
+        >
+          <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
+            {selectionSaved ? (
+              <div style={{ color: "#064E3B", fontSize: "1rem", fontWeight: 700 }}>
+                Selekcja zapisana
+              </div>
+            ) : (
+            <button
+              type="button"
+              onClick={handleCreateSelection}
+                disabled={createLoading || loading || !name.trim() || selectedSubSegments.length === 0}
+              style={{
+                padding: "0.5rem 1rem",
+                borderRadius: "0.5rem",
+                border: "none",
+                  backgroundColor: createLoading || !name.trim() || selectedSubSegments.length === 0 ? "#9CA3AF" : "#059669", // szary gdy disabled, zielony gdy aktywny
+                color: "#FFFFFF",
+                fontWeight: 700,
+                  cursor: createLoading || !name.trim() || selectedSubSegments.length === 0 ? "not-allowed" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {createLoading ? "Tworzę..." : "Zapisz selekcję"}
+            </button>
+            )}
+            <div style={{ height: "1.25rem", width: "1px", background: "#10B981" }} />
+            <div style={{ color: "#064E3B", fontSize: "0.9rem", display: "flex", gap: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ whiteSpace: "nowrap" }}><strong>Nazwa:</strong> {name || "—"}</span>
+              <span style={{ whiteSpace: "nowrap" }}><strong>Rynek/Język:</strong> {market} • {language}</span>
+              <span style={{ whiteSpace: "nowrap" }}><strong>Firm po wykl.:</strong> {previewTotals.afterExclusions.toLocaleString("pl-PL")}</span>
+              <span style={{ whiteSpace: "nowrap" }}><strong>Specjalizacje:</strong> {selectedSubSegments.length}</span>
+              </div>
+            </div>
+        </section>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <h3 style={{ ...sectionTitleStyle, fontSize: "1.1rem", marginBottom: 0 }}>Filtry</h3>
-            {countLoading && (<span style={{ fontSize: "0.8rem", color: "#6B7280" }}>Aktualizuję liczniki…</span>)}
-          </div>
+        <section style={cardStyle}>
+          <h2 style={sectionTitleStyle}>Parametry selekcji</h2>
+          {formError && (
+            <div
+                    style={{
+                marginBottom: "1rem",
+                padding: "0.75rem",
+                backgroundColor: "#FEE2E2",
+                border: "1px solid #FCA5A5",
+                color: "#B91C1C",
+                borderRadius: "0.5rem",
+              }}
+            >
+              {formError}
+              </div>
+          )}
+          {formSuccess && (
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "0.75rem",
+                backgroundColor: "#ECFDF5",
+                border: "1px solid #6EE7B7",
+                color: "#047857",
+                borderRadius: "0.5rem",
+              }}
+            >
+              {formSuccess}
+            </div>
+          )}
 
+          {/* 3. linia: Języki (multi) i Partie importu (multi) */}
           <div
             style={{
+              marginTop: "0.75rem",
               display: "grid",
               gap: "1.25rem",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gridTemplateColumns: "repeat(2, minmax(260px, 1fr))",
             }}
           >
             <div>
               <label style={labelStyle}>
-                Specjalizacje
-                <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
-                  Typ klienta z perspektywy Kreativii (np. "Wykonawca stoisk targowych")
-                </span>
+                Języki (multi)
               </label>
               <div style={{ maxHeight: "220px", overflowY: "auto", paddingRight: "0.5rem" }}>
-                {uniqueSubSegments.map((segment) => (
+                {LANGUAGE_OPTIONS.map((opt) => (
                   <label
-                    key={segment.code}
+                    key={opt.value}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -802,59 +1006,20 @@ export default function CompanySelectionsPage() {
                   >
                     <input
                       type="checkbox"
-                      checked={selectedSubSegments.includes(segment.code)}
+                      checked={selectedLanguages.includes(opt.value)}
                       onChange={() =>
-                        setSelectedSubSegments((state) => toggleSelection(state, segment.code))
+                        setSelectedLanguages((state) =>
+                          state.includes(opt.value)
+                            ? (state.filter((v) => v !== opt.value) as LanguageOption[])
+                            : ([...state, opt.value] as LanguageOption[])
+                        )
                       }
                     />
-                    <span>
-                      {SUBCLASS_LABELS[segment.code] ?? segment.code}
-                      <span style={{ color: "#6B7280", fontSize: "0.75rem", marginLeft: "0.35rem" }}>
-                        ({segment.count})
-                      </span>
-                    </span>
+                    <span>{opt.label}</span>
                   </label>
                 ))}
               </div>
             </div>
-
-            <div>
-              <label style={labelStyle}>
-                Branże
-                <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
-                  Ogólna kategoria biznesowa firmy (np. "Marketing & Advertising")
-                </span>
-              </label>
-              <div style={{ maxHeight: "220px", overflowY: "auto", paddingRight: "0.5rem" }}>
-                {industries.map((industry) => (
-                  <label
-                    key={industry.industry}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      marginBottom: "0.35rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedIndustries.includes(industry.industry)}
-                      onChange={() =>
-                        setSelectedIndustries((state) => toggleSelection(state, industry.industry))
-                      }
-                    />
-                    <span>
-                      {industry.industry}
-                      <span style={{ color: "#6B7280", fontSize: "0.75rem", marginLeft: "0.35rem" }}>
-                        ({industry.count})
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
             <div>
               <label style={labelStyle}>
                 Partie importu
@@ -891,6 +1056,213 @@ export default function CompanySelectionsPage() {
             </div>
           </div>
 
+          <hr style={{ margin: "1.5rem 0", borderTop: "1px solid #E5E7EB" }} />
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <h3 style={{ ...sectionTitleStyle, fontSize: "1.1rem", marginBottom: 0 }}>Filtry AI</h3>
+            {countLoading && (<span style={{ fontSize: "0.8rem", color: "#6B7280" }}>Aktualizuję liczniki…</span>)}
+          </div>
+
+          {/* 1. linia: Specjalizacje, Języki, Partie importu */}
+          <div
+                    style={{
+              display: "grid",
+              gap: "1.25rem",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            }}
+          >
+            <div>
+              <label style={labelStyle}>Specjalizacje (multi)</label>
+              {/* 3-4 kolumny z grupami */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(280px, 1fr))", gap: "0.75rem" }}>
+                {/* PS */}
+                <div style={{ border: "1px solid #E5E7EB", borderRadius: "0.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.75rem", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+                    <strong>PS – Pośrednicy</strong>
+                    <div style={{ display: "flex", gap: "0.35rem" }}>
+                      <button type="button" onClick={() => clearGroup("PS")} style={{ border: "1px solid #D1D5DB", background: "white", borderRadius: "0.35rem", padding: "0.2rem 0.45rem", fontSize: "0.75rem", cursor: "pointer" }}>Wyczyść</button>
+                    </div>
+                  </div>
+                  {!collapsedGroups.PS && (
+                    <div style={{ maxHeight: "220px", overflowY: "auto", padding: "0.5rem 0.75rem" }}>
+                      {groupedSpecializations.PS.map((s) => (
+                        <label key={s.code} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem", cursor: "pointer" }}>
+                          <input type="checkbox" checked={selectedSubSegments.includes(s.code)} onChange={() => setSelectedSubSegments((state) => toggleSelection(state, s.code))} />
+                          <span>{s.label}{typeof specCounts[s.code] === "number" ? ` (${specCounts[s.code]})` : ""}</span>
+                  </label>
+                ))}
+              </div>
+                  )}
+            </div>
+                {/* WK */}
+                <div style={{ border: "1px solid #E5E7EB", borderRadius: "0.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.75rem", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+                    <strong>WK – Wykonawcy</strong>
+                    <div style={{ display: "flex", gap: "0.35rem" }}>
+                      <button type="button" onClick={() => clearGroup("WK")} style={{ border: "1px solid #D1D5DB", background: "white", borderRadius: "0.35rem", padding: "0.2rem 0.45rem", fontSize: "0.75rem", cursor: "pointer" }}>Wyczyść</button>
+                    </div>
+                  </div>
+                  {!collapsedGroups.WK && (
+                    <div style={{ maxHeight: "220px", overflowY: "auto", padding: "0.5rem 0.75rem" }}>
+                      {groupedSpecializations.WK.map((s) => (
+                        <label key={s.code} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem", cursor: "pointer" }}>
+                          <input type="checkbox" checked={selectedSubSegments.includes(s.code)} onChange={() => setSelectedSubSegments((state) => toggleSelection(state, s.code))} />
+                          <span>{s.label}{typeof specCounts[s.code] === "number" ? ` (${specCounts[s.code]})` : ""}</span>
+                  </label>
+                ))}
+                    </div>
+                  )}
+                </div>
+                {/* WKK */}
+                <div style={{ border: "1px solid #E5E7EB", borderRadius: "0.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.75rem", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+                    <strong>WKK – Sieci detaliczne</strong>
+                    <div style={{ display: "flex", gap: "0.35rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearGroup("WKK_RETAIL");
+                          clearGroup("WKK_OTHER");
+                        }}
+                        style={{ border: "1px solid #D1D5DB", background: "white", borderRadius: "0.35rem", padding: "0.2rem 0.45rem", fontSize: "0.75rem", cursor: "pointer" }}
+                      >
+                        Wyczyść
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ maxHeight: "220px", overflowY: "auto", padding: "0.5rem 0.75rem" }}>
+                    {/* Retail */}
+                    {!collapsedGroups.WKK_RETAIL && (
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#374151", marginBottom: "0.35rem" }}>
+                          Retail
+                        </div>
+                        {groupedSpecializations.WKK_RETAIL.map((s) => (
+                          <label key={s.code} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem", cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedSubSegments.includes(s.code)} onChange={() => setSelectedSubSegments((state) => toggleSelection(state, s.code))} />
+                            <span>{s.label}{typeof specCounts[s.code] === "number" ? ` (${specCounts[s.code]})` : ""}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {/* Pozostałe */}
+                    {!collapsedGroups.WKK_OTHER && (
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#374151", marginBottom: "0.35rem" }}>
+                          Pozostałe
+                        </div>
+                        {groupedSpecializations.WKK_OTHER.map((s) => (
+                          <label key={s.code} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem", cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedSubSegments.includes(s.code)} onChange={() => setSelectedSubSegments((state) => toggleSelection(state, s.code))} />
+                            <span>{s.label}{typeof specCounts[s.code] === "number" ? ` (${specCounts[s.code]})` : ""}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {/* Pasek wybranych – przeniesiony poniżej listy specjalizacji i jako separator nad sekcją progów */}
+              {selectedSubSegments.length > 0 && (
+                <div style={{ marginTop: "0.75rem", paddingTop: "0.6rem", borderTop: "1px solid #E5E7EB", display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                  {selectedSubSegments.map((code) => {
+                    const spec = specializations.find((s) => s.code === code);
+                    return (
+                      <span key={code} style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.25rem 0.5rem", borderRadius: "999px", background: "#EEF2FF", color: "#1E40AF", fontSize: "0.8rem" }}>
+                        {spec?.label ?? code}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSubSegments((prev) => prev.filter((c) => c !== code))}
+                          style={{ border: "none", background: "transparent", color: "#1E40AF", cursor: "pointer" }}
+                          aria-label={`Usuń ${code}`}
+                          title="Usuń"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSubSegments([])}
+                    style={{ marginLeft: "0.25rem", border: "1px solid #D1D5DB", background: "white", color: "#374151", borderRadius: "0.4rem", padding: "0.25rem 0.5rem", fontSize: "0.8rem", cursor: "pointer" }}
+                  >
+                    Wyczyść
+                  </button>
+                </div>
+              )}
+            </div>
+
+            
+          </div>
+
+          {/* 2. linia: Minimalny wynik, Minimalna pewność, Tylko główna */}
+          <div
+            style={{
+              marginTop: "1rem",
+              paddingTop: "0.75rem",
+              borderTop: "1px solid #E5E7EB",
+              display: "grid",
+              gap: "1.25rem",
+              gridTemplateColumns: "repeat(3, minmax(220px, 1fr))",
+              alignItems: "end",
+            }}
+          >
+            <div>
+              <label style={labelStyle}>Minimalny wynik (1–5)</label>
+              <div style={{ fontSize: "0.8rem", color: "#6B7280", marginBottom: "0.35rem" }}>
+                Filtruje firmy na podstawie oceny dopasowania AI do wybranych specjalizacji. Pokażemy tylko te firmy,
+                dla których przynajmniej jedna klasyfikacja spełnia próg (score ≥ wartość suwaka).
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={minScore}
+                  onChange={(e) => setMinScore(Math.max(1, Math.min(5, Number(e.target.value) || 0)))}
+                  style={{ width: "100%" }}
+                />
+                <span style={{ width: "2rem", textAlign: "right", color: "#111827" }}>{minScore}</span>
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Minimalna pewność (0.0–1.0)</label>
+              <div style={{ fontSize: "0.8rem", color: "#6B7280", marginBottom: "0.35rem" }}>
+                Filtruje firmy wg pewności klasyfikacji AI. Pokażemy tylko te dopasowania, których confidence jest
+                nie mniejsze niż ustawiona wartość (confidence ≥ wartość suwaka).
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={minConfidence}
+                  onChange={(e) => setMinConfidence(Math.max(0, Math.min(1, Number(e.target.value) || 0)))}
+                  style={{ width: "100%" }}
+                />
+                <span style={{ width: "3rem", textAlign: "right", color: "#111827" }}>
+                  {minConfidence.toFixed(2)}
+                      </span>
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Tylko główna</label>
+              <div style={{ fontSize: "0.8rem", color: "#6B7280", marginBottom: "0.35rem" }}>
+                Włącz, aby uwzględniać wyłącznie główną specjalizację nadaną przez AI (isPrimary = true).
+                Alternatywne klasyfikacje będą ukryte.
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <input type="checkbox" checked={onlyPrimary} onChange={(e) => setOnlyPrimary(e.target.checked)} />
+                <span>Uwzględnij wyłącznie główne specjalizacje</span>
+            </label>
+            </div>
+          </div>
+
           <div
             style={{
               marginTop: "1rem",
@@ -899,14 +1271,6 @@ export default function CompanySelectionsPage() {
               gap: "0.75rem",
             }}
           >
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <input
-                type="checkbox"
-                checked={onlyNeedsReview}
-                onChange={(event) => setOnlyNeedsReview(event.target.checked)}
-              />
-              Uwzględnij tylko firmy wymagające ręcznej klasyfikacji
-            </label>
             <button
               type="button"
               onClick={clearFilters}
@@ -931,38 +1295,11 @@ export default function CompanySelectionsPage() {
               flexWrap: "wrap",
             }}
           >
-            <button
-              type="button"
-              onClick={handlePreview}
-              disabled={previewLoading || createLoading || loading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                borderRadius: "0.75rem",
-                border: "none",
-                backgroundColor: previewLoading ? "#93C5FD" : "#2563EB",
-                color: "white",
-                fontWeight: 600,
-                cursor: previewLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              {previewLoading ? "Generuję podgląd..." : "Pokaż podgląd"}
-            </button>
-            <button
-              type="button"
-              onClick={handleCreateSelection}
-              disabled={createLoading || loading}
-              style={{
-                padding: "0.75rem 1.5rem",
-                borderRadius: "0.75rem",
-                border: "none",
-                backgroundColor: createLoading ? "#FBBF24" : "#F59E0B",
-                color: "#1F2937",
-                fontWeight: 600,
-                cursor: createLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              {createLoading ? "Tworzę selekcję..." : "Zapisz selekcję"}
-            </button>
+            {/* Przycisk zapisu przeniesiony do sekcji "Zapis selekcji" niżej */}
+          </div>
+          {/* Informacja o liczbie wyników – na końcu sekcji Parametry selekcji */}
+          <div style={{ marginTop: "1rem", color: "#374151", fontSize: "0.95rem" }}>
+            Wyselekcjonowano: <strong>{previewTotals.afterExclusions.toLocaleString("pl-PL")}</strong> firm
           </div>
         </section>
 
@@ -981,83 +1318,161 @@ export default function CompanySelectionsPage() {
       )}
 
         {previewCompanies.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+            <div style={{ color: "#6B7280", fontSize: "0.9rem" }}>
+              Łącznie: {previewTotals.afterExclusions.toLocaleString("pl-PL")} • Strona {previewPage} z {previewTotalPages} • {PREVIEW_PAGE_SIZE}/stronę
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <button
+              type="button"
+                onClick={() => { if (previewPage > 1) { setPreviewPage(previewPage - 1); void handlePreview(); } }}
+                disabled={previewLoading || previewPage <= 1}
+              style={{
+                  padding: "0.45rem 0.85rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #D1D5DB",
+                  backgroundColor: previewPage <= 1 ? "#F3F4F6" : "white",
+                  color: "#374151",
+                  cursor: previewPage <= 1 ? "not-allowed" : "pointer",
+                }}
+              >
+                ← Poprzednia
+            </button>
+              <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+                {buildPageList(previewTotalPages, previewPage).map((item, idx) =>
+                  typeof item === "number" ? (
+            <button
+                      key={`top-${item}-${idx}`}
+              type="button"
+                      onClick={() => { if (item !== previewPage) { setPreviewPage(item); void handlePreview(); } }}
+                      disabled={previewLoading}
+              style={{
+                        padding: "0.35rem 0.6rem",
+                        borderRadius: "0.4rem",
+                        border: "1px solid #D1D5DB",
+                        backgroundColor: item === previewPage ? "#2563EB" : "white",
+                        color: item === previewPage ? "white" : "#374151",
+                        cursor: previewLoading ? "not-allowed" : "pointer",
+                        minWidth: "2rem",
+                      }}
+                    >
+                      {item}
+            </button>
+                  ) : (
+                    <span key={`dots-top-${idx}`} style={{ padding: "0 0.25rem", color: "#6B7280" }}>…</span>
+                  )
+                )}
+          </div>
+              <button
+                type="button"
+                onClick={() => { if (previewPage < previewTotalPages) { setPreviewPage(previewPage + 1); void handlePreview(); } }}
+                disabled={previewLoading || previewPage >= previewTotalPages}
+          style={{
+                  padding: "0.45rem 0.85rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #D1D5DB",
+                  backgroundColor: previewPage >= previewTotalPages ? "#F3F4F6" : "white",
+                  color: "#374151",
+                  cursor: previewPage >= previewTotalPages ? "not-allowed" : "pointer",
+                }}
+              >
+                Następna →
+              </button>
+            </div>
+          </div>
+      )}
+
+        {previewCompanies.length > 0 && (
           <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>Podgląd firm ({previewTotals.afterExclusions}/{previewTotals.total})</h2>
             <p style={{ marginBottom: "1rem", color: "#4B5563", fontSize: "0.9rem" }}>
               Zaznacz firmy, które chcesz wykluczyć przed zapisaniem selekcji.
             </p>
-            <div style={{ overflowX: "auto", borderRadius: "0.75rem", border: "1px solid #E5E7EB" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: "0.875rem",
-                }}
-              >
-                <thead>
-                  <tr style={{ backgroundColor: "#F3F4F6" }}>
-                    <th style={{ padding: "0.65rem", textAlign: "left" }}>Wyklucz</th>
-                    <th style={{ padding: "0.65rem", textAlign: "left" }}>Nazwa firmy</th>
-                    <th style={{ padding: "0.65rem", textAlign: "left" }}>Branża</th>
-                    <th style={{ padding: "0.65rem", textAlign: "left" }}>Segment</th>
-                    <th style={{ padding: "0.65rem", textAlign: "left" }}>Status</th>
-                    <th style={{ padding: "0.65rem", textAlign: "left" }}>Import</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewCompanies.map((company) => {
-                    const segmentLabel = company.classificationClass
-                      ? CLASS_LABELS[company.classificationClass] ?? company.classificationClass
-                      : "—";
-                    const subSegmentLabel = company.classificationSubClass
-                      ? SUBCLASS_LABELS[company.classificationSubClass] ?? company.classificationSubClass
-                      : null;
-                    return (
-                      <tr key={company.id} style={{ borderTop: "1px solid #E5E7EB" }}>
-                        <td style={{ padding: "0.65rem" }}>
-                          <input
-                            type="checkbox"
-                            checked={excludeCompanyIds.has(company.id)}
-                            onChange={() => toggleExclude(company.id)}
-                          />
-                        </td>
-                        <td style={{ padding: "0.65rem" }}>
-                          <div style={{ fontWeight: 600 }}>{company.name}</div>
-                          <div style={{ color: "#6B7280", fontSize: "0.75rem" }}>
-                            Rynek: {company.market ?? "—"}
-                          </div>
-                        </td>
-                        <td style={{ padding: "0.65rem" }}>{company.industry ?? "—"}</td>
-                        <td style={{ padding: "0.65rem" }}>
-                          <div>{segmentLabel}</div>
-                          {subSegmentLabel && (
-                            <div style={{ color: "#6B7280", fontSize: "0.75rem" }}>{subSegmentLabel}</div>
-                          )}
-                        </td>
-                        <td style={{ padding: "0.65rem" }}>
-                          {company.verificationStatus ?? "—"}
-                        </td>
-                        <td style={{ padding: "0.65rem" }}>
-                          {company.importBatch ? (
-                            <div>
-                              <div>{company.importBatch.name}</div>
-                              <div style={{ color: "#6B7280", fontSize: "0.75rem" }}>
-                                {company.importBatch.language} • {company.importBatch.market}
-                              </div>
-                            </div>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <PreviewTable
+              companies={previewCompanies as any}
+              total={previewTotals.total}
+              totalAfterExclusions={previewTotals.afterExclusions}
+              page={previewPage}
+              totalPages={previewTotalPages}
+              pageSize={PREVIEW_PAGE_SIZE}
+              onChangePage={(p) => { setPreviewPage(p); void handlePreview(); }}
+              specializations={specializations}
+              excludeCompanyIds={excludeCompanyIds}
+              onToggleExclude={toggleExclude}
+            />
           </section>
         )}
 
+        {previewCompanies.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ color: "#6B7280", fontSize: "0.9rem" }}>
+              Łącznie: {previewTotals.afterExclusions.toLocaleString("pl-PL")} • Strona {previewPage} z {previewTotalPages} • {PREVIEW_PAGE_SIZE}/stronę
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => { if (previewPage > 1) { setPreviewPage(previewPage - 1); void handlePreview(); } }}
+                disabled={previewLoading || previewPage <= 1}
+                style={{
+                  padding: "0.45rem 0.85rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #D1D5DB",
+                  backgroundColor: previewPage <= 1 ? "#F3F4F6" : "white",
+                  color: "#374151",
+                  cursor: previewPage <= 1 ? "not-allowed" : "pointer",
+                }}
+              >
+                ← Poprzednia
+              </button>
+              <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+                {buildPageList(previewTotalPages, previewPage).map((item, idx) =>
+                  typeof item === "number" ? (
+                    <button
+                      key={`bot-${item}-${idx}`}
+                      type="button"
+                      onClick={() => { if (item !== previewPage) { setPreviewPage(item); void handlePreview(); } }}
+                      disabled={previewLoading}
+                      style={{
+                        padding: "0.35rem 0.6rem",
+                        borderRadius: "0.4rem",
+                        border: "1px solid #D1D5DB",
+                        backgroundColor: item === previewPage ? "#2563EB" : "white",
+                        color: item === previewPage ? "white" : "#374151",
+                        cursor: previewLoading ? "not-allowed" : "pointer",
+                        minWidth: "2rem",
+                      }}
+                    >
+                      {item}
+                    </button>
+                  ) : (
+                    <span key={`dots-bottom-${idx}`} style={{ padding: "0 0.25rem", color: "#6B7280" }}>…</span>
+                  )
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => { if (previewPage < previewTotalPages) { setPreviewPage(previewPage + 1); void handlePreview(); } }}
+                disabled={previewLoading || previewPage >= previewTotalPages}
+                style={{
+                  padding: "0.45rem 0.85rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #D1D5DB",
+                  backgroundColor: previewPage >= previewTotalPages ? "#F3F4F6" : "white",
+                  color: "#374151",
+                  cursor: previewPage >= previewTotalPages ? "not-allowed" : "pointer",
+                }}
+              >
+                Następna →
+              </button>
+            </div>
+          </div>
+        )}
+
+        </div>
+        </>
+      ) : null}
+        
+      <div style={{ display: "grid", gap: "1.5rem" }}>
         <section style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={sectionTitleStyle}>Zapisane selekcje</h2>
@@ -1122,7 +1537,32 @@ export default function CompanySelectionsPage() {
                       <div style={{ color: "#6B7280", fontSize: "0.75rem" }}>aktywnych: {selection.activeCompanies}</div>
                     </td>
                     <td style={{ padding: "0.75rem" }}>
-                      {selection.criteria && selection.criteria.length > 0 ? (
+                      {(() => {
+                        // 1) Pokaż wybrane specjalizacje z filters.specializationCodes (jeśli są)
+                        let specializationSummary: string | null = null;
+                        try {
+                          if (selection.filters) {
+                            const parsed = JSON.parse(selection.filters || "{}") as {
+                              specializationCodes?: string[];
+                            };
+                            const codes = Array.isArray(parsed.specializationCodes) ? parsed.specializationCodes : [];
+                            if (codes.length > 0) {
+                              const labelMap = new Map(specializations.map((s) => [s.code, s.label]));
+                              const labels = codes.map((c) => labelMap.get(c) ?? c);
+                              const shown = labels.slice(0, 3).join(", ");
+                              const rest = labels.length > 3 ? ` +${labels.length - 3}` : "";
+                              specializationSummary = `Specjalizacje: ${shown}${rest}`;
+                            }
+                          }
+                        } catch {
+                          // ignorable
+                        }
+                        if (specializationSummary) {
+                          return <span style={{ fontSize: "0.8rem" }}>{specializationSummary}</span>;
+                        }
+                        // 2) Jeśli brak specjalizacji, pokaż ewentualne kryteria (jak dotychczas)
+                        if (selection.criteria && selection.criteria.length > 0) {
+                          return (
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                           {selection.criteria.map((criterion) => (
                             <span key={criterion.id} style={{ fontSize: "0.8rem" }}>
@@ -1130,9 +1570,11 @@ export default function CompanySelectionsPage() {
                             </span>
                           ))}
                         </div>
-                      ) : (
-                        <span style={{ color: "#9CA3AF", fontSize: "0.8rem" }}>Brak kryteriów</span>
-                      )}
+                          );
+                        }
+                        // 3) W przeciwnym razie pokaż placeholder
+                        return <span style={{ color: "#9CA3AF", fontSize: "0.8rem" }}>Brak kryteriów</span>;
+                      })()}
                     </td>
                     <td style={{ padding: "0.75rem" }}>
                       {new Date(selection.createdAt).toLocaleString("pl-PL")}
