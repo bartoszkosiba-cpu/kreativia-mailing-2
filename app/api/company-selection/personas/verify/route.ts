@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
     const companyId = Number(body.companyId);
     const force = Boolean(body.force);
     const useStoredEmployees = Boolean(body.useStoredEmployees);
+    const personaCriteriaId = body.personaCriteriaId ? Number(body.personaCriteriaId) : null;
+    const providedEmployees = body.employees; // Opcjonalnie: persony przekazane w body
 
     if (!companyId || Number.isNaN(companyId)) {
       return NextResponse.json({ success: false, error: "Nieprawidłowe companyId" }, { status: 400 });
@@ -54,40 +56,83 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Firma nie istnieje" }, { status: 404 });
     }
 
-    const activeCriteria = await db.companyVerificationCriteria.findFirst({
-      where: { isActive: true, isDefault: true },
-      orderBy: { updatedAt: "desc" },
-    });
+    let personaCriteria = null;
 
-    if (!activeCriteria) {
-      return NextResponse.json(
-        { success: false, error: "Brak aktywnej konfiguracji kryteriów person" },
-        { status: 400 }
-      );
+    // Jeśli podano personaCriteriaId, użyj go bezpośrednio
+    if (personaCriteriaId && Number.isFinite(personaCriteriaId)) {
+      const persona = await db.companyPersonaCriteria.findUnique({
+        where: { id: personaCriteriaId },
+      });
+      if (!persona) {
+        return NextResponse.json(
+          { success: false, error: "Nie znaleziono kryteriów person o podanym ID" },
+          { status: 404 }
+        );
+      }
+      // Konwertuj na format PersonaCriteriaDto
+      personaCriteria = {
+        id: persona.id,
+        name: persona.name,
+        description: persona.description || undefined,
+        positiveRoles: persona.positiveRoles ? JSON.parse(persona.positiveRoles) : [],
+        negativeRoles: persona.negativeRoles ? JSON.parse(persona.negativeRoles) : [],
+        conditionalRules: persona.conditionalRules ? JSON.parse(persona.conditionalRules) : [],
+        language: persona.language || "pl",
+        companyCriteriaId: persona.companyCriteriaId,
+      };
+    } else {
+      // Fallback: szukaj przez CompanyVerificationCriteria (stara logika)
+      const activeCriteria = await db.companyVerificationCriteria.findFirst({
+        where: { isActive: true, isDefault: true },
+        orderBy: { updatedAt: "desc" },
+      });
+
+      if (!activeCriteria) {
+        return NextResponse.json(
+          { success: false, error: "Brak aktywnej konfiguracji kryteriów person. Wybierz kryteria person lub ustaw domyślne kryteria firm." },
+          { status: 400 }
+        );
+      }
+
+      personaCriteria = await getPersonaCriteria(activeCriteria.id);
+      if (!personaCriteria) {
+        return NextResponse.json(
+          { success: false, error: "Brak zdefiniowanych person dla bieżących kryteriów" },
+          { status: 400 }
+        );
+      }
     }
 
-    const personaCriteria = await getPersonaCriteria(activeCriteria.id);
-    if (!personaCriteria) {
-      return NextResponse.json(
-        { success: false, error: "Brak zdefiniowanych person dla bieżących kryteriów" },
-        { status: 400 }
-      );
-    }
-
+    // Pobierz personaBrief - używamy personaCriteria.id (który jest CompanyPersonaCriteria.id)
     const personaBrief = await getPersonaBrief(personaCriteria.id);
 
     let employeesResult = null;
 
-    if (useStoredEmployees && existing) {
+    // Jeśli persony są przekazane w body, użyj ich
+    if (providedEmployees && Array.isArray(providedEmployees) && providedEmployees.length > 0) {
+      // Użyj przekazanych person (np. z Apollo)
+      employeesResult = {
+        success: true,
+        company: { id: companyId, name: company.name, website: null },
+        people: providedEmployees,
+        statistics: body.statistics || null,
+        uniqueTitles: body.uniqueTitles || [],
+        apolloOrganization: body.apolloOrganization || null,
+      };
+    } else if (useStoredEmployees && existing) {
+      // Użyj zapisanych person z bazy
+      const existingMetadata = existing.metadata ? JSON.parse(existing.metadata) : {};
       employeesResult = {
         success: true,
         company: { id: companyId, name: company.name, website: null },
         people: JSON.parse(existing.employees),
-        statistics: existing.metadata ? JSON.parse(existing.metadata)?.statistics ?? null : null,
-        uniqueTitles: existing.metadata ? JSON.parse(existing.metadata)?.uniqueTitles ?? [] : [],
-        apolloOrganization: existing.metadata ? JSON.parse(existing.metadata)?.apolloOrganization ?? null : null,
+        statistics: existingMetadata.statistics ?? null,
+        uniqueTitles: existingMetadata.uniqueTitles ?? [],
+        apolloOrganization: existingMetadata.apolloOrganization ?? null,
+        apolloFetchedAt: existingMetadata.apolloFetchedAt || null, // Zachowaj datę pobrania z Apollo
       };
     } else {
+      // Pobierz persony z Apollo
       const fetched = await fetchApolloEmployeesForCompany(companyId);
       if (!fetched.success) {
         return NextResponse.json(
@@ -98,10 +143,27 @@ export async function POST(req: NextRequest) {
       employeesResult = fetched;
     }
 
-    const employeesForAI = (employeesResult.people || []).map((person: any) => {
+    // Funkcja pomocnicza do sprawdzania, czy email jest dostępny
+    const hasAvailableEmail = (person: any): boolean => {
+      // Email jest dostępny jeśli:
+      // 1. Ma faktyczny adres email
+      // 2. Lub emailUnlocked === true
+      // 3. Lub emailStatus jest w: "verified", "guessed", "unverified", "extrapolated"
+      if (person.email) return true;
+      if (person.emailUnlocked) return true;
+      const status = (person.emailStatus || person.email_status)?.toLowerCase();
+      return status === "verified" || status === "guessed" || status === "unverified" || status === "extrapolated";
+    };
+    
+    // Filtruj persony - weryfikuj tylko te z dostępnym e-mailem
+    const employeesWithEmail = (employeesResult.people || []).filter(hasAvailableEmail);
+    
+    const employeesForAI = employeesWithEmail.map((person: any) => {
       const analysis = analyseJobTitle(person.title);
+      const matchKey = buildEmployeeKey(person); // Utwórz matchKey używając tej samej funkcji co do mapowania
       return {
         id: person.id ? String(person.id) : undefined,
+        matchKey: matchKey, // Dodaj matchKey, aby AI mógł go zwrócić
         name: person.name,
         title: person.title,
         titleNormalized: analysis.normalized,
@@ -120,23 +182,51 @@ export async function POST(req: NextRequest) {
 
     const classificationMap = new Map<string, { decision: string; reason: string; score?: number }>();
     for (const result of aiResponse.results) {
-      if (!result.id) continue;
-      classificationMap.set(result.id.toLowerCase(), {
+      // Użyj matchKey jeśli jest dostępny, w przeciwnym razie id
+      const key = result.matchKey || result.id;
+      if (!key) {
+        console.warn("[personas.verify] Brak klucza w wyniku AI:", result);
+        continue;
+      }
+      classificationMap.set(String(key).toLowerCase(), {
         decision: result.decision,
         reason: result.reason || "",
         score: typeof result.score === "number" ? result.score : undefined,
       });
     }
 
+    // Wzbogać tylko persony z dostępnym e-mailem (te, które były weryfikowane przez AI)
+    // Dodaj też persony bez dostępnego e-maila, ale bez weryfikacji AI (dla kompletności danych)
     const enrichedEmployees = (employeesResult.people || []).map((person: any) => {
       const key = buildEmployeeKey(person);
-      const aiInfo = classificationMap.get(key);
+      const aiInfo = classificationMap.get(key.toLowerCase());
+      
+      // Jeśli person nie ma dostępnego e-maila, nie weryfikuj go przez AI
+      if (!hasAvailableEmail(person)) {
+        return {
+          ...person,
+          personaMatchStatus: "unknown" as const, // Oznacz jako unknown, bo nie weryfikujemy
+          personaMatchReason: "Brak dostępnego e-maila - pominięto w weryfikacji AI",
+          personaMatchScore: null,
+        };
+      }
+      
+      // Debug: loguj jeśli nie znaleziono dopasowania
+      if (!aiInfo) {
+        console.warn("[personas.verify] Nie znaleziono dopasowania AI dla persony:", {
+          personKey: key,
+          personName: person.name,
+          personTitle: person.title,
+          availableKeys: Array.from(classificationMap.keys()),
+        });
+      }
+      
       const scoreText = typeof aiInfo?.score === "number" ? `Ocena: ${(aiInfo.score * 100).toFixed(0)}%` : null;
       const combinedReason = [scoreText, aiInfo?.reason].filter(Boolean).join(" — ");
       return {
         ...person,
         personaMatchStatus: aiInfo?.decision ?? "conditional",
-        personaMatchReason: combinedReason,
+        personaMatchReason: combinedReason || "Brak uzasadnienia",
         personaMatchScore: aiInfo?.score ?? null,
       };
     });
@@ -146,9 +236,16 @@ export async function POST(req: NextRequest) {
     const conditionalCount = enrichedEmployees.filter((p: any) => p.personaMatchStatus === "conditional").length;
     const unknownCount = enrichedEmployees.length - positiveCount - negativeCount - conditionalCount;
 
+    // Sprawdź, czy istnieje już weryfikacja person z apolloFetchedAt w metadanych
+    // Użyj istniejącego 'existing' jeśli jest dostępne, w przeciwnym razie pobierz ponownie
+    const existingForMetadata = existing || await getPersonaVerification(companyId);
+    const existingMetadata = existingForMetadata?.metadata ? JSON.parse(existingForMetadata.metadata) : {};
+    // Zachowaj istniejące apolloFetchedAt lub ustaw nowe, jeśli persony zostały właśnie pobrane z Apollo
+    const apolloFetchedAt = existingMetadata.apolloFetchedAt || (employeesResult.apolloFetchedAt ? new Date().toISOString() : null);
+
     const saved = await savePersonaVerification({
       companyId,
-      personaCriteriaId: personaCriteria.id,
+      personaCriteriaId: personaCriteria.id, // To jest CompanyPersonaCriteria.id
       positiveCount,
       negativeCount,
       unknownCount: conditionalCount + unknownCount,
@@ -157,6 +254,7 @@ export async function POST(req: NextRequest) {
         statistics: employeesResult.statistics,
         uniqueTitles: employeesResult.uniqueTitles,
         apolloOrganization: employeesResult.apolloOrganization,
+        apolloFetchedAt: apolloFetchedAt, // Zachowaj lub ustaw datę pobrania z Apollo
         personaBrief,
       },
     });
@@ -176,6 +274,7 @@ export async function POST(req: NextRequest) {
           statistics: employeesResult.statistics,
           uniqueTitles: employeesResult.uniqueTitles,
           apolloOrganization: employeesResult.apolloOrganization,
+          apolloFetchedAt: apolloFetchedAt, // Zwróć również w odpowiedzi
           personaBrief,
         },
       },

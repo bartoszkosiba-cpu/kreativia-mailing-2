@@ -150,7 +150,11 @@ export async function fetchApolloEmployeesForCompany(companyId: number): Promise
 
   const people = (peopleResult?.people || []).map((person: any) => {
     const hasEmail = person.email && person.email !== "email_not_unlocked@domain.com";
-    const emailStatus = person.email_status || person.contact_email_status || "unknown";
+    // Apollo może zwracać status w email_status lub contact_email_status
+    // contact_email_status jest dostępny bez kredytów i może zawierać: "verified", "guessed", "unverified", "unavailable"
+    // Normalizujemy status do lowercase, aby obsłużyć różne warianty pisowni
+    const rawStatus = person.email_status || person.contact_email_status;
+    const emailStatus = rawStatus ? String(rawStatus).toLowerCase() : null;
     return {
       ...person,
       email: hasEmail ? person.email : null,

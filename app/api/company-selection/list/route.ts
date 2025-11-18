@@ -60,11 +60,12 @@ export async function GET(req: NextRequest) {
       .filter(Boolean);
     const needsReview = searchParams.get("needsReview");
     const classificationSource = searchParams.get("classificationSource"); // "AI" | "NOT_AI" | null
+    const selectionId = toNumber(searchParams.get("selectionId"));
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const search = searchParams.get("search");
 
-    const filterConditions: FilterCondition[] = [];
+    let filterConditions: FilterCondition[] = [];
 
     // Domyślnie wykluczamy firmy zablokowane (chyba że użytkownik JAWNO wybierze status BLOCKED)
     if (status && status !== "ALL") {
@@ -204,6 +205,54 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Filtr po selekcji - jeśli podano selectionId, filtrujemy tylko firmy z tej selekcji
+    let companyIdsFromSelection: number[] | null = null;
+    let selectionMembershipsQuery: Promise<any[]> | null = null;
+    
+    if (selectionId != null) {
+      // Jeśli podano status i selectionId, filtrujemy po statusie w CompanySelectionCompany
+      const membershipWhere: any = { selectionId };
+      if (status && status !== "ALL" && status !== "BLOCKED") {
+        // Dla selekcji, status pochodzi z CompanySelectionCompany, nie z Company.verificationStatus
+        membershipWhere.status = status;
+      }
+      
+      // Zapisz zapytanie do wykonania w Promise.all
+      selectionMembershipsQuery = db.companySelectionCompany.findMany({
+        where: membershipWhere,
+        select: { companyId: true },
+      });
+    }
+
+    // Jeśli mamy zapytanie o selekcję, wykonaj je najpierw, aby uzyskać companyIds
+    if (selectionMembershipsQuery) {
+      const memberships = await selectionMembershipsQuery;
+      companyIdsFromSelection = memberships.map((m) => m.companyId);
+      if (companyIdsFromSelection.length === 0) {
+        // Jeśli selekcja nie ma żadnych firm, zwróć pustą listę
+        return NextResponse.json({
+          companies: [],
+          pagination: { page, limit, total: 0, totalPages: 0 },
+          aggregations: {
+            classificationClasses: [],
+            classificationSubClasses: [],
+            markets: [],
+            industries: [],
+          },
+        });
+      }
+      filterConditions.push({
+        key: "selection",
+        condition: { id: { in: companyIdsFromSelection } },
+      });
+      
+      // Jeśli filtrujemy po statusie w selekcji, usuwamy filtr statusu z Company.verificationStatus
+      // (bo status pochodzi z CompanySelectionCompany)
+      if (status && status !== "ALL" && status !== "BLOCKED") {
+        filterConditions = filterConditions.filter((f) => f.key !== "status");
+      }
+    }
+
     const whereFull = buildWhere(filterConditions);
     
     // Debug: Sprawdzamy, czy filtr branży jest poprawnie zastosowany do agregacji specjalizacji
@@ -214,7 +263,7 @@ export async function GET(req: NextRequest) {
       console.log("[Company List] DEBUG - specializationWhere (po wykluczeniu subClass, class):", JSON.stringify(specializationWhere, null, 2));
     }
 
-    const [companies, total, classAggregationRaw, subClassAggregationRaw, marketAggregationRaw, industryAggregationRaw, signalRows] =
+    const [companies, total, classAggregationRaw, subClassAggregationRaw, marketAggregationRaw, industryAggregationRaw, signalRows, membershipsMap] =
       await Promise.all([
         db.company.findMany({
           where: whereFull,
@@ -259,14 +308,33 @@ export async function GET(req: NextRequest) {
           where: buildWhere(filterConditions, ["subClass", "class"]),
           _count: { _all: true },
         }),
+        // Pobierz tylko firmy, które mają classificationSignals (nie null)
+        // To znacznie przyspiesza zapytanie, bo nie pobieramy wszystkich firm bez sygnałów
         db.company.findMany({
-          where: specializationWhere,
+          where: {
+            ...specializationWhere,
+            classificationSignals: {
+              not: null,
+            },
+          },
           select: {
             id: true,
             classificationSubClass: true,
             classificationSignals: true,
           },
         }),
+        // Pobierz statusy z CompanySelectionCompany dla firm z selekcji (jeśli selectionId jest podane)
+        selectionId != null
+          ? db.companySelectionCompany.findMany({
+              where: {
+                selectionId,
+              },
+              select: {
+                companyId: true,
+                status: true,
+              },
+            })
+          : Promise.resolve([]),
       ]);
 
     const specializationCountMap = new Map<string, number>();
@@ -322,13 +390,29 @@ export async function GET(req: NextRequest) {
       console.log("[Company List] DEBUG - Wszystkie specjalizacje w odpowiedzi:", specializationAggregation.length);
     }
 
+    // Utwórz mapę statusów z CompanySelectionCompany (jeśli selectionId jest podane)
+    const membershipStatusMap = new Map<number, string>();
+    if (selectionId != null && Array.isArray(membershipsMap)) {
+      for (const membership of membershipsMap) {
+        membershipStatusMap.set(membership.companyId, membership.status);
+      }
+    }
+
     const responseData = {
-      companies: companies.map((company) => ({
-        ...company,
-        classificationSignals: company.classificationSignals
-          ? JSON.parse(company.classificationSignals)
-          : [],
-      })),
+      companies: companies.map((company) => {
+        // Jeśli mamy status z selekcji, użyj go zamiast verificationStatus z Company
+        const selectionStatus = membershipStatusMap.get(company.id);
+        return {
+          ...company,
+          verificationStatus: selectionStatus || company.verificationStatus,
+          classificationSignals: company.classificationSignals
+            ? JSON.parse(company.classificationSignals)
+            : [],
+          classificationUpdatedAt: company.classificationUpdatedAt
+            ? company.classificationUpdatedAt.toISOString()
+            : null,
+        };
+      }),
       pagination: {
         page,
         limit,

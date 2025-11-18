@@ -1032,6 +1032,8 @@ model Company {
   @@index([country])
   @@index([market])
   @@index([importBatchId])
+  @@index([classificationSubClass])
+  @@index([classificationClass])
 }
 
 model CompanyTagScore {
@@ -1069,6 +1071,8 @@ model CompanyClassification {
   @@index([specializationCode])
   @@index([isPrimary])
   @@index([score])
+  @@index([source])
+  @@index([companyId, source]) // Złożony indeks dla szybkiego deleteMany z filtrem companyId + source
 }
 
 model CompanySpecialization {
@@ -1211,7 +1215,7 @@ model CompanyVerificationCriteria {
 
 model CompanyPersonaCriteria {
   id                Int @id @default(autoincrement())
-  companyCriteriaId Int @unique
+  companyCriteriaId Int? @unique
   name              String
   description       String?
   positiveRoles     String
@@ -1226,9 +1230,11 @@ model CompanyPersonaCriteria {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  companyCriteria     CompanyVerificationCriteria @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
+  companyCriteria     CompanyVerificationCriteria? @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
   personaBrief        PersonaBrief?
   personaVerifications PersonaVerificationResult[]
+
+  @@index([createdAt]) // Indeks dla szybkiego sortowania po dacie utworzenia
 }
 
 model PersonaBrief {
@@ -1261,7 +1267,7 @@ model PersonaVerificationResult {
   company        Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   personaCriteria CompanyPersonaCriteria? @relation(fields: [personaCriteriaId], references: [id], onDelete: SetNull)
 
-  @@unique([companyId])
+  @@unique([companyId]) // @@unique automatycznie tworzy indeks na companyId
   @@index([verifiedAt])
 }
 

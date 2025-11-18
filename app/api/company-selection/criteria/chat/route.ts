@@ -19,12 +19,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Pobierz istniejącą konfigurację lub utwórz nową
-    let criteria = criteriaId
-      ? await db.companyVerificationCriteria.findUnique({
-          where: { id: criteriaId },
-        })
-      : null;
+    // Pobierz istniejącą konfigurację - wymagamy criteriaId
+    if (!criteriaId) {
+      return NextResponse.json(
+        { error: "ID kryteriów jest wymagane. Najpierw utwórz kryteria lub wybierz istniejące." },
+        { status: 400 }
+      );
+    }
+
+    const criteria = await db.companyVerificationCriteria.findUnique({
+      where: { id: criteriaId },
+    });
+
+    if (!criteria) {
+      return NextResponse.json(
+        { error: "Nie znaleziono kryteriów o podanym ID" },
+        { status: 404 }
+      );
+    }
 
     // Przygotuj historię rozmowy
     type AllowedRole = "system" | "user" | "assistant";
@@ -120,41 +132,26 @@ Bądź elastyczny - czasem wystarczy podstawowa informacja, czasem potrzebujesz 
     // Dodaj odpowiedź AI do historii
     chatHistory.push({ role: "assistant", content: aiResponse });
 
-    // Zaktualizuj lub utwórz konfigurację
-    if (criteria) {
-      criteria = await db.companyVerificationCriteria.update({
-        where: { id: criteria.id },
-        data: {
-          chatHistory: JSON.stringify(chatHistory),
-          lastUserMessage: message,
-          lastAIResponse: aiResponse,
-        },
-      });
-    } else {
-      // Utwórz nową konfigurację (nieaktywną, użytkownik musi ją zatwierdzić)
-      criteria = await db.companyVerificationCriteria.create({
-        data: {
-          name: "Nowa konfiguracja",
-          criteriaText: "Kryteria będą wygenerowane po zakończeniu rozmowy",
-          chatHistory: JSON.stringify(chatHistory),
-          lastUserMessage: message,
-          lastAIResponse: aiResponse,
-          isActive: false,
-          isDefault: false,
-        },
-      });
-    }
+    // Zaktualizuj konfigurację
+    const updatedCriteria = await db.companyVerificationCriteria.update({
+      where: { id: criteria.id },
+      data: {
+        chatHistory: JSON.stringify(chatHistory),
+        lastUserMessage: message,
+        lastAIResponse: aiResponse,
+      },
+    });
 
     // Sprawdź, czy odpowiedź zawiera gotowe kryteria (sygnał, że agent zakończył)
     const hasCriteria = aiResponse.includes("KRYTERIA WERYFIKACJI") || 
                         aiResponse.includes("Co TAK:") || 
                         aiResponse.includes("PROGI PEWNOŚCI");
 
-    logger.info("company-criteria-chat", `Wysłano wiadomość do agenta (criteriaId: ${criteria.id})`);
+    logger.info("company-criteria-chat", `Wysłano wiadomość do agenta (criteriaId: ${updatedCriteria.id})`);
     return NextResponse.json({
       success: true,
       response: aiResponse,
-      criteriaId: criteria.id,
+      criteriaId: updatedCriteria.id,
       chatHistory,
       shouldGenerateCriteria: hasCriteria, // Sugeruj wygenerowanie, jeśli agent zaproponował kryteria
     });

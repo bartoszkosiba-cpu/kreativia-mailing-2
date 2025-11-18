@@ -183,6 +183,67 @@ export default function CompanyClassificationPage() {
   const [subClassAggregation, setSubClassAggregation] = useState<AggregationItem[]>([]);
   const [infoExpanded, setInfoExpanded] = useState(false);
   const [statsExpanded, setStatsExpanded] = useState(false);
+  const [progressDismissed, setProgressDismissed] = useState(false);
+
+  // Przywróć postęp z localStorage przy ładowaniu strony
+  useEffect(() => {
+    const savedProgressId = localStorage.getItem("classificationProgressId");
+    
+    if (savedProgressId) {
+      setProgressId(savedProgressId);
+      // Po odświeżeniu strony zawsze resetuj stan zamknięcia - pokazuj pełne okno
+      setProgressDismissed(false);
+      
+      // Sprawdź status postępu
+      fetch(`/api/company-selection/classify?progressId=${savedProgressId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.progress) {
+            setProgress(data.progress);
+            setIsClassifying(data.progress.status === "processing");
+            
+            // Jeśli proces zakończony, usuń z localStorage od razu (nie pokazuj przycisku "Pokaż postęp")
+            if (data.progress.status === "completed" || data.progress.status === "error" || data.progress.status === "cancelled") {
+              localStorage.removeItem("classificationProgressId");
+              localStorage.removeItem("classificationProgressDismissed");
+              setProgressId(null);
+              setProgressDismissed(false);
+            }
+          } else {
+            // Postęp nie istnieje - usuń z localStorage
+            localStorage.removeItem("classificationProgressId");
+            localStorage.removeItem("classificationProgressDismissed");
+            setProgressId(null);
+            setProgressDismissed(false);
+          }
+        })
+        .catch((err) => {
+          console.error("[Classify] Błąd przywracania postępu:", err);
+          // W przypadku błędu też usuń z localStorage
+          localStorage.removeItem("classificationProgressId");
+          localStorage.removeItem("classificationProgressDismissed");
+          setProgressId(null);
+          setProgressDismissed(false);
+        });
+    }
+  }, []);
+
+  // Zapisz progressId do localStorage gdy się zmienia
+  useEffect(() => {
+    if (progressId) {
+      localStorage.setItem("classificationProgressId", progressId);
+    } else {
+      localStorage.removeItem("classificationProgressId");
+      localStorage.removeItem("classificationProgressDismissed");
+    }
+  }, [progressId]);
+
+  // Zapisz stan zamknięcia okna
+  useEffect(() => {
+    if (progressId) {
+      localStorage.setItem("classificationProgressDismissed", progressDismissed ? "true" : "false");
+    }
+  }, [progressDismissed, progressId]);
 
   useEffect(() => {
     async function loadCompanies() {
@@ -594,9 +655,16 @@ export default function CompanyClassificationPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Polling postępu klasyfikacji
+  // Polling postępu klasyfikacji (działa nawet gdy okno jest zamknięte)
   useEffect(() => {
-    if (!progressId || !isClassifying) {
+    if (!progressId) {
+      return;
+    }
+    
+    // Kontynuuj polling tylko jeśli proces trwa (processing)
+    // Jeśli proces zakończony, nie ma potrzeby pollingu
+    const shouldPoll = isClassifying || progress?.status === "processing";
+    if (!shouldPoll) {
       return;
     }
 
@@ -685,8 +753,7 @@ export default function CompanyClassificationPage() {
             }
 
             setIsClassifying(false);
-            setProgressId(null);
-
+            
             // Ustaw wynik
             setClassificationResult({
               total: data.progress.total,
@@ -695,6 +762,16 @@ export default function CompanyClassificationPage() {
               errors: data.progress.errors,
               message: `Zaklasyfikowano ${data.progress.classified} firm, pominięto ${data.progress.skipped}, błędów: ${data.progress.errors}`,
             });
+
+            // Jeśli proces zakończony, usuń z localStorage (ale zachowaj progressId dla wyświetlenia wyniku)
+            if (data.progress.status === "completed" || data.progress.status === "error" || data.progress.status === "cancelled") {
+              // Usuń z localStorage po 5 minutach (daj czas na zobaczenie wyniku)
+              setTimeout(() => {
+                localStorage.removeItem("classificationProgressId");
+                localStorage.removeItem("classificationProgressDismissed");
+                setProgressId(null);
+              }, 5 * 60 * 1000);
+            }
 
             // Odśwież listę firm
             const params = new URLSearchParams();
@@ -732,7 +809,7 @@ export default function CompanyClassificationPage() {
     }, 1000); // Polling co sekundę
 
     return () => clearInterval(interval);
-  }, [progressId, isClassifying, page, searchValue, subClassFilter, marketFilter, industryFilter, classificationSourceFilter]);
+  }, [progressId, isClassifying, progress?.status, page, searchValue, subClassFilter, marketFilter, industryFilter, classificationSourceFilter]);
 
   const handleCancelClassification = async () => {
     if (!progressId) {
@@ -1383,6 +1460,23 @@ export default function CompanyClassificationPage() {
               onToggle={(value) => toggleFilterValue(value, setMarketFilter)}
               isFirst
             />
+            <FilterRow
+              title="Specjalizacje"
+              description="Zaznacz specjalizacje, aby filtrować firmy"
+              options={specializationOptions.map((opt) => ({
+                value: opt.value,
+                label: opt.label,
+                count: opt.count,
+              }))}
+              selected={subClassFilter}
+              onToggle={(value) => toggleFilterValue(value, setSubClassFilter)}
+            />
+            <FilterRow
+              title="Branże"
+              options={industryFilterOptions}
+              selected={industryFilter}
+              onToggle={(value) => toggleFilterValue(value, setIndustryFilter)}
+            />
           </div>
 
           <form
@@ -1499,6 +1593,63 @@ export default function CompanyClassificationPage() {
           </form>
         </div>
 
+        {/* Przycisk przywrócenia okna postępu */}
+        {progressDismissed && (isClassifying || progress) && (
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              backgroundColor: progress?.status === "completed" ? "#F0FDF4" : progress?.status === "error" ? "#FEF2F2" : progress?.status === "cancelled" ? "#FFFBEB" : "#EFF6FF",
+              border: progress?.status === "completed" ? "1px solid #86EFAC" : progress?.status === "error" ? "1px solid #FCA5A5" : progress?.status === "cancelled" ? "1px solid #FCD34D" : "1px solid #93C5FD",
+              borderRadius: "0.5rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontSize: "0.9rem", color: progress?.status === "completed" ? "#059669" : progress?.status === "error" ? "#DC2626" : progress?.status === "cancelled" ? "#F59E0B" : "#1E40AF", fontWeight: 500 }}>
+              {progress?.status === "completed" 
+                ? "Klasyfikacja zakończona" 
+                : progress?.status === "error" 
+                ? "Błąd klasyfikacji" 
+                : progress?.status === "cancelled"
+                ? "Klasyfikacja anulowana"
+                : `Klasyfikacja w toku: ${progress?.current ?? 0} / ${progress?.total ?? 0} firm (${progress?.percentage ?? 0}%)`}
+            </span>
+            <button
+              onClick={async () => {
+                setProgressDismissed(false);
+                // Odśwież postęp przy otwieraniu okna
+                if (progressId) {
+                  try {
+                    const response = await fetch(`/api/company-selection/classify?progressId=${progressId}`);
+                    if (response.ok) {
+                      const data = await response.json();
+                      if (data.success && data.progress) {
+                        setProgress(data.progress);
+                        setIsClassifying(data.progress.status === "processing");
+                      }
+                    }
+                  } catch (err) {
+                    console.error("[Classify] Błąd odświeżania postępu:", err);
+                  }
+                }
+              }}
+              style={{
+                padding: "0.5rem 1rem",
+                borderRadius: "0.5rem",
+                border: progress?.status === "completed" ? "1px solid #10B981" : progress?.status === "error" ? "1px solid #DC2626" : progress?.status === "cancelled" ? "1px solid #F59E0B" : "1px solid #2563EB",
+                backgroundColor: progress?.status === "completed" ? "#10B981" : progress?.status === "error" ? "#DC2626" : progress?.status === "cancelled" ? "#F59E0B" : "#2563EB",
+                color: "white",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Pokaż postęp
+            </button>
+          </div>
+        )}
+
         {/* Akcje masowe */}
         {selectedCompanyIds.size > 0 && (
           <div
@@ -1535,7 +1686,7 @@ export default function CompanyClassificationPage() {
         )}
 
         {/* Pasek postępu klasyfikacji */}
-        {(isClassifying || progress) && (
+        {(isClassifying || progress) && !progressDismissed && (
           <div
             style={{
               padding: "1.25rem",
@@ -1546,6 +1697,7 @@ export default function CompanyClassificationPage() {
               flexDirection: "column",
               gap: "1rem",
               boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+              position: "relative",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1554,24 +1706,6 @@ export default function CompanyClassificationPage() {
                   <strong style={{ fontSize: "1.1rem", color: progress?.status === "completed" ? "#059669" : progress?.status === "error" ? "#DC2626" : progress?.status === "cancelled" ? "#F59E0B" : "#1E40AF" }}>
                     {progress?.status === "completed" ? "Klasyfikacja zakończona" : progress?.status === "error" ? "Błąd klasyfikacji" : progress?.status === "cancelled" ? "Klasyfikacja anulowana" : "Klasyfikacja AI w toku..."}
                   </strong>
-                  {progress?.status === "processing" && (
-                    <button
-                      onClick={handleCancelClassification}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        borderRadius: "0.5rem",
-                        border: "1px solid #DC2626",
-                        backgroundColor: "white",
-                        color: "#DC2626",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Przerwij
-                    </button>
-                  )}
                 </div>
                 {progress?.status === "cancelled" ? (
                   <div style={{ fontSize: "0.9rem", color: "#F59E0B", marginTop: "0.35rem", fontWeight: 600 }}>
@@ -1841,6 +1975,43 @@ export default function CompanyClassificationPage() {
                 Czekam na rozpoczęcie klasyfikacji...
               </div>
             )}
+            
+            {/* Przyciski na dole okna */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid rgba(0, 0, 0, 0.1)" }}>
+              {progress?.status === "processing" && (
+                <button
+                  onClick={handleCancelClassification}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid #DC2626",
+                    backgroundColor: "white",
+                    color: "#DC2626",
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Przerwij
+                </button>
+              )}
+              <button
+                onClick={() => setProgressDismissed(true)}
+                style={{
+                  padding: "0.5rem 1rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #9CA3AF",
+                  backgroundColor: "white",
+                  color: "#6B7280",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+                title="Zamknij okno postępu (możesz wrócić później)"
+              >
+                ✕ Zamknij
+              </button>
+            </div>
           </div>
         )}
 

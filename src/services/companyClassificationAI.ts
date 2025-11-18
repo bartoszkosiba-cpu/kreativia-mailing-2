@@ -527,12 +527,18 @@ export async function saveClassificationToDatabase(
   }
 
   // Usuń stare klasyfikacje AI (zachowaj MANUAL i RULES)
-  await db.companyClassification.deleteMany({
-    where: {
-      companyId,
-      source: "AI",
-    },
-  });
+  // Używamy złożonego indeksu [companyId, source] dla szybkiego wykonania
+  try {
+    await db.companyClassification.deleteMany({
+      where: {
+        companyId,
+        source: "AI",
+      },
+    });
+  } catch (error) {
+    logger.error("company-classification-ai", "Błąd usuwania starych klasyfikacji", { companyId }, error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
 
   // Zapisz główną specjalizację
   await db.companyClassification.create({
@@ -572,17 +578,22 @@ export async function saveClassificationToDatabase(
   });
 
   // Aktualizuj główne pola klasyfikacji (backward compatibility)
-  await db.company.update({
-    where: { id: companyId },
-    data: {
-      classificationClass: primarySpecFromDb?.companyClass || null,
-      classificationSubClass: primarySpec.code,
-      classificationConfidence: classification.primaryConfidence,
-      classificationNeedsReview: classification.needsReview,
-      classificationSource: "AI",
-      classificationUpdatedAt: new Date(),
-    },
-  });
+  try {
+    await db.company.update({
+      where: { id: companyId },
+      data: {
+        classificationClass: primarySpecFromDb?.companyClass || null,
+        classificationSubClass: primarySpec.code,
+        classificationConfidence: classification.primaryConfidence,
+        classificationNeedsReview: classification.needsReview,
+        classificationSource: "AI",
+        classificationUpdatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    logger.error("company-classification-ai", "Błąd aktualizacji klasyfikacji firmy", { companyId }, error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
 
   logger.debug("company-classification-ai", "Zapisano klasyfikację do bazy", {
     companyId,

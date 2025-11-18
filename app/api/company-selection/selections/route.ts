@@ -150,6 +150,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search")?.trim() ?? "";
     const marketParam = searchParams.get("market")?.trim().toUpperCase();
     const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10) || 50, 200);
+    const includeCriteria = searchParams.get("includeCriteria") !== "false"; // Domyślnie true dla kompatybilności wstecznej
 
     const where: Prisma.CompanySelectionWhereInput = {};
     const market = normalizeMarket(marketParam);
@@ -164,41 +165,183 @@ export async function GET(req: NextRequest) {
       ];
     }
 
+    // Pobierz selekcje
     const selections = await db.companySelection.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: limit,
-      include: {
-        criteria: {
-          select: {
-            id: true,
-            name: true,
-            isActive: true,
-            updatedAt: true,
-          },
-        },
+    });
+
+    const selectionIds = selections.map((s) => s.id);
+
+    // Pobierz statystyki weryfikacji dla wszystkich selekcji równolegle
+    const verificationStats = await db.companySelectionCompany.groupBy({
+      by: ["selectionId", "status"],
+      where: {
+        selectionId: { in: selectionIds },
+      },
+      _count: {
+        _all: true,
       },
     });
 
-    const enriched = selections.map((selection) => ({
-      id: selection.id,
-      name: selection.name,
-      market: selection.market,
-      language: selection.language,
-      filters: selection.filters,
-      description: selection.description,
-      totalCompanies: selection.totalCompanies,
-      activeCompanies: selection.activeCompanies,
-      createdBy: selection.createdBy,
-      createdAt: selection.createdAt,
-      updatedAt: selection.updatedAt,
-      criteria: selection.criteria.map((criterion) => ({
-        id: criterion.id,
-        name: criterion.name,
-        isActive: criterion.isActive,
-        updatedAt: criterion.updatedAt,
-      })),
-    }));
+    // Pobierz daty ostatniej weryfikacji i ostatnich zmian dla każdej selekcji
+    const lastVerificationDates = await db.companySelectionCompany.groupBy({
+      by: ["selectionId"],
+      where: {
+        selectionId: { in: selectionIds },
+        verifiedAt: { not: null },
+      },
+      _max: {
+        verifiedAt: true,
+      },
+    });
+
+    // Pobierz daty ostatnich zmian statusu (updatedAt) dla zweryfikowanych firm (status != PENDING)
+    const lastStatusChangeDates = await db.companySelectionCompany.groupBy({
+      by: ["selectionId"],
+      where: {
+        selectionId: { in: selectionIds },
+        status: { not: "PENDING" },
+      },
+      _max: {
+        updatedAt: true,
+      },
+    });
+
+    // Zmapuj statystyki do selekcji
+    const statsMap = new Map<number, {
+      pending: number;
+      qualified: number;
+      rejected: number;
+      needsReview: number;
+      blocked: number;
+      total: number;
+    }>();
+
+    const lastVerificationMap = new Map<number, Date>();
+    const lastStatusChangeMap = new Map<number, Date>();
+
+    // Zmapuj daty ostatniej weryfikacji (najnowsza dla każdej selekcji)
+    for (const item of lastVerificationDates) {
+      if (item._max.verifiedAt) {
+        lastVerificationMap.set(item.selectionId, item._max.verifiedAt);
+      }
+    }
+
+    // Zmapuj daty ostatnich zmian statusu (najnowsza dla każdej selekcji)
+    for (const item of lastStatusChangeDates) {
+      if (item._max.updatedAt) {
+        lastStatusChangeMap.set(item.selectionId, item._max.updatedAt);
+      }
+    }
+
+    for (const stat of verificationStats) {
+      if (!statsMap.has(stat.selectionId)) {
+        statsMap.set(stat.selectionId, {
+          pending: 0,
+          qualified: 0,
+          rejected: 0,
+          needsReview: 0,
+          blocked: 0,
+          total: 0,
+        });
+      }
+      const stats = statsMap.get(stat.selectionId)!;
+      const count = stat._count._all;
+      
+      switch (stat.status) {
+        case "PENDING":
+          stats.pending = count;
+          break;
+        case "QUALIFIED":
+          stats.qualified = count;
+          break;
+        case "REJECTED":
+          stats.rejected = count;
+          break;
+        case "NEEDS_REVIEW":
+          stats.needsReview = count;
+          break;
+        case "BLOCKED":
+          stats.blocked = count;
+          break;
+      }
+      // Sumuj total po wszystkich statusach
+      stats.total = stats.pending + stats.qualified + stats.rejected + stats.needsReview + stats.blocked;
+    }
+
+    // Zmapuj daty ostatniej weryfikacji (najnowsza dla każdej selekcji)
+    for (const item of lastVerificationDates) {
+      if (item._max.verifiedAt) {
+        lastVerificationMap.set(item.selectionId, item._max.verifiedAt);
+      }
+    }
+
+    // Pobierz kryteria tylko jeśli są potrzebne
+    let criteriaMap = new Map<number, Array<{ id: number; name: string; isActive: boolean; updatedAt: Date }>>();
+    if (includeCriteria) {
+      const allCriteria = await db.companyVerificationCriteria.findMany({
+        where: {
+          selectionId: { not: null },
+        },
+        select: {
+          id: true,
+          name: true,
+          isActive: true,
+          updatedAt: true,
+          selectionId: true,
+        },
+      });
+
+      // Zmapuj kryteria do selekcji
+      for (const criterion of allCriteria) {
+        if (criterion.selectionId) {
+          if (!criteriaMap.has(criterion.selectionId)) {
+            criteriaMap.set(criterion.selectionId, []);
+          }
+          criteriaMap.get(criterion.selectionId)!.push({
+            id: criterion.id,
+            name: criterion.name,
+            isActive: criterion.isActive,
+            updatedAt: criterion.updatedAt,
+          });
+        }
+      }
+    }
+
+    const enriched = selections.map((selection) => {
+      const stats = statsMap.get(selection.id) || {
+        pending: 0,
+        qualified: 0,
+        rejected: 0,
+        needsReview: 0,
+        blocked: 0,
+        total: selection.totalCompanies || 0,
+      };
+      const lastVerification = lastVerificationMap.get(selection.id);
+      const lastStatusChange = lastStatusChangeMap.get(selection.id);
+      
+      // Użyj daty ostatniej weryfikacji, jeśli istnieje, w przeciwnym razie daty ostatniej zmiany statusu
+      const lastVerificationOrChange = lastVerification || lastStatusChange || null;
+
+      return {
+        id: selection.id,
+        name: selection.name,
+        market: selection.market,
+        language: selection.language,
+        filters: selection.filters,
+        description: selection.description,
+        totalCompanies: selection.totalCompanies,
+        activeCompanies: selection.activeCompanies,
+        createdBy: selection.createdBy,
+        createdAt: selection.createdAt,
+        updatedAt: selection.updatedAt,
+        verificationStats: stats,
+        lastVerificationAt: lastVerificationOrChange,
+        ...(includeCriteria ? { criteria: criteriaMap.get(selection.id) || [] } : {}),
+      };
+    });
 
     return NextResponse.json({ success: true, selections: enriched });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAndSaveCompany, getActiveCriteria } from "@/services/companyVerificationAI";
+import { verifyAndSaveCompany } from "@/services/companyVerificationAI";
 import { logger } from "@/services/logger";
 import { updateProgress, getProgress } from "@/services/verificationProgress";
 import { enqueueVerificationBatch, getVerificationQueueSnapshot } from "@/services/verificationQueue";
@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     companyId = body.companyId;
+    const criteriaId = body.criteriaId ? Number(body.criteriaId) : null;
 
     if (!companyId || typeof companyId !== "number") {
       return NextResponse.json(
@@ -22,17 +23,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    logger.info("company-verify", `Weryfikuję firmę ID: ${companyId}`);
-
-    // Pobierz kryteria
-    const criteria = await getActiveCriteria();
-    if (!criteria) {
-      logger.warn("company-verify", "Brak konfiguracji kryteriów weryfikacji");
+    if (!criteriaId || !Number.isFinite(criteriaId)) {
       return NextResponse.json(
-        { error: "Brak konfiguracji kryteriów weryfikacji. Utwórz konfigurację w module wyboru leadów." },
+        { error: "criteriaId jest wymagane. Wybierz kryteria weryfikacji." },
         { status: 400 }
       );
     }
+
+    logger.info("company-verify", `Weryfikuję firmę ID: ${companyId} z kryteriami ID: ${criteriaId}`);
+
+    // Pobierz kryteria
+    const criteriaRecord = await db.companyVerificationCriteria.findUnique({
+      where: { id: criteriaId },
+    });
+
+    if (!criteriaRecord) {
+      logger.warn("company-verify", `Nie znaleziono kryteriów ID: ${criteriaId}`);
+      return NextResponse.json(
+        { error: "Nie znaleziono wybranych kryteriów weryfikacji." },
+        { status: 404 }
+      );
+    }
+
+    const criteria = {
+      id: criteriaRecord.id,
+      name: criteriaRecord.name,
+      criteriaText: criteriaRecord.criteriaText,
+      qualifiedThreshold: criteriaRecord.qualifiedThreshold,
+      rejectedThreshold: criteriaRecord.rejectedThreshold,
+      qualifiedKeywords: criteriaRecord.qualifiedKeywords
+        ? JSON.parse(criteriaRecord.qualifiedKeywords)
+        : undefined,
+      rejectedKeywords: criteriaRecord.rejectedKeywords
+        ? JSON.parse(criteriaRecord.rejectedKeywords)
+        : undefined,
+    };
 
     // Weryfikuj
     const result = await verifyAndSaveCompany(companyId, criteria);
@@ -58,7 +83,7 @@ export async function POST(req: NextRequest) {
  */
 export async function PUT(req: NextRequest) {
   try {
-    const { companyIds, progressId } = await req.json();
+    const { companyIds, progressId, criteriaId } = await req.json();
 
     if (!Array.isArray(companyIds) || companyIds.length === 0) {
       return NextResponse.json(
@@ -74,6 +99,13 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    if (!criteriaId || !Number.isFinite(criteriaId)) {
+      return NextResponse.json(
+        { error: "criteriaId jest wymagane. Wybierz kryteria weryfikacji." },
+        { status: 400 }
+      );
+    }
+
     const progress = getProgress(progressId);
     if (!progress) {
       return NextResponse.json(
@@ -82,17 +114,35 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    logger.info("company-verify", `Kolejkuję weryfikację batch: ${companyIds.length} firm (progressId: ${progressId})`);
+    logger.info("company-verify", `Kolejkuję weryfikację batch: ${companyIds.length} firm (progressId: ${progressId}, criteriaId: ${criteriaId})`);
 
-    const criteria = await getActiveCriteria();
-    if (!criteria) {
-      logger.warn("company-verify", "Brak konfiguracji kryteriów weryfikacji (batch)");
+    // Pobierz kryteria
+    const criteriaRecord = await db.companyVerificationCriteria.findUnique({
+      where: { id: Number(criteriaId) },
+    });
+
+    if (!criteriaRecord) {
+      logger.warn("company-verify", `Nie znaleziono kryteriów ID: ${criteriaId} (batch)`);
       updateProgress(progressId, { status: 'error' });
       return NextResponse.json(
-        { error: "Brak konfiguracji kryteriów weryfikacji. Utwórz konfigurację w module wyboru leadów." },
-        { status: 400 }
+        { error: "Nie znaleziono wybranych kryteriów weryfikacji." },
+        { status: 404 }
       );
     }
+
+    const criteria = {
+      id: criteriaRecord.id,
+      name: criteriaRecord.name,
+      criteriaText: criteriaRecord.criteriaText,
+      qualifiedThreshold: criteriaRecord.qualifiedThreshold,
+      rejectedThreshold: criteriaRecord.rejectedThreshold,
+      qualifiedKeywords: criteriaRecord.qualifiedKeywords
+        ? JSON.parse(criteriaRecord.qualifiedKeywords)
+        : undefined,
+      rejectedKeywords: criteriaRecord.rejectedKeywords
+        ? JSON.parse(criteriaRecord.rejectedKeywords)
+        : undefined,
+    };
 
     updateProgress(progressId, {
       status: 'processing',

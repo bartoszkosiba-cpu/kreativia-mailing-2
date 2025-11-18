@@ -50,7 +50,7 @@ export interface PersonaCriteriaPayload {
 
 export interface PersonaCriteriaDto extends PersonaCriteriaPayload {
   id: number;
-  companyCriteriaId: number;
+  companyCriteriaId: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -180,5 +180,135 @@ export async function upsertPersonaCriteria(
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
+}
+
+/**
+ * Pobierz personę po ID (niezależnie od companyCriteriaId)
+ */
+export async function getPersonaCriteriaById(personaId: number): Promise<PersonaCriteriaDto | null> {
+  const record = await db.companyPersonaCriteria.findUnique({
+    where: { id: personaId },
+  });
+
+  if (!record) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    companyCriteriaId: record.companyCriteriaId,
+    name: record.name,
+    description: record.description ?? undefined,
+    positiveRoles: parseJson<PersonaRoleConfig[]>(record.positiveRoles, []),
+    negativeRoles: parseJson<PersonaRoleConfig[]>(record.negativeRoles, []),
+    conditionalRules: parseJson<PersonaConditionalRule[]>(record.conditionalRules, []),
+    language: record.language ?? undefined,
+    chatHistory: parseJson<unknown[]>(record.chatHistory, []),
+    lastUserMessage: record.lastUserMessage ?? undefined,
+    lastAIResponse: record.lastAIResponse ?? undefined,
+    createdBy: record.createdBy ?? undefined,
+    updatedBy: record.updatedBy ?? undefined,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
+/**
+ * Utwórz lub zaktualizuj personę po ID (niezależnie od companyCriteriaId)
+ */
+export async function upsertPersonaCriteriaById(
+  personaId: number | null,
+  payload: PersonaCriteriaPayload,
+  companyCriteriaId?: number | null
+): Promise<PersonaCriteriaDto> {
+  const positiveRoles = safeStringify(payload.positiveRoles ?? [], "[]");
+  const negativeRoles = safeStringify(payload.negativeRoles ?? [], "[]");
+  const conditionalRules = payload.conditionalRules
+    ? safeStringify(payload.conditionalRules, "[]")
+    : null;
+  const chatHistory = payload.chatHistory ? safeStringify(payload.chatHistory, "[]") : null;
+
+  if (personaId) {
+    // Aktualizuj istniejącą personę
+    const existing = await db.companyPersonaCriteria.findUnique({
+      where: { id: personaId },
+    });
+
+    if (!existing) {
+      throw new Error(`Persona o ID ${personaId} nie istnieje`);
+    }
+
+    const record = await db.companyPersonaCriteria.update({
+      where: { id: personaId },
+      data: {
+        ...(companyCriteriaId !== undefined && { companyCriteriaId: companyCriteriaId || null }),
+        name: payload.name,
+        description: payload.description ?? null,
+        positiveRoles,
+        negativeRoles,
+        conditionalRules,
+        language: payload.language ?? null,
+        chatHistory,
+        lastUserMessage: payload.lastUserMessage ?? null,
+        lastAIResponse: payload.lastAIResponse ?? null,
+        updatedBy: payload.updatedBy ?? null,
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      id: record.id,
+      companyCriteriaId: record.companyCriteriaId,
+      name: record.name,
+      description: record.description ?? undefined,
+      positiveRoles: parseJson<PersonaRoleConfig[]>(record.positiveRoles, []),
+      negativeRoles: parseJson<PersonaRoleConfig[]>(record.negativeRoles, []),
+      conditionalRules: parseJson<PersonaConditionalRule[]>(record.conditionalRules, []),
+      language: record.language ?? undefined,
+      chatHistory: parseJson<unknown[]>(record.chatHistory, []),
+      lastUserMessage: record.lastUserMessage ?? undefined,
+      lastAIResponse: record.lastAIResponse ?? undefined,
+      createdBy: record.createdBy ?? undefined,
+      updatedBy: record.updatedBy ?? undefined,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  } else {
+    // Utwórz nową personę
+    const record = await db.companyPersonaCriteria.create({
+      data: {
+        companyCriteriaId: companyCriteriaId || null,
+        name: payload.name,
+        description: payload.description ?? null,
+        positiveRoles,
+        negativeRoles,
+        conditionalRules,
+        language: payload.language ?? null,
+        chatHistory,
+        lastUserMessage: payload.lastUserMessage ?? null,
+        lastAIResponse: payload.lastAIResponse ?? null,
+        createdBy: payload.createdBy ?? null,
+        updatedBy: payload.updatedBy ?? null,
+      },
+    });
+
+    return {
+      id: record.id,
+      companyCriteriaId: record.companyCriteriaId,
+      name: record.name,
+      description: record.description ?? undefined,
+      positiveRoles: parseJson<PersonaRoleConfig[]>(record.positiveRoles, []),
+      negativeRoles: parseJson<PersonaRoleConfig[]>(record.negativeRoles, []),
+      conditionalRules: parseJson<PersonaConditionalRule[]>(record.conditionalRules, []),
+      language: record.language ?? undefined,
+      chatHistory: parseJson<unknown[]>(record.chatHistory, []),
+      lastUserMessage: record.lastUserMessage ?? undefined,
+      lastAIResponse: record.lastAIResponse ?? undefined,
+      createdBy: record.createdBy ?? undefined,
+      updatedBy: record.updatedBy ?? undefined,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
 }
 

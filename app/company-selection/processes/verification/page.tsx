@@ -2,32 +2,6 @@
 
 import Link from "next/link";
 
-const containerStyle = {
-  padding: "2rem",
-  display: "flex",
-  flexDirection: "column" as const,
-  gap: "2rem",
-};
-
-const headingStyle = {
-  fontSize: "1.75rem",
-  fontWeight: 700,
-  color: "#111827",
-};
-
-const introStyle = {
-  fontSize: "1rem",
-  lineHeight: 1.6,
-  color: "#374151",
-  maxWidth: "720px",
-};
-
-const gridStyle = {
-  display: "grid",
-  gap: "1.25rem",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-};
-
 const cardStyle = {
   display: "flex",
   flexDirection: "column" as const,
@@ -37,23 +11,52 @@ const cardStyle = {
   border: "1px solid #E5E7EB",
   backgroundColor: "white",
   boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
+  minHeight: "180px",
 };
 
-const linkStyle = {
+const titlePrimaryLinkStyle = {
   display: "inline-flex",
   alignItems: "center",
-  gap: "0.5rem",
-  padding: "0.65rem 1.2rem",
+  gap: "0.45rem",
+  padding: "0.7rem 1.1rem",
   borderRadius: "0.65rem",
-  backgroundColor: "#10B981",
+  backgroundColor: "#2563EB",
   color: "white",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: "1.05rem",
   textDecoration: "none",
 };
 
-const secondaryLinkStyle = {
-  ...linkStyle,
-  backgroundColor: "#059669",
+const titleSecondaryLinkStyle = {
+  ...titlePrimaryLinkStyle,
+  backgroundColor: "#4B5563",
+};
+
+const gridStyle = {
+  display: "grid",
+  gap: "1.25rem",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+};
+
+const breadcrumbsStyle = {
+  fontSize: "0.85rem",
+  color: "#6B7280",
+  marginBottom: "0.5rem",
+};
+
+const headingStyle = {
+  fontSize: "1.75rem",
+  fontWeight: 700,
+  color: "#111827",
+  marginBottom: "0.75rem",
+};
+
+const introStyle = {
+  fontSize: "1rem",
+  lineHeight: 1.6,
+  color: "#374151",
+  marginBottom: "1.75rem",
+  maxWidth: "720px",
 };
 
 const checklistStyle = {
@@ -68,9 +71,9 @@ const checklistStyle = {
 
 export default function VerificationProcessPage() {
   return (
-    <div style={containerStyle}>
+    <div style={{ padding: "2rem", display: "flex", flexDirection: "column", gap: "2rem" }}>
       <div>
-        <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.5rem" }}>Proces 3</div>
+        <div style={breadcrumbsStyle}>Proces 3</div>
         <h1 style={headingStyle}>Weryfikacja & Lead export</h1>
         <p style={introStyle}>
           Trzeci etap służy pracy na jednej, wybranej selekcji. Weryfikujemy firmy, przygotowujemy persony i tworzymy
@@ -80,53 +83,62 @@ export default function VerificationProcessPage() {
 
       <div style={gridStyle}>
         <section style={cardStyle}>
-          <div>
-            <h2 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#111827" }}>Weryfikacja firm</h2>
-            <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
-              Wybierz selekcję, zobacz statusy i odpal weryfikację AI. Panel pokazuje progres, wyniki i pozwala ręcznie
-              poprawić decyzje.
-            </p>
-          </div>
-          <Link href="/company-selection/verify" style={linkStyle}>
-            Przejdź do weryfikacji
+          <Link href="/company-selection/verify" style={titlePrimaryLinkStyle}>
+            Weryfikacja firm
           </Link>
+          <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
+            Wybierz selekcję, zobacz statusy i odpal weryfikację AI. Panel pokazuje progres, wyniki i pozwala ręcznie
+            poprawić decyzje.
+          </p>
         </section>
 
         <section style={cardStyle}>
-          <div>
-            <h2 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#111827" }}>Persony i leady</h2>
-            <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
-              Po weryfikacji przygotuj persony dla najciekawszych firm. Na podstawie wyników wygeneruj listę kontaktów,
-              która trafi do Mailingu.
-            </p>
-          </div>
-          <Link href="/company-selection/personas" style={secondaryLinkStyle}>
-            Otwórz moduł person
+          <Link href="/company-selection/criteria" style={titleSecondaryLinkStyle}>
+            Ustawienia weryfikacji firm
           </Link>
+          <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
+            Skonfiguruj kryteria weryfikacji firm. Ustal prompt dla AI, progi pewności i słowa kluczowe. Możesz rozmawiać z agentem AI lub edytować kryteria ręcznie.
+          </p>
         </section>
 
         <section style={cardStyle}>
-          <div>
-            <h2 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#111827" }}>Eksport leadów</h2>
-            <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
-              (W przygotowaniu) – docelowo wygenerujesz tutaj paczkę leadów do Mailingu lub pobierzesz je do CSV.
-              Aktualnie proces kończy się na module person.
-            </p>
-          </div>
+          <Link href="/company-selection/verify-personas" style={titlePrimaryLinkStyle}>
+            Weryfikacja person
+          </Link>
+          <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
+            Wybierz selekcję i zweryfikuj persony (kontakty) w firmach. Panel pokazuje firmy pozostałe do weryfikacji person oraz pozwala przeprowadzić weryfikację AI.
+          </p>
+        </section>
+
+        <section style={cardStyle}>
+          <Link href="/company-selection/personas" style={titleSecondaryLinkStyle}>
+            Ustawienia weryfikacji person
+          </Link>
+          <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
+            Skonfiguruj kryteria weryfikacji person. Ustal które stanowiska, działy i poziomy seniority są odpowiednie do kontaktu w zakwalifikowanych firmach.
+          </p>
+        </section>
+
+        <section style={cardStyle}>
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.65rem 1.2rem",
+              gap: "0.45rem",
+              padding: "0.7rem 1.1rem",
               borderRadius: "0.65rem",
               backgroundColor: "#D1D5DB",
               color: "#1F2937",
-              fontWeight: 600,
+              fontWeight: 700,
+              fontSize: "1.05rem",
             }}
           >
-            W budowie
+            Eksport leadów
           </span>
+          <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>
+            (W przygotowaniu) – docelowo wygenerujesz tutaj paczkę leadów do Mailingu lub pobierzesz je do CSV.
+            Aktualnie proces kończy się na module person.
+          </p>
         </section>
       </div>
 
