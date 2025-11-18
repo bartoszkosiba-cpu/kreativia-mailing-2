@@ -34,7 +34,7 @@ export interface PersonaVerificationAIResponse {
 
 type PersonaBriefContext = Pick<
   PersonaBriefDto,
-  "summary" | "decisionGuidelines" | "targetProfiles" | "avoidProfiles" | "additionalNotes"
+  "summary" | "decisionGuidelines" | "targetProfiles" | "avoidProfiles" | "additionalNotes" | "aiRole"
 >;
 
 function buildPrompt(personaCriteria: PersonaCriteriaDto, brief?: PersonaBriefContext) {
@@ -52,14 +52,18 @@ function buildPrompt(personaCriteria: PersonaCriteriaDto, brief?: PersonaBriefCo
     minSeniority: role.minSeniority || null,
   }));
 
+  // Określ rolę AI - użyj z briefu lub fallback
+  const aiRole = brief?.aiRole?.trim() || "ekspert ds. weryfikacji person B2B";
+  
   return {
     brief,
     positiveDescriptions,
     negativeDescriptions,
+    aiRole,
     generalGuidelines: [
-      "Twoim zadaniem jest ocenić, czy dana osoba ma wartość handlową dla prospectingu B2B.",
-      "Traktuj zasady jako wskazówki, nie twarde reguły – jeśli kontekst sugeruje, że rola jest decyzyjna lub wpływa na budżet, możesz zaklasyfikować ją pozytywnie, nawet jeśli dział to produkcja/operacje.",
-      "Jeśli rola dotyczy wsparcia (księgowość, logistyka, IT support) i nie ma wpływu na decyzję, wybierz 'negative'.",
+      "Twoim zadaniem jest ocenić, czy dana osoba może użyć produktu w swojej pracy lub ma wpływ na decyzję zakupową.",
+      "Traktuj zasady jako wskazówki, nie twarde reguły – jeśli kontekst sugeruje, że rola może użyć produktu w pracy (np. projektant projektuje stoiska i może użyć podwieszeń), możesz zaklasyfikować ją pozytywnie, nawet jeśli nie ma bezpośredniego wpływu na budżet.",
+      "Jeśli rola dotyczy wsparcia (księgowość, logistyka, IT support) i nie może użyć produktu w pracy ani nie ma wpływu na decyzję, wybierz 'negative'.",
       "Kiedy nie jesteś pewien lub rola wygląda obiecująco, ale brakuje danych, użyj 'conditional' i wyjaśnij czego potrzebujesz więcej.",
     ],
   };
@@ -426,7 +430,7 @@ Dodatkowe notatki: ${brief.additionalNotes || "(brak)"}`
     {
       role: "system" as const,
       content: [
-        "Jesteś analitykiem sprzedażowym B2B.",
+        `Jesteś ${prompt.aiRole}.`,
         "Zwracasz odpowiedź wyłącznie w formacie JSON: {\"results\":[{\"matchKey\":\"...\",\"decision\":\"positive|conditional|negative\",\"score\":0.0-1.0,\"reason\":\"...\"}]}.",
         "Pole 'matchKey' MUSI być zapełnione dla każdego rekordu.",
         "Pole 'reason' MUSI zawierać konkretne, biznesowe uzasadnienie – bez odniesień do poziomów typu junior/senior (chyba że w danych otrzymasz minimalny poziom seniority).",
@@ -438,13 +442,16 @@ Dodatkowe notatki: ${brief.additionalNotes || "(brak)"}`
       content: [
         briefSection,
         "",
+        "ZASADY OGÓLNE:",
+        ...prompt.generalGuidelines.map((guideline) => `- ${guideline}`),
+        "",
         "REGUŁY KLASYFIKACJI:",
         "- Jeśli tytuł zawiera słowo 'sales' (w dowolnej formie), decyzja MUSI być 'positive'.",
         "- Jeśli tytuł zawiera słowa 'designer', 'design', 'grafik', 'projektant', decyzja MUSI być 'positive'.",
         "- Jeśli tytuł pasuje do listy 'negatives', decyzja MUSI być 'negative'.",
         "- Jeśli tytuł pasuje do listy 'positives', decyzja MUSI być 'positive'.",
         "- Seniority bierz pod uwagę tylko wtedy, gdy rola ma zdefiniowane 'minSeniority'. Inaczej całkowicie je ignoruj.",
-        "- Jeśli rola nie pasuje do żadnej definicji, oceń wpływ na sprzedaż/marketing i budżet: gdy jest wpływ – 'positive'; gdy brak danych – 'conditional'; gdy rola wspierająca/techniczna – 'negative'.",
+        "- Jeśli rola nie pasuje do żadnej definicji, oceń możliwość użycia produktu w pracy lub wpływ na decyzję zakupową: gdy może użyć produktu lub ma wpływ – 'positive'; gdy brak danych – 'conditional'; gdy rola wspierająca/techniczna bez możliwości użycia produktu – 'negative'.",
         "",
         "Pozytywne role (z konfiguracji):",
         JSON.stringify(prompt.positiveDescriptions, null, 2),

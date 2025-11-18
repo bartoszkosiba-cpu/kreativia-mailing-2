@@ -596,9 +596,53 @@ export default function CompanyVerifyPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert(`Firma zweryfikowana: ${data.result.status} (score: ${data.result.score})`);
-        loadStats();
-        loadCompanies();
+        const newStatus = data.result.status;
+        const oldStatus = company?.verificationStatus || "PENDING";
+        
+        // Aktualizuj lokalny stan firmy w tabeli NATYCHMIAST
+        let shouldRemoveFromView = false;
+        setCompanies((prevCompanies) => {
+          const updated = prevCompanies.map((c) =>
+            c.id === companyId
+              ? {
+                  ...c,
+                  verificationStatus: newStatus,
+                  verificationReason: data.result.reason || c.verificationReason,
+                }
+              : c
+          );
+          
+          // Jeśli status się zmienił i firma nie pasuje do aktualnego filtra, usuń ją z listy
+          if (oldStatus !== newStatus && selectedStatus !== "ALL" && selectedStatus !== newStatus) {
+            shouldRemoveFromView = true;
+            return updated.filter((c) => c.id !== companyId);
+          }
+          
+          return updated;
+        });
+        
+        // Jeśli modal jest otwarty dla tej firmy, zaktualizuj również modal
+        if (detailCompany && detailCompany.id === companyId) {
+          setDetailCompany({
+            ...detailCompany,
+            verificationStatus: newStatus,
+            verificationReason: data.result.reason || detailCompany.verificationReason,
+          });
+        }
+        
+        // Odśwież statystyki
+        await loadStats();
+        
+        // NIE odświeżaj listy firm, jeśli firma została już zaktualizowana lokalnie
+        // loadCompanies() nadpisze lokalną aktualizację danymi z API (które mogą być stare lub z filtrem)
+        // Jeśli firma zmieniła status i nie pasuje do filtra, już ją usunęliśmy z widoku
+        // Jeśli firma nadal pasuje do filtra, lokalna aktualizacja jest wystarczająca
+        
+        const statusChanged = oldStatus !== newStatus;
+        const message = statusChanged 
+          ? `Firma zweryfikowana: ${getStatusLabel(newStatus)} (było: ${getStatusLabel(oldStatus)}, score: ${data.result.score})`
+          : `Firma zweryfikowana: ${getStatusLabel(newStatus)} (status bez zmian, score: ${data.result.score})`;
+        alert(message);
       } else {
         alert(`Błąd: ${data.error}`);
       }
@@ -656,8 +700,45 @@ export default function CompanyVerifyPage() {
           verificationReason: data.result.reason || detailCompany.verificationReason,
         });
 
-        await loadCompanies();
+        // Aktualizuj lokalny stan firmy w tabeli
+        // Jeśli firma zmieniła status i nie pasuje do aktualnego filtra, usuń ją z widoku
+        setCompanies((prevCompanies) => {
+          const updated = prevCompanies.map((c) =>
+            c.id === detailCompany.id
+              ? {
+                  ...c,
+                  verificationStatus: newStatus,
+                  verificationReason: data.result.reason || c.verificationReason,
+                }
+              : c
+          );
+          
+          // Jeśli status się zmienił i firma nie pasuje do aktualnego filtra, usuń ją z listy
+          if (oldStatus !== newStatus && selectedStatus !== "ALL" && selectedStatus !== newStatus) {
+            return updated.filter((c) => c.id !== detailCompany.id);
+          }
+          
+          return updated;
+        });
+
+        // Odśwież statystyki i listę firm (z małym opóźnieniem, aby baza zdążyła się zaktualizować)
         await loadStats();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await loadCompanies();
+        
+        // Po odświeżeniu listy, zaktualizuj modal z najnowszymi danymi
+        // Użyj setTimeout, aby poczekać na zaktualizowanie companies state
+        setTimeout(() => {
+          if (detailCompany) {
+            setCompanies((prevCompanies) => {
+              const updatedCompany = prevCompanies.find((c) => c.id === detailCompany.id);
+              if (updatedCompany) {
+                setDetailCompany(updatedCompany);
+              }
+              return prevCompanies;
+            });
+          }
+        }, 100);
       } else {
         alert(`Błąd: ${data.error}`);
       }

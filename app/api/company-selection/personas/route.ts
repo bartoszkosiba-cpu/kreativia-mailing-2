@@ -85,9 +85,17 @@ export async function GET(req: NextRequest) {
       criteria.forEach((c) => criteriaMap.set(c.id, c));
     }
 
+    // Sortuj ponownie po stronie serwera, aby upewnić się, że daty są poprawnie posortowane
+    // (niektóre daty mogą być zapisane jako timestampy, więc sortowanie SQL może być niepoprawne)
+    const sortedPersonas = [...allPersonas].sort((a, b) => {
+      const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+      const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+      return dateB - dateA; // desc - najnowsze u góry
+    });
+
     return NextResponse.json({
       success: true,
-      personas: allPersonas.map((p) => ({
+      personas: sortedPersonas.map((p) => ({
         id: p.id,
         name: p.name,
         description: p.description,

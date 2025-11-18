@@ -257,16 +257,30 @@ export async function verifyAndSaveCompany(
   // SPRAWDŹ CZY FIRMA JEST ZABLOKOWANA - PRZED weryfikacją AI
   const blockedMatch = await checkIfBlocked(company.name);
   if (blockedMatch) {
+    const blockedReason = `Firma zablokowana (dopasowanie: ${blockedMatch})`;
+    
     // Firma jest zablokowana - oznacz jako BLOCKED i zakończ
     await db.company.update({
       where: { id: companyId },
       data: {
         verificationStatus: "BLOCKED",
-        verificationReason: `Firma zablokowana (dopasowanie: ${blockedMatch})`,
+        verificationReason: blockedReason,
         verifiedAt: new Date(),
         verifiedBy: "SYSTEM",
         verificationSource: "BLOCKED_LIST",
         verificationScore: null,
+      },
+    });
+
+    // Zaktualizuj również status w CompanySelectionCompany dla wszystkich selekcji
+    await db.companySelectionCompany.updateMany({
+      where: { companyId },
+      data: {
+        status: "BLOCKED",
+        score: null,
+        verifiedAt: new Date(),
+        reason: blockedReason,
+        verificationResult: null,
       },
     });
 
@@ -276,7 +290,7 @@ export async function verifyAndSaveCompany(
         companyId,
         status: "BLOCKED",
         score: null,
-        reason: `Firma zablokowana (dopasowanie: ${blockedMatch})`,
+        reason: blockedReason,
         source: "BLOCKED_LIST",
         content: `Firma: ${company.name}`,
       },
@@ -289,7 +303,7 @@ export async function verifyAndSaveCompany(
     return {
       status: "REJECTED", // Zwracamy REJECTED dla kompatybilności, ale status w DB to BLOCKED
       score: 0,
-      reason: `Firma zablokowana (dopasowanie: ${blockedMatch})`,
+      reason: blockedReason,
       confidence: "HIGH",
     };
   }
@@ -326,6 +340,19 @@ export async function verifyAndSaveCompany(
         : result.status === "REJECTED" 
         ? rejectedThreshold 
         : (qualifiedThreshold + rejectedThreshold) / 2,
+      verificationResult: JSON.stringify(result),
+    },
+  });
+
+  // Zaktualizuj również status w CompanySelectionCompany dla wszystkich selekcji, w których jest ta firma
+  // (API używa statusu z CompanySelectionCompany, nie z Company.verificationStatus)
+  await db.companySelectionCompany.updateMany({
+    where: { companyId },
+    data: {
+      status: result.status,
+      score: result.score,
+      verifiedAt: new Date(),
+      reason: result.reason,
       verificationResult: JSON.stringify(result),
     },
   });

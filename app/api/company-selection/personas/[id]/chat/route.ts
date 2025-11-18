@@ -9,6 +9,7 @@ import {
   type PersonaCriteriaPayload,
   type PersonaCriteriaDto,
 } from "@/services/personaCriteriaService";
+import { upsertPersonaBrief } from "@/services/personaBriefService";
 
 type AllowedRole = "system" | "user" | "assistant";
 
@@ -125,21 +126,41 @@ export async function POST(
     const OpenAI = (await import("openai")).default;
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+    // Sprawdź, czy istnieje brief z ustawioną rolą AI
+    const brief = await db.personaBrief.findUnique({ where: { companyCriteriaId: personaId } });
+    const hasAiRole = brief?.aiRole && brief.aiRole.trim().length > 0;
+
+    // Przygotuj informacje o istniejących personach
+    const existingPositiveRoles = (existing.positiveRoles ?? []).map((r: any) => 
+      `- ${r.label}${r.keywords?.length ? ` (słowa kluczowe: ${r.keywords.join(", ")})` : ""}${r.departments?.length ? ` [działy: ${r.departments.join(", ")}]` : ""}`
+    ).join("\n");
+    const existingNegativeRoles = (existing.negativeRoles ?? []).map((r: any) => 
+      `- ${r.label}${r.keywords?.length ? ` (słowa kluczowe: ${r.keywords.join(", ")})` : ""}${r.departments?.length ? ` [działy: ${r.departments.join(", ")}]` : ""}`
+    ).join("\n");
+
     const systemPrompt = `Jesteś ekspertem ds. prospectingu B2B. Twoim zadaniem jest pomóc zdefiniować persony (stanowiska) do kontaktu handlowego dla kampanii cold mailingowych.
 
 ZASADY:
+- Na początku rozmowy (jeśli jeszcze nie ustalono) zapytaj użytkownika: "W jakiej roli mam się wcielić podczas weryfikacji person? (np. ekspert od stoisk targowych, analityk sprzedażowy B2B, specjalista od produktu X). To pomoże mi lepiej ocenić, które osoby są wartościowe dla Twojej kampanii."
+- Jeśli użytkownik nie poda roli, zaproponuj rolę na podstawie opisu persony i kontekstu kampanii.
 - Ustal pozytywne persony: stanowiska, role, zakresy obowiązków, słowa kluczowe w tytułach i działach.
 - Zidentyfikuj negatywne persony: kogo unikać.
 - Zwracaj uwagę na seniority, działy, język komunikacji.
 - Przedstawiaj wnioski w punktach, pytaj o brakujące informacje.
 - Gdy będziesz gotowy, podsumuj pozytywne/negatywne persony.
 - Nie generuj finalnej struktury JSON – to nastąpi w osobnym kroku.
+- Jeśli użytkownik chce zmodyfikować istniejące persony, zapytaj o szczegóły zmian i zaproponuj aktualizacje.
 
 Kontekst kampanii (jeśli dostępny):
 Nazwa kryteriów firmowych: ${baseCriteria?.name ?? "brak"}
 Opis: ${baseCriteria?.description ?? "brak"}
 Nazwa person: ${existing.name}
-Opis person: ${existing.description ?? "brak"}`;
+Opis person: ${existing.description ?? "brak"}
+${hasAiRole ? `Ustawiona rola AI: ${brief.aiRole}` : "Rola AI: (nie ustalona - zapytaj użytkownika)"}
+
+${existingPositiveRoles ? `Aktualne pozytywne persony:\n${existingPositiveRoles}\n` : ""}
+${existingNegativeRoles ? `Aktualne negatywne persony:\n${existingNegativeRoles}\n` : ""}
+${!existingPositiveRoles && !existingNegativeRoles ? "Uwaga: To jest nowa konfiguracja - nie ma jeszcze zdefiniowanych person.\n" : ""}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -226,9 +247,33 @@ export async function PUT(
     const OpenAI = (await import("openai")).default;
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const prompt = `Na podstawie historii rozmowy z użytkownikiem przygotuj strukturę person dla prospectingu B2B. Odpowiedz TYLKO w JSON:
+    // Przygotuj informacje o istniejących personach dla kontekstu
+    const existingPositiveRoles = (existing.positiveRoles ?? []).map((r: any) => 
+      `- ${r.label}${r.keywords?.length ? ` (słowa kluczowe: ${r.keywords.join(", ")})` : ""}${r.departments?.length ? ` [działy: ${r.departments.join(", ")}]` : ""}`
+    ).join("\n");
+    const existingNegativeRoles = (existing.negativeRoles ?? []).map((r: any) => 
+      `- ${r.label}${r.keywords?.length ? ` (słowa kluczowe: ${r.keywords.join(", ")})` : ""}${r.departments?.length ? ` [działy: ${r.departments.join(", ")}]` : ""}`
+    ).join("\n");
+
+    // Sprawdź, czy nazwa jest domyślna - jeśli nie, nie pozwól AI jej zmieniać
+    const isDefaultName = !existing.name || existing.name.trim() === "" || existing.name === "Nowe persony weryfikacji";
+    const nameInstruction = isDefaultName 
+      ? `"name": "Nazwa konfiguracji" (możesz zaproponować nazwę na podstawie rozmowy)`
+      : `"name": "${existing.name}" (ZACHOWAJ TĘ NAZWĘ - nie zmieniaj jej)`;
+
+    const prompt = `Na podstawie historii rozmowy z użytkownikiem przygotuj strukturę person dla prospectingu B2B. 
+
+${existingPositiveRoles || existingNegativeRoles ? `UWAGA: Istnieją już zdefiniowane persony. Jeśli użytkownik chce je zmodyfikować, zaktualizuj odpowiednie pozycje. Jeśli użytkownik chce dodać nowe, dodaj je do listy. Jeśli użytkownik chce usunąć, nie uwzględniaj ich w odpowiedzi.
+
+Aktualne pozytywne persony:
+${existingPositiveRoles || "(brak)"}
+
+Aktualne negatywne persony:
+${existingNegativeRoles || "(brak)"}
+
+` : ""}Odpowiedz TYLKO w JSON:
 {
-  "name": "Nazwa konfiguracji",
+  ${nameInstruction},
   "description": "Krótki opis",
   "language": "pl",
   "positiveRoles": [
@@ -259,7 +304,7 @@ export async function PUT(
   ]
 }
 
-Historia:
+Historia rozmowy:
 ${JSON.stringify(history, null, 2)}`;
 
     const completion = await openai.chat.completions.create({
@@ -296,8 +341,12 @@ ${JSON.stringify(history, null, 2)}`;
 
     const parsed = JSON.parse(clean) as PersonaCriteriaPayload;
 
+    // Zachowaj nazwę użytkownika - nie nadpisuj jej nazwą z AI, chyba że jest domyślna
+    // isDefaultName jest już zdefiniowane wyżej, więc używamy tej samej zmiennej
+    const finalName = isDefaultName ? (parsed.name ?? existing.name) : existing.name;
+
     const payload = buildPayload(personaId, existing, {
-      name: parsed.name ?? existing.name,
+      name: finalName,
       description: parsed.description ?? existing.description,
       language: parsed.language ?? existing.language,
       positiveRoles: parsed.positiveRoles ?? existing.positiveRoles,
@@ -308,6 +357,70 @@ ${JSON.stringify(history, null, 2)}`;
     });
 
     const saved = await upsertPersonaCriteriaById(personaId, payload);
+
+    // Automatycznie wygeneruj brief strategiczny na podstawie rozmowy
+    try {
+      const briefPrompt = `Na podstawie historii rozmowy z użytkownikiem przygotuj brief strategiczny dla weryfikacji person. Odpowiedz TYLKO w JSON:
+{
+  "summary": "Krótkie podsumowanie celów i kontekstu kampanii",
+  "decisionGuidelines": ["Wskazówka 1", "Wskazówka 2"],
+  "targetProfiles": ["Przykładowa persona pozytywna 1", "Przykładowa persona pozytywna 2"],
+  "avoidProfiles": ["Przykładowa persona negatywna 1", "Przykładowa persona negatywna 2"],
+  "aiRole": "Rola AI podczas weryfikacji (np. ekspert od stoisk targowych, analityk sprzedażowy B2B)"
+}
+
+Historia rozmowy:
+${JSON.stringify(history, null, 2)}
+
+Wygenerowane persony:
+Pozytywne: ${JSON.stringify(parsed.positiveRoles?.map((r: any) => r.label) || [], null, 2)}
+Negatywne: ${JSON.stringify(parsed.negativeRoles?.map((r: any) => r.label) || [], null, 2)}`;
+
+      const briefCompletion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "Jesteś ekspertem ds. prospectingu. Zwracasz wyłącznie poprawny JSON zgodny ze schematem.",
+          },
+          { role: "user", content: briefPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 800,
+      });
+
+      let briefContent = briefCompletion.choices[0]?.message?.content ?? "";
+      let briefClean = briefContent.trim();
+
+      if (briefClean.startsWith("```json")) {
+        briefClean = briefClean.replace(/^```json\s*/i, "").replace(/```\s*$/i, "");
+      } else if (briefClean.startsWith("```")) {
+        briefClean = briefClean.replace(/^```\s*/i, "").replace(/```\s*$/i, "");
+      }
+
+      const briefParsed = JSON.parse(briefClean) as {
+        summary?: string;
+        decisionGuidelines?: string[];
+        targetProfiles?: string[];
+        avoidProfiles?: string[];
+        aiRole?: string;
+      };
+
+      // Zapisz brief tylko jeśli AI wygenerował jakieś dane
+      if (briefParsed.summary || briefParsed.decisionGuidelines?.length || briefParsed.targetProfiles?.length || briefParsed.avoidProfiles?.length || briefParsed.aiRole) {
+        await upsertPersonaBrief(personaId, {
+          summary: briefParsed.summary || "",
+          decisionGuidelines: briefParsed.decisionGuidelines || [],
+          targetProfiles: briefParsed.targetProfiles || [],
+          avoidProfiles: briefParsed.avoidProfiles || [],
+          aiRole: briefParsed.aiRole || null,
+        });
+        logger.info("persona-brief-generate", "Wygenerowano brief strategiczny z rozmowy", { personaId });
+      }
+    } catch (briefError) {
+      // Nie przerywamy procesu jeśli generowanie briefu się nie powiodło
+      logger.error("persona-brief-generate", "Błąd generowania briefu z rozmowy", { personaId }, briefError as Error);
+    }
 
     logger.info("persona-criteria-generate", "Zaktualizowano konfigurację person", { personaId });
 

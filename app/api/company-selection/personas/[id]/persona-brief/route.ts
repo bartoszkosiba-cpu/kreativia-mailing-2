@@ -19,6 +19,7 @@ const payloadSchema = z.object({
   targetProfiles: z.array(z.string()).optional(),
   avoidProfiles: z.array(z.string()).optional(),
   additionalNotes: z.string().nullable().optional(),
+  aiRole: z.string().nullable().optional(),
 });
 
 function cleanStringArray(value?: string[]): string[] {
@@ -80,12 +81,16 @@ export async function PUT(
     const json = await req.json();
     const parsed = payloadSchema.parse(json);
 
+    const aiRoleValue = parsed.aiRole ? parsed.aiRole.trim() : null;
+    const aiRoleFinal = aiRoleValue && aiRoleValue.length > 0 ? aiRoleValue : null;
+    
     await upsertPersonaBrief(personaId, {
       summary: (parsed.summary ?? "").trim(),
       decisionGuidelines: cleanStringArray(parsed.decisionGuidelines),
       targetProfiles: cleanStringArray(parsed.targetProfiles),
       avoidProfiles: cleanStringArray(parsed.avoidProfiles),
       additionalNotes: parsed.additionalNotes?.trim() ?? null,
+      aiRole: aiRoleFinal,
     });
 
     const updatedBrief = await getPersonaBrief(personaId);
@@ -106,7 +111,12 @@ export async function PUT(
 
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("persona-brief", "Błąd zapisu briefu person", { personaId }, err);
-    return NextResponse.json({ success: false, error: "Błąd zapisu briefu" }, { status: 500 });
+    console.error("[persona-brief] Błąd zapisu:", err);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Błąd zapisu briefu", 
+      details: err.message 
+    }, { status: 500 });
   }
 }
 

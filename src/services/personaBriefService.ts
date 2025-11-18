@@ -6,6 +6,7 @@ export interface PersonaBriefDto {
   targetProfiles: string[];
   avoidProfiles: string[];
   additionalNotes?: string | null;
+  aiRole?: string | null; // Rola/perspektywa AI podczas weryfikacji
   createdAt: Date;
   updatedAt: Date;
 }
@@ -16,6 +17,7 @@ const DEFAULT_BRIEF: PersonaBriefDto = {
   targetProfiles: [],
   avoidProfiles: [],
   additionalNotes: null,
+  aiRole: null,
   createdAt: new Date(0),
   updatedAt: new Date(0),
 };
@@ -42,6 +44,7 @@ export async function getPersonaBrief(companyCriteriaId: number): Promise<Person
     targetProfiles: parseJsonArray(record.targetProfiles),
     avoidProfiles: parseJsonArray(record.avoidProfiles),
     additionalNotes: record.additionalNotes,
+    aiRole: record.aiRole ?? null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -53,6 +56,7 @@ interface PersonaBriefPayload {
   targetProfiles?: string[];
   avoidProfiles?: string[];
   additionalNotes?: string | null;
+  aiRole?: string | null;
 }
 
 function safeStringifyArray(value?: string[]): string | null {
@@ -61,6 +65,9 @@ function safeStringifyArray(value?: string[]): string | null {
 }
 
 export async function upsertPersonaBrief(companyCriteriaId: number, payload: PersonaBriefPayload) {
+  const aiRoleValue = payload.aiRole ? payload.aiRole.trim() : null;
+  const aiRoleFinal = aiRoleValue && aiRoleValue.length > 0 ? aiRoleValue : null;
+  
   await db.personaBrief.upsert({
     where: { companyCriteriaId },
     create: {
@@ -70,6 +77,7 @@ export async function upsertPersonaBrief(companyCriteriaId: number, payload: Per
       targetProfiles: safeStringifyArray(payload.targetProfiles),
       avoidProfiles: safeStringifyArray(payload.avoidProfiles),
       additionalNotes: payload.additionalNotes ?? null,
+      aiRole: aiRoleFinal,
     },
     update: {
       summary: payload.summary ?? "",
@@ -77,7 +85,7 @@ export async function upsertPersonaBrief(companyCriteriaId: number, payload: Per
       targetProfiles: safeStringifyArray(payload.targetProfiles),
       avoidProfiles: safeStringifyArray(payload.avoidProfiles),
       additionalNotes: payload.additionalNotes ?? null,
-      updatedAt: new Date(),
+      aiRole: aiRoleFinal,
     },
   });
 }

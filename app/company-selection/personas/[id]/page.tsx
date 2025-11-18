@@ -79,6 +79,7 @@ type PersonaBriefFormState = {
   targetProfiles: string;
   avoidProfiles: string;
   additionalNotes: string;
+  aiRole: string;
 };
 
 type PersonaBriefDto = {
@@ -87,6 +88,7 @@ type PersonaBriefDto = {
   targetProfiles: string[];
   avoidProfiles: string[];
   additionalNotes?: string | null;
+  aiRole?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -117,6 +119,7 @@ const EMPTY_BRIEF_FORM: PersonaBriefFormState = {
   targetProfiles: "",
   avoidProfiles: "",
   additionalNotes: "",
+  aiRole: "",
 };
 
 export default function PersonasPage() {
@@ -146,6 +149,8 @@ export default function PersonasPage() {
   const [personaBrief, setPersonaBrief] = useState<PersonaBriefDto | null>(null);
   const [briefForm, setBriefForm] = useState<PersonaBriefFormState>(EMPTY_BRIEF_FORM);
   const chatContainerRef = useRef<HTMLDivElement | null>(null);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [tempName, setTempName] = useState("");
 
   useEffect(() => {
     if (personaId) {
@@ -208,10 +213,27 @@ export default function PersonasPage() {
         setChatMessages(persona.chatHistory ?? []);
         setFormState(transformPersonaToForm(persona));
         setIsUsed(persona.isUsed || false);
+        
+        // Sprawdź, czy tytuł jest wymagany (pusty lub domyślny)
+        const needsName = !persona.name || persona.name.trim() === "" || persona.name === "Nowe persony weryfikacji";
+        setShowNamePrompt(needsName);
+        if (needsName) {
+          setTempName(persona.name || "");
+          // Jeśli brak nazwy, automatycznie przełącz na zakładkę Czat (gdzie będzie ekran z nazwą + chat)
+          setActiveTab("chat");
+        } else {
+          // Jeśli nazwa jest ustawiona, ale nie ma jeszcze person, przełącz na Czat
+          const hasPersonas = (persona.positiveRoles && persona.positiveRoles.length > 0) || 
+                              (persona.negativeRoles && persona.negativeRoles.length > 0);
+          if (!hasPersonas) {
+            setActiveTab("chat");
+          }
+        }
       } else {
         setPersonas(null);
         setChatMessages([]);
         setFormState(null);
+        setShowNamePrompt(false);
       }
 
       let briefJson: any = null;
@@ -232,6 +254,7 @@ export default function PersonasPage() {
           targetProfiles: briefJson.data.targetProfiles ?? [],
           avoidProfiles: briefJson.data.avoidProfiles ?? [],
           additionalNotes: briefJson.data.additionalNotes ?? null,
+          aiRole: briefJson.data.aiRole ?? null,
           createdAt: briefJson.data.createdAt,
           updatedAt: briefJson.data.updatedAt,
         };
@@ -249,6 +272,7 @@ export default function PersonasPage() {
       setFormState(null);
       setPersonaBrief(null);
       setBriefForm({ ...EMPTY_BRIEF_FORM });
+      setShowNamePrompt(false);
     } finally {
       setLoading(false);
     }
@@ -288,6 +312,7 @@ export default function PersonasPage() {
     targetProfiles: (brief?.targetProfiles ?? []).join("\n"),
     avoidProfiles: (brief?.avoidProfiles ?? []).join("\n"),
     additionalNotes: brief?.additionalNotes ?? "",
+    aiRole: brief?.aiRole ?? "",
   });
 
   const parseList = (input: string): string[] => {
@@ -459,7 +484,14 @@ export default function PersonasPage() {
       setFormState(transformPersonaToForm(persona));
       setChatMessages(persona.chatHistory ?? []);
       setShouldGenerate(false);
-      alert("Persony zostały wygenerowane i zapisane");
+      
+      // Odśwież brief po wygenerowaniu
+      await loadPersonas(personaId);
+      
+      // Automatycznie przełącz na zakładkę Podgląd
+      setActiveTab("view");
+      
+      alert("Persony zostały wygenerowane i zapisane. Brief strategiczny został automatycznie uzupełniony.");
     } catch (err) {
       console.error("[Personas Generate] Błąd", err);
       alert("Błąd generowania person");
@@ -522,6 +554,7 @@ export default function PersonasPage() {
         targetProfiles: parseLines(briefForm.targetProfiles),
         avoidProfiles: parseLines(briefForm.avoidProfiles),
         additionalNotes: briefForm.additionalNotes.trim() ? briefForm.additionalNotes.trim() : null,
+        aiRole: briefForm.aiRole.trim() || null,
       };
 
       const briefResponse = await fetch(`/api/company-selection/personas/${personaId}/persona-brief`, {
@@ -550,7 +583,26 @@ export default function PersonasPage() {
       }
 
       await loadPersonas(personaId);
-      alert("Persony oraz brief zostały zapisane");
+      
+      // Pokaż komunikat sukcesu
+      const successMessage = document.createElement("div");
+      successMessage.textContent = "Zmiany zostały zapisane pomyślnie";
+      successMessage.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #10B981;
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        z-index: 1000;
+        font-weight: 500;
+      `;
+      document.body.appendChild(successMessage);
+      setTimeout(() => {
+        successMessage.remove();
+      }, 3000);
     } catch (err) {
       console.error("[Personas Save] Błąd", err);
       alert("Błąd zapisu person");
@@ -592,6 +644,50 @@ export default function PersonasPage() {
       alert("Błąd połączenia z serwerem");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!personaId || !tempName.trim()) {
+      alert("Nazwa jest wymagana");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/company-selection/personas/${personaId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: tempName.trim(),
+          description: personas?.description || "",
+          language: personas?.language || "pl",
+          positiveRoles: personas?.positiveRoles || [],
+          negativeRoles: personas?.negativeRoles || [],
+          conditionalRules: personas?.conditionalRules || [],
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        alert(data.error || "Nie udało się zapisać nazwy");
+        return;
+      }
+
+      // Odśwież dane - loadPersonas sprawdzi czy nazwa jest nadal domyślna
+      await loadPersonas(personaId);
+      
+      // Resetuj tempName i ukryj prompt
+      setTempName("");
+      setShowNamePrompt(false);
+      
+      // Automatycznie przełącz na zakładkę Czat po zapisaniu nazwy
+      setActiveTab("chat");
+    } catch (err) {
+      console.error("[Personas Save Name] Błąd", err);
+      alert("Błąd zapisu nazwy");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -671,8 +767,10 @@ export default function PersonasPage() {
     const brief = personaBrief;
     const summaryText = (brief?.summary ?? "").trim();
     const additionalNotesText = (brief?.additionalNotes ?? "").trim();
+    const aiRoleText = (brief?.aiRole ?? "").trim();
     const hasBriefContent = Boolean(
-      summaryText ||
+      aiRoleText ||
+        summaryText ||
         (brief?.decisionGuidelines?.length ?? 0) > 0 ||
         (brief?.targetProfiles?.length ?? 0) > 0 ||
         (brief?.avoidProfiles?.length ?? 0) > 0 ||
@@ -761,6 +859,12 @@ export default function PersonasPage() {
           <h3 style={{ fontSize: "1.25rem", marginBottom: "1rem", color: "#1F2937" }}>Brief strategiczny</h3>
           {hasBriefContent ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem", color: "#4B5563" }}>
+              {aiRoleText && (
+                <div>
+                  <strong>Rola AI podczas weryfikacji:</strong>
+                  <p style={{ marginTop: "0.35rem", fontStyle: "italic", color: "#2563EB" }}>{aiRoleText}</p>
+                </div>
+              )}
               {summaryText && <p>{summaryText}</p>}
 
               {brief?.decisionGuidelines && brief.decisionGuidelines.length > 0 && (
@@ -917,6 +1021,13 @@ export default function PersonasPage() {
     );
   }
 
+  // Sprawdź, czy persona ma wygenerowane persony
+  const hasPersonas = personas && ((personas.positiveRoles && personas.positiveRoles.length > 0) || 
+                                    (personas.negativeRoles && personas.negativeRoles.length > 0));
+  
+  // Sprawdź, czy nazwa jest wymagana
+  const shouldShowNamePrompt = showNamePrompt || (personas && (!personas.name || personas.name.trim() === "" || personas.name === "Nowe persony weryfikacji"));
+
   return (
     <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}>
       <div style={{ marginBottom: "2rem" }}>
@@ -1001,9 +1112,22 @@ export default function PersonasPage() {
             </div>
           )}
         </div>
-        <p style={{ color: "#6B7280", maxWidth: "750px", marginTop: "1rem" }}>
-          Zdefiniuj persony (stanowiska i role) dla kampanii prospectingowych. Rozpocznij rozmowę z agentem, aby zebrać informacje, następnie wygeneruj finalną strukturę lub edytuj ją ręcznie.
-        </p>
+        <div style={{ marginTop: "1rem", padding: "1.25rem", backgroundColor: "#F0F9FF", border: "1px solid #BAE6FD", borderRadius: "0.5rem", maxWidth: "900px" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", color: "#1E40AF" }}>
+            Jak korzystać z tego modułu?
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", color: "#1E3A8A", fontSize: "0.9rem" }}>
+            <div>
+              <strong>1. Podgląd</strong> — zobacz aktualną konfigurację person, brief strategiczny i reguły AI
+            </div>
+            <div>
+              <strong>2. Czat o personach</strong> — rozmawiaj z AI, aby zdefiniować persony. Brief strategiczny uzupełni się automatycznie na podstawie rozmowy.
+            </div>
+            <div>
+              <strong>3. Edycja ręczna</strong> — edytuj szczegóły person, brief i reguły ręcznie
+            </div>
+          </div>
+        </div>
       </div>
 
       <div
@@ -1016,23 +1140,26 @@ export default function PersonasPage() {
       >
         {(
           [
-            { key: "view", label: "Podgląd" },
-            { key: "chat", label: "Czat o personach" },
-            { key: "edit", label: "Edycja ręczna" },
+            { key: "view", label: "Podgląd", disabled: !hasPersonas },
+            { key: "chat", label: "Czat o personach", disabled: false },
+            { key: "edit", label: "Edycja ręczna", disabled: !hasPersonas },
           ] as const
         ).map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => !tab.disabled && setActiveTab(tab.key)}
+            disabled={tab.disabled}
             style={{
               padding: "0.75rem 1.5rem",
               border: "none",
               backgroundColor: "transparent",
               borderBottom: activeTab === tab.key ? "2px solid #3B82F6" : "2px solid transparent",
-              color: activeTab === tab.key ? "#3B82F6" : "#6B7280",
-              cursor: "pointer",
+              color: tab.disabled ? "#D1D5DB" : (activeTab === tab.key ? "#3B82F6" : "#6B7280"),
+              cursor: tab.disabled ? "not-allowed" : "pointer",
               fontWeight: activeTab === tab.key ? 600 : 400,
+              opacity: tab.disabled ? 0.5 : 1,
             }}
+            title={tab.disabled ? "Najpierw wygeneruj persony w zakładce Czat" : undefined}
           >
             {tab.label}
           </button>
@@ -1046,25 +1173,98 @@ export default function PersonasPage() {
           style={{
             display: "flex",
             flexDirection: "column",
-            height: "620px",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            gap: "1.5rem",
           }}
         >
-          <div
-            style={{
-              padding: "1rem",
-              borderBottom: "1px solid #E5E7EB",
-              backgroundColor: "#F9FAFB",
-              borderRadius: "0.5rem 0.5rem 0 0",
-            }}
-          >
-            <h3 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>Czat o personach z agentem AI</h3>
-            <p style={{ fontSize: "0.875rem", color: "#6B7280" }}>
-              Opisz, kto jest decydentem zakupowym, jakie stanowiska są najważniejsze oraz kogo unikać. Agent dopyta o szczegóły i zaproponuje listę person.
-            </p>
-          </div>
+          {/* Ekran z nazwą - jeśli jest wymagana */}
+          {shouldShowNamePrompt && personas && (
+            <div
+              style={{
+                padding: "2rem",
+                backgroundColor: "white",
+                borderRadius: "0.75rem",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: "2px solid #3B82F6",
+              }}
+            >
+              <h3 style={{ fontSize: "1.5rem", marginBottom: "0.75rem", color: "#1F2937" }}>
+                Nadaj nazwę konfiguracji person
+              </h3>
+              <p style={{ color: "#6B7280", marginBottom: "1.5rem", lineHeight: 1.6 }}>
+                Zanim rozpoczniesz rozmowę, nadaj nazwę tej konfiguracji person. Nazwa pomoże Ci później zidentyfikować tę konfigurację na liście.
+              </p>
+              
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: "0.5rem", color: "#374151" }}>
+                  Nazwa konfiguracji *
+                </label>
+                <input
+                  type="text"
+                  value={tempName || personas.name || ""}
+                  onChange={(e) => setTempName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && tempName.trim()) {
+                      handleSaveName();
+                    }
+                  }}
+                  placeholder="np. Persony dla producenta stoisk targowych"
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem",
+                    border: "1px solid #D1D5DB",
+                    borderRadius: "0.5rem",
+                    fontSize: "1rem",
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+                <button
+                  onClick={handleSaveName}
+                  disabled={saving || !tempName.trim()}
+                  style={{
+                    padding: "0.75rem 2rem",
+                    backgroundColor: saving || !tempName.trim() ? "#9CA3AF" : "#3B82F6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    cursor: saving || !tempName.trim() ? "not-allowed" : "pointer",
+                    fontSize: "1rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  {saving ? "Zapisywanie..." : "Zapisz nazwę"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Chat - dostępny tylko jeśli nazwa jest ustawiona */}
+          {!shouldShowNamePrompt && personas && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                height: "620px",
+                backgroundColor: "white",
+                borderRadius: "0.5rem",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              }}
+            >
+              <div
+                style={{
+                  padding: "1rem",
+                  borderBottom: "1px solid #E5E7EB",
+                  backgroundColor: "#F9FAFB",
+                  borderRadius: "0.5rem 0.5rem 0 0",
+                }}
+              >
+                <h3 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>Czat o personach z agentem AI</h3>
+                <p style={{ fontSize: "0.875rem", color: "#6B7280" }}>
+                  Opisz, kto jest decydentem zakupowym, jakie stanowiska są najważniejsze oraz kogo unikać. Agent dopyta o szczegóły i zaproponuje listę person.
+                </p>
+              </div>
 
           <div
             ref={chatContainerRef}
@@ -1194,7 +1394,7 @@ export default function PersonasPage() {
             >
               Wyślij
             </button>
-            {chatMessages.length > 0 && (
+            {chatMessages.length > 0 && !shouldGenerate && (
               <button
                 onClick={generatePersonas}
                 disabled={generating}
@@ -1211,6 +1411,8 @@ export default function PersonasPage() {
               </button>
             )}
           </div>
+        </div>
+          )}
         </div>
       )}
 
@@ -1264,6 +1466,22 @@ export default function PersonasPage() {
                 Ten brief jest przekazywany agentowi AI podczas każdej weryfikacji person. Zapisz kluczowe wskazówki, przykładowe stanowiska
                 oraz informacje, których AI ma unikać.
               </p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <label style={{ fontWeight: 600 }}>
+                Rola AI podczas weryfikacji
+                <span style={{ fontSize: "0.85rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
+                  (np. "ekspert od stoisk targowych", "analityk sprzedażowy B2B")
+                </span>
+              </label>
+              <input
+                type="text"
+                value={briefForm.aiRole}
+                onChange={(e) => setBriefForm((prev) => ({ ...prev, aiRole: e.target.value }))}
+                placeholder="W jakiej roli ma się wcielić AI podczas weryfikacji person?"
+                style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem" }}
+              />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
