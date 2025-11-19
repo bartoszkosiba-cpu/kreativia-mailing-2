@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     companyId = body.companyId;
     const criteriaId = body.criteriaId ? Number(body.criteriaId) : null;
+    const selectionId = body.selectionId ? Number(body.selectionId) : null;
 
     if (!companyId || typeof companyId !== "number") {
       return NextResponse.json(
@@ -30,7 +31,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    logger.info("company-verify", `Weryfikuję firmę ID: ${companyId} z kryteriami ID: ${criteriaId}`);
+    if (!selectionId || !Number.isFinite(selectionId)) {
+      return NextResponse.json(
+        { error: "selectionId jest wymagane. Weryfikacja musi odbywać się w kontekście selekcji." },
+        { status: 400 }
+      );
+    }
+
+    logger.info("company-verify", `Weryfikuję firmę ID: ${companyId} z kryteriami ID: ${criteriaId} w selekcji ID: ${selectionId}`);
+
+    // Sprawdź, czy firma jest w tej selekcji
+    const membership = await db.companySelectionCompany.findUnique({
+      where: {
+        selectionId_companyId: {
+          selectionId,
+          companyId,
+        },
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: "Firma nie jest w tej selekcji." },
+        { status: 404 }
+      );
+    }
 
     // Pobierz kryteria
     const criteriaRecord = await db.companyVerificationCriteria.findUnique({
@@ -59,9 +84,9 @@ export async function POST(req: NextRequest) {
         : undefined,
     };
 
-    // Weryfikuj
-    const result = await verifyAndSaveCompany(companyId, criteria);
-    logger.info("company-verify", `Firma ${companyId} zweryfikowana: ${result.status} (score: ${result.score})`);
+    // Weryfikuj (tylko dla tej selekcji - nie aktualizujemy globalnego statusu)
+    const result = await verifyAndSaveCompany(companyId, criteria, selectionId);
+    logger.info("company-verify", `Firma ${companyId} zweryfikowana w selekcji ${selectionId}: ${result.status} (score: ${result.score})`);
 
     return NextResponse.json({
       success: true,
@@ -83,7 +108,7 @@ export async function POST(req: NextRequest) {
  */
 export async function PUT(req: NextRequest) {
   try {
-    const { companyIds, progressId, criteriaId } = await req.json();
+    const { companyIds, progressId, criteriaId, selectionId } = await req.json();
 
     if (!Array.isArray(companyIds) || companyIds.length === 0) {
       return NextResponse.json(
@@ -106,6 +131,13 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    if (!selectionId || !Number.isFinite(selectionId)) {
+      return NextResponse.json(
+        { error: "selectionId jest wymagane. Weryfikacja musi odbywać się w kontekście selekcji." },
+        { status: 400 }
+      );
+    }
+
     const progress = getProgress(progressId);
     if (!progress) {
       return NextResponse.json(
@@ -114,7 +146,26 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    logger.info("company-verify", `Kolejkuję weryfikację batch: ${companyIds.length} firm (progressId: ${progressId}, criteriaId: ${criteriaId})`);
+    logger.info("company-verify", `Kolejkuję weryfikację batch: ${companyIds.length} firm (progressId: ${progressId}, criteriaId: ${criteriaId}, selectionId: ${selectionId})`);
+
+    // Sprawdź, czy wszystkie firmy są w tej selekcji
+    const memberships = await db.companySelectionCompany.findMany({
+      where: {
+        selectionId: Number(selectionId),
+        companyId: { in: companyIds },
+      },
+      select: { companyId: true },
+    });
+
+    const membershipCompanyIds = new Set(memberships.map(m => m.companyId));
+    const missingCompanies = companyIds.filter(id => !membershipCompanyIds.has(id));
+
+    if (missingCompanies.length > 0) {
+      return NextResponse.json(
+        { error: `Następujące firmy nie są w tej selekcji: ${missingCompanies.join(", ")}` },
+        { status: 400 }
+      );
+    }
 
     // Pobierz kryteria
     const criteriaRecord = await db.companyVerificationCriteria.findUnique({
@@ -155,6 +206,7 @@ export async function PUT(req: NextRequest) {
       companyIds,
       progressId,
       criteria,
+      selectionId: Number(selectionId),
     });
 
     const snapshot = getVerificationQueueSnapshot();

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { logger } from "./logger";
+import { trackTokenUsage } from "./tokenTracker";
 
 type CompanyRecord = NonNullable<Awaited<ReturnType<typeof db.company.findUnique>>>;
 
@@ -33,6 +34,16 @@ async function callOpenAIJSON(
     ],
     max_tokens: 600,
   });
+
+  // Track token usage
+  if (response.usage) {
+    await trackTokenUsage({
+      operation: "company_translation",
+      model: "gpt-4o-mini",
+      promptTokens: response.usage.prompt_tokens,
+      completionTokens: response.usage.completion_tokens,
+    });
+  }
 
   const content = response.choices[0]?.message?.content?.trim();
   if (!content) {

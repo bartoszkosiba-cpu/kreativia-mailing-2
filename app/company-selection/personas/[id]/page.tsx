@@ -89,6 +89,7 @@ type PersonaBriefDto = {
   avoidProfiles: string[];
   additionalNotes?: string | null;
   aiRole?: string | null;
+  positiveThreshold?: number; // Próg procentowy (0.0-1.0) dla klasyfikacji pozytywnej
   createdAt?: string;
   updatedAt?: string;
 };
@@ -255,6 +256,7 @@ export default function PersonasPage() {
           avoidProfiles: briefJson.data.avoidProfiles ?? [],
           additionalNotes: briefJson.data.additionalNotes ?? null,
           aiRole: briefJson.data.aiRole ?? null,
+          positiveThreshold: typeof briefJson.data.positiveThreshold === "number" ? briefJson.data.positiveThreshold : 0.5,
           createdAt: briefJson.data.createdAt,
           updatedAt: briefJson.data.updatedAt,
         };
@@ -631,12 +633,12 @@ export default function PersonasPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert("Persona została usunięta pomyślnie!");
+        const message = isUsed 
+          ? "Persona została usunięta pomyślnie! Powiązane weryfikacje zostały odłączone."
+          : "Persona została usunięta pomyślnie!";
+        alert(message);
         router.push("/company-selection/personas");
       } else {
-        if (data.error && data.error.includes("używana w weryfikacjach")) {
-          setIsUsed(true);
-        }
         alert("Błąd: " + (data.error || "Nie udało się usunąć persony"));
       }
     } catch (error) {
@@ -915,9 +917,89 @@ export default function PersonasPage() {
             </div>
           ) : (
             <p style={{ color: "#6B7280" }}>
-              Brak zapisanych wskazówek. Uzupełnij brief w zakładce „Edycja ręczna”, aby AI otrzymywało precyzyjny kontekst.
+              Brak zapisanych wskazówek. Uzupełnij brief w zakładce „Edycja ręczna", aby AI otrzymywało precyzyjny kontekst.
             </p>
           )}
+        </div>
+
+        {/* Próg procentowy dla klasyfikacji */}
+        <div
+          style={{
+            padding: "1.5rem",
+            backgroundColor: "white",
+            borderRadius: "0.5rem",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+            border: "1px solid #E5E7EB",
+            marginTop: "1.5rem",
+          }}
+        >
+          <h3 style={{ fontSize: "1.25rem", marginBottom: "0.75rem", color: "#1D4ED8" }}>
+            Próg klasyfikacji AI
+          </h3>
+          <p style={{ color: "#6B7280", fontSize: "0.9rem", marginBottom: "1rem" }}>
+            Ustaw próg procentowy dla klasyfikacji person przez AI. Osoby z oceną powyżej lub równej progowi będą klasyfikowane jako "Pozytywne", poniżej progu jako "Negatywne".
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <label style={{ fontWeight: 500, color: "#374151", minWidth: "120px" }}>
+              Próg pozytywny:
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={brief?.positiveThreshold ? Math.round(brief.positiveThreshold * 100) : 50}
+              onChange={async (e) => {
+                const newValue = parseInt(e.target.value) / 100;
+                const updatedBrief = personaBrief ? { ...personaBrief, positiveThreshold: newValue } : null;
+                setPersonaBrief(updatedBrief);
+                
+                // Automatyczny zapis przy każdej zmianie (z debounce)
+                if (updatedBrief && updatedBrief.positiveThreshold !== undefined) {
+                  try {
+                    const response = await fetch(`/api/company-selection/personas/${params.id}/persona-brief`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        ...updatedBrief,
+                        positiveThreshold: updatedBrief.positiveThreshold,
+                      }),
+                    });
+                    if (response.ok) {
+                      const data = await response.json();
+                      if (data.success) {
+                        setPersonaBrief(data.data);
+                      }
+                    }
+                  } catch (error) {
+                    console.error("Błąd zapisu progu:", error);
+                  }
+                }
+              }}
+              style={{
+                flex: "1",
+                minWidth: "200px",
+                height: "8px",
+                borderRadius: "4px",
+                background: "#E5E7EB",
+                outline: "none",
+                cursor: "pointer",
+              }}
+            />
+            <div style={{ 
+              minWidth: "60px", 
+              textAlign: "right",
+              fontWeight: 600,
+              color: "#1D4ED8",
+              fontSize: "1.1rem"
+            }}>
+              {brief?.positiveThreshold ? Math.round(brief.positiveThreshold * 100) : 50}%
+            </div>
+          </div>
+          <div style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#6B7280" }}>
+            <div>• Score ≥ {brief?.positiveThreshold ? Math.round(brief.positiveThreshold * 100) : 50}% → <strong style={{ color: "#047857" }}>Pozytywna</strong></div>
+            <div>• Score &lt; {brief?.positiveThreshold ? Math.round(brief.positiveThreshold * 100) : 50}% → <strong style={{ color: "#B91C1C" }}>Negatywna</strong></div>
+          </div>
         </div>
 
         {(positiveRoleLabels.length > 0 || negativeRoleLabels.length > 0) && (
@@ -1059,16 +1141,16 @@ export default function PersonasPage() {
                 <div
                   style={{
                     padding: "1rem",
-                    backgroundColor: "#FEF3C7",
-                    border: "1px solid #F59E0B",
+                    backgroundColor: "#DBEAFE",
+                    border: "1px solid #3B82F6",
                     borderRadius: "0.5rem",
-                    color: "#92400E",
+                    color: "#1E40AF",
                     fontSize: "0.875rem",
                     flex: 1,
                   }}
                 >
-                  <strong>Uwaga:</strong> Ta persona jest używana w weryfikacjach.
-                  Aby ją usunąć, najpierw usuń powiązane weryfikacje.
+                  <strong>Informacja:</strong> Ta persona jest używana w weryfikacjach.
+                  Po usunięciu persony, powiązane weryfikacje pozostaną w bazie, ale zostaną odłączone od tej persony.
                 </div>
               )}
               <button
@@ -1090,22 +1172,18 @@ export default function PersonasPage() {
               </button>
               <button
                 onClick={handleDelete}
-                disabled={deleting || isUsed}
+                disabled={deleting}
                 style={{
                   padding: "0.75rem 2rem",
-                  backgroundColor: deleting || isUsed ? "#9CA3AF" : "#EF4444",
+                  backgroundColor: deleting ? "#9CA3AF" : "#EF4444",
                   color: "white",
                   border: "none",
                   borderRadius: "0.5rem",
-                  cursor: deleting || isUsed ? "not-allowed" : "pointer",
+                  cursor: deleting ? "not-allowed" : "pointer",
                   fontSize: "1rem",
                   fontWeight: "500",
                 }}
-                title={
-                  isUsed
-                    ? "Nie można usunąć - persona jest używana w weryfikacjach"
-                    : "Usuń personę"
-                }
+                title="Usuń personę"
               >
                 {deleting ? "Usuwanie..." : "Usuń personę"}
               </button>

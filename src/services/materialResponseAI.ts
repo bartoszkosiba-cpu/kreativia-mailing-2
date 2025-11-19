@@ -10,6 +10,8 @@
 // Moduł AI do automatycznych odpowiedzi z materiałami
 // Nie wymaga importów zewnętrznych - używa OpenAI bezpośrednio
 
+import { trackTokenUsage } from "./tokenTracker";
+
 export interface MaterialRequestAnalysis {
   isMaterialRequest: boolean; // Czy to prośba o materiały
   confidence: number; // Pewność AI (0.0-1.0)
@@ -229,6 +231,16 @@ Zadanie: Zwróć TYLKO finalną treść emaila (bez placeholderów, bez JSON, be
         temperature: 0.3
       });
       
+      // Track token usage
+      if (response.usage) {
+        await trackTokenUsage({
+          operation: "material_response_personalize",
+          model: "gpt-4o-mini",
+          promptTokens: response.usage.prompt_tokens,
+          completionTokens: response.usage.completion_tokens,
+        });
+      }
+      
       const aiContent = response.choices[0]?.message?.content;
       if (aiContent) {
         content = aiContent.trim();
@@ -378,6 +390,16 @@ async function analyzeWithAI(prompt: string): Promise<{
     response_format: { type: "json_object" }
   });
   
+  // Track token usage
+  if (response.usage) {
+    await trackTokenUsage({
+      operation: "material_request_analysis",
+      model: "gpt-4o-mini",
+      promptTokens: response.usage.prompt_tokens,
+      completionTokens: response.usage.completion_tokens,
+    });
+  }
+  
   const content = response.choices[0]?.message?.content;
   if (!content) {
     throw new Error("Brak odpowiedzi od AI");
@@ -428,6 +450,17 @@ async function generateWithAI(prompt: string, language: string): Promise<{
     temperature: 0.7,
     response_format: { type: "json_object" }
   });
+  
+  // Track token usage
+  if (response.usage) {
+    await trackTokenUsage({
+      operation: "material_response_generate",
+      model: "gpt-4o-mini",
+      promptTokens: response.usage.prompt_tokens,
+      completionTokens: response.usage.completion_tokens,
+      metadata: { language },
+    });
+  }
   
   const content = response.choices[0]?.message?.content;
   if (!content) {

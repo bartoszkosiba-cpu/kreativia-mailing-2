@@ -8,13 +8,45 @@ import { logger } from "@/services/logger";
  */
 export async function GET(req: NextRequest) {
   try {
-    const blockedCompanies = await db.blockedCompany.findMany({
-      orderBy: { createdAt: "desc" },
-    });
+    // Używamy surowego zapytania SQL, bo Prisma Client może jeszcze nie widzieć nowych pól
+    const blockedCompanies = await db.$queryRaw<Array<{
+      id: number;
+      companyName: string | null;
+      website: string | null;
+      reason: string | null;
+      blockType: string;
+      companyId: number | null;
+      createdAt: Date;
+      updatedAt: Date;
+      createdBy: string | null;
+    }>>`
+      SELECT 
+        id,
+        companyName,
+        website,
+        reason,
+        COALESCE(blockType, 'MANUAL') as blockType,
+        companyId,
+        createdAt,
+        updatedAt,
+        createdBy
+      FROM BlockedCompany
+      ORDER BY COALESCE(blockType, 'MANUAL') ASC, createdAt DESC
+    `;
 
     return NextResponse.json({
       success: true,
-      blockedCompanies,
+      blockedCompanies: blockedCompanies.map((bc) => ({
+        id: bc.id,
+        companyName: bc.companyName,
+        website: bc.website || null,
+        reason: bc.reason,
+        blockType: bc.blockType || "MANUAL",
+        companyId: bc.companyId || null,
+        createdAt: bc.createdAt.toISOString(),
+        updatedAt: bc.updatedAt.toISOString(),
+        createdBy: bc.createdBy,
+      })),
     });
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
@@ -32,23 +64,27 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { companyName, reason } = await req.json();
+    const { companyName, website, reason } = await req.json();
 
-    if (!companyName || typeof companyName !== "string" || !companyName.trim()) {
+    // Website jest wymagane - blokujemy tylko po adresie www
+    if (!website || typeof website !== "string" || !website.trim()) {
       return NextResponse.json(
-        { error: "Nazwa firmy jest wymagana" },
+        { error: "Adres www jest wymagany do blokowania firmy" },
         { status: 400 }
       );
     }
 
-    // Sprawdź czy już istnieje
-    const existing = await db.blockedCompany.findUnique({
-      where: { companyName: companyName.trim() },
+    // Normalizuj adres www (usuń spacje, znormalizuj do lowercase)
+    const normalizedWebsite = website.trim().toLowerCase();
+
+    // Sprawdź czy już istnieje (używamy findFirst, bo findUnique może nie działać z nowym polem przed regeneracją Prisma Client)
+    const existing = await db.blockedCompany.findFirst({
+      where: { website: normalizedWebsite } as any,
     });
 
     if (existing) {
       return NextResponse.json(
-        { error: "Firma już jest na liście zablokowanych" },
+        { error: "Firma z tym adresem www już jest na liście zablokowanych" },
         { status: 400 }
       );
     }
@@ -56,44 +92,38 @@ export async function POST(req: NextRequest) {
     // Dodaj do listy zablokowanych
     const blockedCompany = await db.blockedCompany.create({
       data: {
-        companyName: companyName.trim(),
+        companyName: companyName ? companyName.trim() : null,
+        website: normalizedWebsite,
         reason: reason || null,
+        blockType: "MANUAL",
         createdBy: "USER",
-      },
+      } as any,
     });
 
-    // SCENARIUSZ B: Automatycznie oznacz pasujące firmy jako BLOCKED i zaktualizuj istniejące selekcje
-    const blockedNameTrimmed = companyName.trim();
-    const blockedNameLower = blockedNameTrimmed.toLowerCase();
-    
-    // Pobierz wszystkie firmy (musimy sprawdzić każdą, bo SQLite nie obsługuje case-insensitive contains dobrze)
-    // W praktyce możemy ograniczyć się do firm które zawierają fragment, ale dla pewności sprawdzamy wszystkie
-    // Dla wydajności - pobieramy tylko ID i nazwę
+    // Znajdź wszystkie firmy z tym adresem www (dokładne dopasowanie, case-insensitive)
+    // SQLite nie obsługuje mode: "insensitive", więc normalizujemy ręcznie
     const allCompanies = await db.company.findMany({
-      select: { id: true, name: true },
-      // Opcjonalnie: można ograniczyć do firm które już nie są BLOCKED
-      where: { verificationStatus: { not: "BLOCKED" } },
+      where: {
+        website: { not: null },
+        verificationStatus: { not: "BLOCKED" },
+      },
+      select: { id: true, name: true, website: true },
     });
 
-    // Filtruj dokładnie (case-insensitive, częściowe dopasowanie w obie strony)
-    // Używamy tej samej logiki co checkIfBlocked
-    const exactMatches = allCompanies.filter((company) => {
-      const companyNameLower = company.name.toLowerCase().trim();
-      return (
-        companyNameLower.includes(blockedNameLower) ||
-        blockedNameLower.includes(companyNameLower)
-      );
+    const matchingCompanies = allCompanies.filter((company) => {
+      if (!company.website) return false;
+      return company.website.toLowerCase().trim() === normalizedWebsite;
     });
 
-    if (exactMatches.length > 0) {
-      const companyIds = exactMatches.map((c) => c.id);
+    if (matchingCompanies.length > 0) {
+      const companyIds = matchingCompanies.map((c) => c.id);
       
       // Oznacz firmy jako BLOCKED w tabeli Company
       await db.company.updateMany({
         where: { id: { in: companyIds } },
         data: {
           verificationStatus: "BLOCKED",
-          verificationReason: `Firma zablokowana (dopasowanie: ${companyName.trim()})`,
+          verificationReason: `Firma zablokowana (adres www: ${normalizedWebsite})`,
           verifiedAt: new Date(),
           verifiedBy: "SYSTEM",
           verificationSource: "BLOCKED_LIST",
@@ -105,7 +135,7 @@ export async function POST(req: NextRequest) {
         where: { companyId: { in: companyIds } },
         data: {
           status: "BLOCKED",
-          reason: `Firma zablokowana: ${companyName.trim()}`,
+          reason: `Firma zablokowana (adres www: ${normalizedWebsite})`,
           updatedAt: new Date(),
         },
       });
@@ -131,14 +161,14 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      logger.info("company-blocked", `Dodano firmę do listy zablokowanych: ${companyName}`, {
+      logger.info("company-blocked", `Dodano firmę do listy zablokowanych: ${normalizedWebsite}`, {
         id: blockedCompany.id,
         reason,
-        matchedCompanies: exactMatches.length,
+        matchedCompanies: matchingCompanies.length,
         updatedSelections: updatedSelections.count,
       });
     } else {
-      logger.info("company-blocked", `Dodano firmę do listy zablokowanych: ${companyName} (brak pasujących firm w bazie)`, {
+      logger.info("company-blocked", `Dodano firmę do listy zablokowanych: ${normalizedWebsite} (brak pasujących firm w bazie)`, {
         id: blockedCompany.id,
         reason,
       });
@@ -147,7 +177,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       blockedCompany,
-      matchedCompanies: exactMatches.length,
+      matchedCompanies: matchingCompanies.length,
     });
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
@@ -175,27 +205,142 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const blockedCompany = await db.blockedCompany.findUnique({
-      where: { id: parseInt(id) },
-    });
+    // Używamy surowego zapytania SQL, bo Prisma Client może jeszcze nie widzieć pola website
+    const blockedCompanyResult = await db.$queryRaw<Array<{
+      id: number;
+      companyName: string | null;
+      website: string | null;
+      reason: string | null;
+    }>>`
+      SELECT id, companyName, website, reason
+      FROM BlockedCompany
+      WHERE id = ${parseInt(id)}
+    `;
 
-    if (!blockedCompany) {
+    if (!blockedCompanyResult || blockedCompanyResult.length === 0) {
       return NextResponse.json(
         { error: "Firma nie została znaleziona na liście zablokowanych" },
         { status: 404 }
       );
     }
 
+    const blockedCompany = blockedCompanyResult[0];
+    const blockedWebsite = blockedCompany.website?.toLowerCase().trim();
+    if (!blockedWebsite) {
+      return NextResponse.json(
+        { error: "Brak adresu www w zablokowanej firmie" },
+        { status: 400 }
+      );
+    }
+
+    // Znajdź wszystkie firmy z tym adresem www (dokładne dopasowanie)
+    // SQLite nie obsługuje mode: "insensitive", więc normalizujemy ręcznie
+    const allCompanies = await db.company.findMany({
+      where: {
+        website: { not: null },
+        verificationStatus: "BLOCKED",
+      },
+      select: { id: true, name: true, website: true },
+    });
+
+    const matchingCompanies = allCompanies.filter((company) => {
+      if (!company.website) return false;
+      return company.website.toLowerCase().trim() === blockedWebsite;
+    });
+
+    if (matchingCompanies.length > 0) {
+      const companyIds = matchingCompanies.map((c) => c.id);
+
+      // Sprawdź, czy są inne blokady dla tych firm (po www)
+      const otherBlockedWebsites = await db.$queryRaw<Array<{ website: string }>>`
+        SELECT website FROM BlockedCompany 
+        WHERE id != ${parseInt(id)} AND website IS NOT NULL AND TRIM(website) != ''
+      `;
+
+      const otherBlockedWebsitesLower = otherBlockedWebsites.map((b) =>
+        b.website.toLowerCase().trim()
+      );
+
+      // Dla każdej firmy sprawdź, czy jest zablokowana przez inny adres www
+      const companiesToUnblock: number[] = [];
+      for (const company of matchingCompanies) {
+        const companyWebsite = company.website?.toLowerCase().trim();
+        if (!companyWebsite) continue;
+        
+        const isBlockedByOther = otherBlockedWebsitesLower.some((blockedWebsite) =>
+          companyWebsite === blockedWebsite
+        );
+
+        if (!isBlockedByOther) {
+          companiesToUnblock.push(company.id);
+        }
+      }
+
+      if (companiesToUnblock.length > 0) {
+        // Cofnij status BLOCKED w Company (ustaw na PENDING)
+        await db.company.updateMany({
+          where: { id: { in: companiesToUnblock } },
+          data: {
+            verificationStatus: "PENDING",
+            verificationReason: null,
+            verifiedAt: null,
+            verifiedBy: null,
+            verificationSource: null,
+          },
+        });
+
+        // Cofnij status BLOCKED w CompanySelectionCompany (ustaw na PENDING)
+        await db.companySelectionCompany.updateMany({
+          where: { companyId: { in: companiesToUnblock } },
+          data: {
+            status: "PENDING",
+            reason: null,
+            verifiedAt: null,
+            verificationResult: null,
+            updatedAt: new Date(),
+          },
+        });
+
+        // Zaktualizuj liczniki aktywnych firm w selekcjach
+        const affectedSelections = await db.companySelectionCompany.findMany({
+          where: { companyId: { in: companiesToUnblock } },
+          select: { selectionId: true },
+          distinct: ["selectionId"],
+        });
+
+        for (const { selectionId } of affectedSelections) {
+          const activeCount = await db.companySelectionCompany.count({
+            where: {
+              selectionId,
+              status: { not: "BLOCKED" },
+            },
+          });
+
+          await db.companySelection.update({
+            where: { id: selectionId },
+            data: { activeCompanies: activeCount },
+          });
+        }
+
+        logger.info("company-blocked", `Usunięto firmę z listy zablokowanych i odblokowano: ${blockedWebsite}`, {
+          id: parseInt(id),
+          unblockedCompanies: companiesToUnblock.length,
+        });
+      } else {
+        logger.info("company-blocked", `Usunięto firmę z listy zablokowanych (firmy nadal zablokowane przez inne wpisy): ${blockedWebsite}`, {
+          id: parseInt(id),
+        });
+      }
+    }
+
+    // Usuń z listy zablokowanych
     await db.blockedCompany.delete({
       where: { id: parseInt(id) },
     });
 
-    logger.info("company-blocked", `Usunięto firmę z listy zablokowanych: ${blockedCompany.companyName}`, {
-      id: parseInt(id),
-    });
-
     return NextResponse.json({
       success: true,
+      unblockedCompanies: matchingCompanies.length,
     });
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));

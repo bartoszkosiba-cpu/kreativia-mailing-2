@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTokenStats } from "@/services/tokenTracker";
+import { getTokenStats, trackTokenUsage } from "@/services/tokenTracker";
 
 /**
  * Endpoint sprawdzający czy ChatGPT API działa
@@ -37,6 +37,16 @@ export async function GET() {
     const endTime = Date.now();
     const responseTime = endTime - startTime;
     const answer = response.choices[0].message.content?.trim() || "";
+
+    // Track token usage
+    if (response.usage) {
+      await trackTokenUsage({
+        operation: "ai_health_check",
+        model: "gpt-4o-mini",
+        promptTokens: response.usage.prompt_tokens,
+        completionTokens: response.usage.completion_tokens,
+      });
+    }
 
     // Pobierz statystyki tokenów
     const tokenStats = await getTokenStats("today");

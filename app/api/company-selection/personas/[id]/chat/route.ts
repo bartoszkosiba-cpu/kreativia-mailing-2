@@ -389,6 +389,16 @@ Negatywne: ${JSON.stringify(parsed.negativeRoles?.map((r: any) => r.label) || []
         max_tokens: 800,
       });
 
+      if (briefCompletion.usage) {
+        await trackTokenUsage({
+          operation: "persona_brief_generate",
+          model: "gpt-4o",
+          promptTokens: briefCompletion.usage.prompt_tokens,
+          completionTokens: briefCompletion.usage.completion_tokens,
+          metadata: { personaId },
+        });
+      }
+
       let briefContent = briefCompletion.choices[0]?.message?.content ?? "";
       let briefClean = briefContent.trim();
 

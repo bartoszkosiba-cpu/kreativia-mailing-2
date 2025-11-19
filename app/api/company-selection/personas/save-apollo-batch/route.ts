@@ -107,14 +107,26 @@ async function processApolloBatch(companyIds: number[], progressId: string) {
         verifiedByAI: false,
       });
 
-      // Sprawdź, czy istnieje już weryfikacja z AI
-      const existing = await db.personaVerificationResult.findUnique({
-        where: { companyId },
+      // Sprawdź, czy istnieje już weryfikacja z AI (dla personaCriteriaId=null)
+      const existingNull = await db.personaVerificationResult.findFirst({
+        where: {
+          companyId,
+          personaCriteriaId: null,
+        },
       });
 
-      if (existing && existing.personaCriteriaId !== null) {
-        // Jeśli istnieje weryfikacja z AI, tylko zaktualizuj metadane Apollo
-        const existingMetadata = existing.metadata ? JSON.parse(existing.metadata) : {};
+      // Sprawdź, czy istnieje weryfikacja z AI (dla jakiegokolwiek personaCriteriaId)
+      const existingWithAI = await db.personaVerificationResult.findFirst({
+        where: {
+          companyId,
+          personaCriteriaId: { not: null },
+        },
+      });
+
+      if (existingWithAI) {
+        // Jeśli istnieje weryfikacja z AI, zaktualizuj metadane Apollo w tym rekordzie
+        // ALE TAKŻE zaktualizuj employees, aby były aktualne (mogły się zmienić w Apollo)
+        const existingMetadata = existingWithAI.metadata ? JSON.parse(existingWithAI.metadata) : {};
         const updatedMetadata = {
           ...existingMetadata,
           apolloFetchedAt: new Date().toISOString(),
@@ -124,19 +136,49 @@ async function processApolloBatch(companyIds: number[], progressId: string) {
           apolloCreditsInfo: apolloResult.creditsInfo || null,
         };
 
+        // WAŻNE: Zaktualizuj również employees, aby były aktualne
+        // Persony z Apollo mogą się zmienić, więc musimy zaktualizować listę
         await db.personaVerificationResult.update({
-          where: { companyId },
+          where: { id: existingWithAI.id },
           data: {
+            employees: employeesJson, // Zaktualizuj employees z nowymi danymi z Apollo
             metadata: JSON.stringify(updatedMetadata),
           },
         });
-      } else {
-        // Jeśli nie ma weryfikacji AI, zapisz persony z Apollo
-        await db.personaVerificationResult.upsert({
-          where: { companyId },
-          create: {
-            companyId,
-            personaCriteriaId: null,
+        
+        // WAŻNE: Również utwórz/zaktualizuj rekord Apollo (personaCriteriaId=null), 
+        // aby dane Apollo były dostępne niezależnie od weryfikacji AI
+        if (existingNull) {
+          await db.personaVerificationResult.update({
+            where: { id: existingNull.id },
+            data: {
+              verifiedAt: new Date(),
+              positiveCount: 0,
+              negativeCount: 0,
+              unknownCount: apolloResult.people?.length || 0,
+              employees: employeesJson,
+              metadata: metadataJson,
+            },
+          });
+        } else {
+          await db.personaVerificationResult.create({
+            data: {
+              companyId,
+              personaCriteriaId: null,
+              verifiedAt: new Date(),
+              positiveCount: 0,
+              negativeCount: 0,
+              unknownCount: apolloResult.people?.length || 0,
+              employees: employeesJson,
+              metadata: metadataJson,
+            },
+          });
+        }
+      } else if (existingNull) {
+        // Jeśli istnieje rekord z personaCriteriaId=null, zaktualizuj go
+        await db.personaVerificationResult.update({
+          where: { id: existingNull.id },
+          data: {
             verifiedAt: new Date(),
             positiveCount: 0,
             negativeCount: 0,
@@ -144,7 +186,12 @@ async function processApolloBatch(companyIds: number[], progressId: string) {
             employees: employeesJson,
             metadata: metadataJson,
           },
-          update: {
+        });
+      } else {
+        // Jeśli nie ma żadnego rekordu, utwórz nowy z personaCriteriaId=null
+        await db.personaVerificationResult.create({
+          data: {
+            companyId,
             personaCriteriaId: null,
             verifiedAt: new Date(),
             positiveCount: 0,
@@ -156,9 +203,9 @@ async function processApolloBatch(companyIds: number[], progressId: string) {
         });
       }
 
-      if (apolloResult.people && apolloResult.people.length > 0) {
-        withPersonas++;
-      }
+      // Zwiększ licznik dla wszystkich pomyślnie pobranych firm (nawet jeśli wynik to 0 person)
+      // apolloFetchedAt jest zapisywane niezależnie od wyniku, więc pobranie się odbyło
+      withPersonas++;
 
       // Aktualizuj postęp co 5 firm lub na końcu
       if ((i + 1) % 5 === 0 || i === companyIds.length - 1) {
@@ -170,7 +217,7 @@ async function processApolloBatch(companyIds: number[], progressId: string) {
       }
     } catch (error) {
       errors++;
-      logger.error("persona-apollo-batch", `Błąd przetwarzania firmy ${companyId}`, null, error);
+      logger.error("persona-apollo-batch", `Błąd przetwarzania firmy ${companyId}`, null, error instanceof Error ? error : new Error(String(error)));
     }
   }
 

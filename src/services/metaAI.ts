@@ -12,6 +12,7 @@
 
 import OpenAI from "openai";
 import { db } from "@/lib/db";
+import { trackTokenUsage } from "./tokenTracker";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const AI_MODEL = "gpt-4o";
@@ -244,6 +245,16 @@ Wersja promptu: ${config.promptVersion}
     max_tokens: 2000,
     response_format: { type: "json_object" }
   });
+
+  // Track token usage
+  if (response.usage) {
+    await trackTokenUsage({
+      operation: "meta_ai_chat",
+      model: AI_MODEL,
+      promptTokens: response.usage.prompt_tokens,
+      completionTokens: response.usage.completion_tokens,
+    });
+  }
 
   const rawResponse = response.choices[0].message.content || "{}";
   console.log(`[META-AI] Raw response: ${rawResponse.substring(0, 200)}...`);

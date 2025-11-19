@@ -93,7 +93,7 @@ export default function CompanyMassImportPage() {
     }
 
     setFile(selectedFile);
-    setBatchName(createDefaultBatchName());
+    // Nie resetujemy nazwy importu - użytkownik mógł już ją wpisać
     resetState();
 
     Papa.parse(selectedFile, {

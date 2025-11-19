@@ -119,12 +119,12 @@ export default function AIHealthIndicator() {
       <span style={{ color: "var(--color-text)" }}>
         AI Agent
       </span>
-      {health.tokenStats?.daily && health.tokenStats.daily.totalCalls > 0 && (
+      {health.tokenStats?.daily !== undefined && (
         <span style={{ color: "#666", fontSize: "10px", fontWeight: "600" }}>
           {formatCostPLN(health.tokenStats.daily.totalCostPLN)}
         </span>
       )}
-      {health.tokenStats?.monthly && health.tokenStats.monthly.totalCalls > 0 && (
+      {health.tokenStats?.monthly !== undefined && (
         <span style={{ color: "#888", fontSize: "9px", fontWeight: "500" }}>
           / {formatCostPLN(health.tokenStats.monthly.totalCostPLN)}
         </span>
@@ -169,7 +169,7 @@ export default function AIHealthIndicator() {
             </div>
           )}
           
-          {health.tokenStats?.daily && health.tokenStats.daily.totalCalls > 0 && (
+          {health.tokenStats?.daily !== undefined && (
             <div style={{ marginTop: "12px" }}>
               <div style={{ fontWeight: "bold", marginBottom: "4px" }}>DZISIAJ:</div>
               <div style={{ paddingLeft: "12px", color: "#ccc" }}>
@@ -181,7 +181,7 @@ export default function AIHealthIndicator() {
             </div>
           )}
           
-          {health.tokenStats?.monthly && health.tokenStats.monthly.totalCalls > 0 && (
+          {health.tokenStats?.monthly !== undefined && (
             <div style={{ marginTop: "12px" }}>
               <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
                 MIESIĄC ({health.tokenStats.monthly.month}/{health.tokenStats.monthly.year}):

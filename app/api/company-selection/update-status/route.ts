@@ -8,7 +8,7 @@ import { logger } from "@/services/logger";
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const { companyId, status, reason } = await req.json();
+    const { companyId, status, reason, selectionId } = await req.json();
 
     if (!companyId || typeof companyId !== "number") {
       return NextResponse.json(
@@ -36,28 +36,78 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Aktualizuj status
-    const updatedCompany = await db.company.update({
-      where: { id: companyId },
-      data: {
-        verificationStatus: status,
-        verificationReason: reason || company.verificationReason,
-        verificationSource: "MANUAL",
-        verifiedBy: "MANUAL",
-        verifiedAt: new Date(),
-      },
-    });
+    // Jeśli selectionId jest podane, aktualizuj tylko status w tej selekcji (per-selekcja)
+    // Jeśli nie, aktualizuj globalny status (dla firm bez selekcji - nie powinno się zdarzyć w normalnym użyciu)
+    if (selectionId != null && Number.isFinite(selectionId)) {
+      // Sprawdź, czy firma jest w tej selekcji
+      const membership = await db.companySelectionCompany.findUnique({
+        where: {
+          selectionId_companyId: {
+            selectionId,
+            companyId,
+          },
+        },
+      });
 
-    logger.info("company-verify", `Status firmy zmieniony ręcznie: ${company.name} (ID: ${companyId})`, {
-      oldStatus: company.verificationStatus,
-      newStatus: status,
-      reason: reason || company.verificationReason,
-    });
+      if (!membership) {
+        return NextResponse.json(
+          { error: "Firma nie jest w tej selekcji." },
+          { status: 404 }
+        );
+      }
 
-    return NextResponse.json({
-      success: true,
-      company: updatedCompany,
-    });
+      // Aktualizuj status w selekcji
+      await db.companySelectionCompany.update({
+        where: {
+          selectionId_companyId: {
+            selectionId,
+            companyId,
+          },
+        },
+        data: {
+          status,
+          reason: reason || membership.reason,
+          verifiedAt: new Date(),
+        },
+      });
+
+      logger.info("company-verify", `Status firmy zmieniony ręcznie w selekcji ${selectionId}: ${company.name} (ID: ${companyId})`, {
+        oldStatus: membership.status,
+        newStatus: status,
+        reason: reason || membership.reason,
+      });
+
+      return NextResponse.json({
+        success: true,
+        company: {
+          ...company,
+          verificationStatus: status, // Zwracamy status dla kompatybilności
+        },
+      });
+    } else {
+      // Aktualizuj globalny status (nie powinno się zdarzyć w normalnym użyciu)
+      const updatedCompany = await db.company.update({
+        where: { id: companyId },
+        data: {
+          verificationStatus: status,
+          verificationReason: reason || company.verificationReason,
+          verificationSource: "MANUAL",
+          verifiedBy: "MANUAL",
+          verifiedAt: new Date(),
+        },
+      });
+
+      logger.info("company-verify", `Status firmy zmieniony ręcznie (globalny): ${company.name} (ID: ${companyId})`, {
+        oldStatus: company.verificationStatus,
+        newStatus: status,
+        reason: reason || company.verificationReason,
+      });
+
+      return NextResponse.json({
+        success: true,
+        company: updatedCompany,
+      });
+    }
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
     logger.error("company-verify", "Błąd zmiany statusu firmy", null, errorObj);

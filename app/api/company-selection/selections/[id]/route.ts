@@ -197,14 +197,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       await tx.companySelectionCompany.deleteMany({ where: { selectionId: id } });
       const companies = await tx.company.findMany({
         where: { id: { in: filteredIds } },
-        select: { id: true, verificationStatus: true },
+        select: { id: true },
       });
       if (companies.length > 0) {
         await tx.companySelectionCompany.createMany({
           data: companies.map((c) => ({
             selectionId: id,
             companyId: c.id,
-            status: c.verificationStatus ?? "PENDING",
+            status: "PENDING", // Przy aktualizacji selekcji - zawsze ustawiamy PENDING dla nowych firm
           })),
         });
       }
@@ -269,6 +269,22 @@ export async function GET(
       );
     }
 
+    // Pobierz listę zablokowanych firm (adresy www + firmy bez www)
+    // Używamy surowego zapytania SQL, bo Prisma Client może jeszcze nie widzieć nowych pól
+    const blockedCompanies = await db.$queryRaw<Array<{ website: string | null; companyId: number | null; blockType: string }>>`
+      SELECT website, companyId, blockType FROM BlockedCompany
+    `;
+    const blockedWebsites = new Set(
+      blockedCompanies
+        .filter((b) => b.website && b.blockType === "MANUAL")
+        .map((b) => b.website.toLowerCase().trim())
+    );
+    const blockedCompanyIds = new Set(
+      blockedCompanies
+        .filter((b) => b.companyId && b.blockType === "NO_WEBSITE")
+        .map((b) => b.companyId)
+    );
+
     const membershipWhere: any = {
       selectionId,
     };
@@ -298,7 +314,7 @@ export async function GET(
       // Ignore parse errors
     }
 
-    const [memberships, total, stats] = await Promise.all([
+    const [memberships, totalBeforeFilter, stats] = await Promise.all([
       db.companySelectionCompany.findMany({
         where: membershipWhere,
         orderBy: [
@@ -306,7 +322,7 @@ export async function GET(
           { id: "desc" },
         ],
         skip: (page - 1) * limit,
-        take: limit,
+        take: limit * 2, // Pobierz więcej, żeby po filtrowaniu mieć wystarczająco
         include: {
           company: {
             select: {
@@ -373,6 +389,25 @@ export async function GET(
       }),
     ]);
 
+    // Filtruj firmy z listy zablokowanych (po adresie www, nawet jeśli nie mają statusu BLOCKED)
+    const filteredMemberships = memberships.filter((membership) => {
+      // Sprawdź czy firma jest zablokowana bez www (po companyId)
+      if (blockedCompanyIds.size > 0 && blockedCompanyIds.has(membership.company.id)) {
+        return false; // Firma jest zablokowana bez www
+      }
+      
+      // Sprawdź czy firma jest zablokowana po adresie www
+      if (!membership.company.website) return true; // Firma bez www nie może być zablokowana po www (chyba że jest w blockedCompanyIds)
+      
+      const companyWebsite = membership.company.website.toLowerCase().trim();
+      // Sprawdź czy adres www firmy pasuje do któregoś z zablokowanych adresów (dokładne dopasowanie)
+      return !blockedWebsites.has(companyWebsite);
+    });
+
+    // Ogranicz do właściwego limitu po filtrowaniu
+    const membershipsToReturn = filteredMemberships.slice(0, limit);
+    const total = totalBeforeFilter; // Używamy oryginalnego total, bo filtrowanie po stronie klienta nie zmienia całkowitej liczby
+
     const statusSummary = stats.map((item) => ({
       status: item.status,
       count: item._count._all,
@@ -392,7 +427,7 @@ export async function GET(
         createdAt: selection.createdAt,
         updatedAt: selection.updatedAt,
       },
-      preview: memberships.map((membership) => ({
+      preview: membershipsToReturn.map((membership) => ({
         ...membership.company,
         membershipId: membership.id,
         membershipStatus: membership.status,

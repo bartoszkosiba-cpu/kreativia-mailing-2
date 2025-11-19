@@ -194,14 +194,18 @@ export async function DELETE(
     }
 
     // Sprawdź czy persony są używane w weryfikacjach
-    if (existing.personaVerifications.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Nie można usunąć persony, ponieważ jest używana w weryfikacjach",
-        },
-        { status: 400 }
-      );
+    // Jeśli są, ustawiamy personaCriteriaId na null (onDelete: SetNull w schemacie)
+    // Nie blokujemy usunięcia, ale informujemy użytkownika
+    const verificationCount = existing.personaVerifications.length;
+    
+    if (verificationCount > 0) {
+      // Ustaw personaCriteriaId na null we wszystkich weryfikacjach przed usunięciem
+      await db.personaVerificationResult.updateMany({
+        where: { personaCriteriaId: id },
+        data: { personaCriteriaId: null },
+      });
+      
+      logger.info("persona-criteria", `Usunięto personę ${id}, ustawiono personaCriteriaId na null w ${verificationCount} weryfikacjach`);
     }
 
     await db.companyPersonaCriteria.delete({

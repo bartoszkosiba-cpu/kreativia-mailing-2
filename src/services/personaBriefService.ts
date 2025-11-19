@@ -7,6 +7,7 @@ export interface PersonaBriefDto {
   avoidProfiles: string[];
   additionalNotes?: string | null;
   aiRole?: string | null; // Rola/perspektywa AI podczas weryfikacji
+  positiveThreshold?: number; // Próg procentowy (0.0-1.0) dla klasyfikacji pozytywnej. Score >= threshold = positive, score < threshold = negative
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,6 +19,7 @@ const DEFAULT_BRIEF: PersonaBriefDto = {
   avoidProfiles: [],
   additionalNotes: null,
   aiRole: null,
+  positiveThreshold: 0.5, // Domyślnie 50%
   createdAt: new Date(0),
   updatedAt: new Date(0),
 };
@@ -45,6 +47,7 @@ export async function getPersonaBrief(companyCriteriaId: number): Promise<Person
     avoidProfiles: parseJsonArray(record.avoidProfiles),
     additionalNotes: record.additionalNotes,
     aiRole: record.aiRole ?? null,
+    positiveThreshold: typeof (record as any).positiveThreshold === "number" ? (record as any).positiveThreshold : 0.5,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -57,6 +60,7 @@ interface PersonaBriefPayload {
   avoidProfiles?: string[];
   additionalNotes?: string | null;
   aiRole?: string | null;
+  positiveThreshold?: number;
 }
 
 function safeStringifyArray(value?: string[]): string | null {
@@ -67,6 +71,9 @@ function safeStringifyArray(value?: string[]): string | null {
 export async function upsertPersonaBrief(companyCriteriaId: number, payload: PersonaBriefPayload) {
   const aiRoleValue = payload.aiRole ? payload.aiRole.trim() : null;
   const aiRoleFinal = aiRoleValue && aiRoleValue.length > 0 ? aiRoleValue : null;
+  const positiveThreshold = typeof payload.positiveThreshold === "number" 
+    ? Math.max(0, Math.min(1, payload.positiveThreshold)) // Ogranicz do zakresu 0.0-1.0
+    : 0.5; // Domyślnie 50%
   
   await db.personaBrief.upsert({
     where: { companyCriteriaId },
@@ -78,7 +85,8 @@ export async function upsertPersonaBrief(companyCriteriaId: number, payload: Per
       avoidProfiles: safeStringifyArray(payload.avoidProfiles),
       additionalNotes: payload.additionalNotes ?? null,
       aiRole: aiRoleFinal,
-    },
+      positiveThreshold: positiveThreshold,
+    } as any,
     update: {
       summary: payload.summary ?? "",
       decisionGuidelines: safeStringifyArray(payload.decisionGuidelines),
@@ -86,6 +94,7 @@ export async function upsertPersonaBrief(companyCriteriaId: number, payload: Per
       avoidProfiles: safeStringifyArray(payload.avoidProfiles),
       additionalNotes: payload.additionalNotes ?? null,
       aiRole: aiRoleFinal,
-    },
+      positiveThreshold: positiveThreshold,
+    } as any,
   });
 }

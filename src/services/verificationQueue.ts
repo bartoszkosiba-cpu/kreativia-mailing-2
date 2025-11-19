@@ -14,6 +14,7 @@ interface VerificationTask {
   index: number;
   total: number;
   criteria: VerificationCriteria;
+  selectionId: number | null; // ID selekcji - weryfikacja per-selekcja
 }
 
 interface ProgressAggregation {
@@ -104,7 +105,7 @@ function scheduleProcessing() {
 }
 
 async function processTask(task: VerificationTask): Promise<void> {
-  const { companyId, progressId, criteria } = task;
+  const { companyId, progressId, criteria, selectionId } = task;
   const queueState = getQueueState();
   const aggregation = queueState.pendingByProgress.get(progressId);
 
@@ -136,7 +137,7 @@ async function processTask(task: VerificationTask): Promise<void> {
   });
 
   try {
-    const result = await verifyAndSaveCompany(companyId, criteria);
+    const result = await verifyAndSaveCompany(companyId, criteria, selectionId);
     applyResultToAggregation(progressId, aggregation, result, companyName);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -209,10 +210,11 @@ export interface EnqueueBatchOptions {
   companyIds: number[];
   progressId: string;
   criteria: VerificationCriteria;
+  selectionId: number | null; // ID selekcji - weryfikacja per-selekcja
 }
 
 export function enqueueVerificationBatch(options: EnqueueBatchOptions) {
-  const { companyIds, progressId, criteria } = options;
+  const { companyIds, progressId, criteria, selectionId } = options;
   const queueState = getQueueState();
 
   if (!Array.isArray(companyIds) || companyIds.length === 0) {
@@ -251,6 +253,7 @@ export function enqueueVerificationBatch(options: EnqueueBatchOptions) {
     index: baseProcessed + idx + 1,
     total: aggregation.total,
     criteria,
+    selectionId: selectionId ?? null,
   }));
 
   queueState.queue.push(...tasks);

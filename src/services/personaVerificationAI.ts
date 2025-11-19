@@ -470,20 +470,90 @@ Dodatkowe notatki: ${brief.additionalNotes || "(brak)"}`
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
+    timeout: 60000, // 60 sekund timeout dla pojedynczego requestu
+    maxRetries: 3, // Maksymalnie 3 próby
   });
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages,
-    temperature: 0.2,
-    max_tokens: 1800,
-  });
+  // Funkcja retry z obsługą rate limit i timeout
+  const callAIWithRetry = async (maxRetries = 3): Promise<any> => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages,
+          temperature: 0.2,
+          max_tokens: 1800,
+        });
+        return response;
+      } catch (error: any) {
+        // Sprawdź czy to błąd rate limit (429)
+        if (error?.status === 429 || error?.message?.includes("Rate limit") || error?.message?.includes("429")) {
+          // Wyciągnij informację o czasie oczekiwania z komunikatu błędu
+          const retryAfterMatch = error?.message?.match(/try again in (\d+)ms/i) || error?.headers?.["retry-after"];
+          const retryAfterMs = retryAfterMatch 
+            ? (typeof retryAfterMatch === "string" ? parseInt(retryAfterMatch, 10) : retryAfterMatch)
+            : (attempt + 1) * 2000; // Exponential backoff: 2s, 4s, 6s
+
+          if (attempt < maxRetries - 1) {
+            logger.warn("persona-verification-ai", `Rate limit osiągnięty, czekam ${retryAfterMs}ms przed retry (próba ${attempt + 1}/${maxRetries})`, {
+              employeesCount: employees.length,
+              personaCriteriaId: personaCriteria.id,
+              retryAfterMs,
+            });
+            await new Promise((resolve) => setTimeout(resolve, retryAfterMs + 1000)); // Dodajemy 1s buffer
+            continue; // Retry
+          } else {
+            throw new Error(`Rate limit: Przekroczono limit po ${maxRetries} próbach. ${error.message}`);
+          }
+        }
+        
+        // Sprawdź czy to timeout
+        if (error?.message?.includes("timeout") || error?.code === "ETIMEDOUT" || error?.code === "ECONNABORTED") {
+          if (attempt < maxRetries - 1) {
+            const backoffMs = (attempt + 1) * 3000; // Exponential backoff: 3s, 6s, 9s
+            logger.warn("persona-verification-ai", `Timeout, czekam ${backoffMs}ms przed retry (próba ${attempt + 1}/${maxRetries})`, {
+              employeesCount: employees.length,
+              personaCriteriaId: personaCriteria.id,
+            });
+            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+            continue; // Retry
+          } else {
+            throw new Error(`Timeout: Przekroczono limit czasu po ${maxRetries} próbach. ${error.message}`);
+          }
+        }
+        
+        // Jeśli to inny błąd - rzuć go dalej
+        throw error;
+      }
+    }
+    throw new Error("Przekroczono maksymalną liczbę prób");
+  };
+
+  const response = await callAIWithRetry();
 
   if (response.usage) {
     logger.info("persona-criteria-ai", "Zużycie tokenów w weryfikacji person", {
       promptTokens: response.usage.prompt_tokens,
       completionTokens: response.usage.completion_tokens,
     });
+    
+    // Zapisz zużycie tokenów do bazy danych
+    try {
+      const { trackTokenUsage } = await import("./tokenTracker");
+      await trackTokenUsage({
+        operation: "persona_verification",
+        model: "gpt-4o-mini",
+        promptTokens: response.usage.prompt_tokens,
+        completionTokens: response.usage.completion_tokens,
+        metadata: {
+          employeesCount: employees.length,
+          personaCriteriaId: personaCriteria.id,
+        },
+      });
+    } catch (error) {
+      // Nie przerywaj wykonania jeśli tracking się nie powiedzie
+      logger.error("persona-criteria-ai", "Błąd zapisu zużycia tokenów", { error });
+    }
   }
 
   let content = response.choices[0]?.message?.content || "";

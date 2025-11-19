@@ -229,12 +229,36 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Sprawdź czy firma już istnieje (po nazwie)
-        const existing = await db.company.findFirst({
+        // Sprawdź czy firma już istnieje (po nazwie LUB po adresie www)
+        let existing = await db.company.findFirst({
           where: {
             name: company.name,
           },
         });
+
+        // Jeśli nie znaleziono po nazwie i firma ma adres www, sprawdź po adresie www
+        if (!existing && company.website) {
+          const normalizedWebsite = company.website.toLowerCase().trim();
+          // Pobierz wszystkie firmy z adresem www i sprawdź ręcznie (SQLite nie obsługuje dobrze case-insensitive)
+          const companiesWithWebsite = await db.company.findMany({
+            where: {
+              website: { not: null },
+            },
+            select: { id: true, name: true, website: true },
+          });
+          
+          const matchingCompany = companiesWithWebsite.find((c) => {
+            if (!c.website) return false;
+            return c.website.toLowerCase().trim() === normalizedWebsite;
+          });
+          
+          // Jeśli znaleziono po adresie www, pobierz pełny obiekt
+          if (matchingCompany) {
+            existing = await db.company.findUnique({
+              where: { id: matchingCompany.id },
+            });
+          }
+        }
 
         // Określ status weryfikacji
         // UWAGA: Nie sprawdzamy listy zablokowanych podczas importu CSV - zostanie to zrobione podczas weryfikacji
@@ -253,20 +277,56 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing) {
+          const duplicateReason = existing.name === company.name 
+            ? `duplikat nazwy: "${existing.name}"`
+            : `duplikat adresu www: "${company.website}" (istniejąca firma: "${existing.name}")`;
           registerSkip("duplicate", company.name ?? undefined);
           if (skippedCount <= 3) {
-            logger.debug("company-import", `Pominięto duplikat firmy: "${existing.name}" (ID: ${existing.id}) w batchId ${batchId}`);
+            logger.debug("company-import", `Pominięto ${duplicateReason} (ID: ${existing.id}) w batchId ${batchId}`);
           }
         } else {
           // Utwórz nową firmę
           logger.debug("company-import", `Próbuję utworzyć firmę: "${company.name}"`);
+          
+          // Jeśli firma nie ma adresu www, automatycznie zablokuj ją
+          let finalVerificationStatus = verificationStatus;
+          if (!company.website || company.website.trim() === "") {
+            finalVerificationStatus = "BLOCKED";
+          }
+          
           const created = await db.company.create({
             data: {
               ...company,
-              verificationStatus,
+              verificationStatus: finalVerificationStatus,
               importBatchId: batchId,
+              verificationReason: !company.website || company.website.trim() === "" 
+                ? "Firma zablokowana automatycznie: brak adresu strony www"
+                : null,
+              verifiedBy: !company.website || company.website.trim() === "" ? "SYSTEM" : null,
+              verificationSource: !company.website || company.website.trim() === "" ? "NO_WEBSITE" : null,
             },
           });
+          
+          // Jeśli firma nie ma www, dodaj do listy zablokowanych (typ NO_WEBSITE)
+          if (!company.website || company.website.trim() === "") {
+            try {
+              await db.blockedCompany.create({
+                data: {
+                  companyId: created.id,
+                  companyName: created.name,
+                  website: null,
+                  blockType: "NO_WEBSITE",
+                  reason: "Automatycznie zablokowane: brak adresu strony www",
+                  createdBy: "SYSTEM",
+                } as any,
+              });
+              logger.info("company-import", `Firma bez www zablokowana automatycznie: ${created.name} (ID: ${created.id})`);
+            } catch (blockError) {
+              // Ignoruj błędy duplikatów (firma może już być zablokowana)
+              logger.debug("company-import", `Firma już zablokowana lub błąd blokady: ${created.name}`);
+            }
+          }
+          
           await ensureCompanyClassification(created);
           importedCount++;
           logger.info("company-import", `Utworzono firmę: ${created.name} (ID: ${created.id})`);

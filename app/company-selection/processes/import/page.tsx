@@ -105,7 +105,7 @@ export default function ImportProcessPage() {
         </section>
 
         <section style={cardStyle}>
-          <Link href="/company-selection/classify" style={titleSecondaryLinkStyle}>
+          <Link href="/company-selection/classify" style={titlePrimaryLinkStyle}>
             Klasyfikacja AI
           </Link>
           <p style={{ fontSize: "0.95rem", color: "#4B5563", lineHeight: 1.6 }}>

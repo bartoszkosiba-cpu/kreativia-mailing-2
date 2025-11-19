@@ -10,7 +10,6 @@ const STATUS_OPTIONS = [
   { value: "QUALIFIED", label: "Zakwalifikowane" },
   { value: "REJECTED", label: "Odrzucone" },
   { value: "NEEDS_REVIEW", label: "Wymagają przeglądu" },
-  { value: "BLOCKED", label: "Zablokowane" },
 ];
 
 const PAGE_SIZE = 50;
@@ -79,7 +78,6 @@ interface CompanyStats {
   qualified: number;
   rejected: number;
   needsReview: number;
-  blocked: number;
   total: number;
 }
 
@@ -133,7 +131,6 @@ export default function CompanyVerifyPage() {
     qualified: 0,
     rejected: 0,
     needsReview: 0,
-    blocked: 0,
     total: 0,
   });
 
@@ -141,6 +138,130 @@ export default function CompanyVerifyPage() {
     () => Math.max(1, Math.ceil(total / PAGE_SIZE)),
     [total]
   );
+
+  // Komponent paginacji z numerami stron (jak na stronie classify)
+  const PaginationControls = ({ position }: { position: "top" | "bottom" }) => {
+    if (totalPages <= 1) return null;
+
+    const getPageNumbers = () => {
+      const pages: (number | string)[] = [];
+      const maxVisible = 7;
+
+      if (totalPages <= maxVisible) {
+        for (let i = 1; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+
+        let startPage = Math.max(2, page - 2);
+        let endPage = Math.min(totalPages - 1, page + 2);
+
+        if (page <= 4) {
+          endPage = Math.min(maxVisible - 1, totalPages - 1);
+          startPage = 2;
+        } else if (page >= totalPages - 3) {
+          startPage = Math.max(2, totalPages - maxVisible + 2);
+          endPage = totalPages - 1;
+        }
+
+        if (startPage > 2) {
+          pages.push("...");
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+          pages.push(i);
+        }
+
+        if (endPage < totalPages - 1) {
+          pages.push("...");
+        }
+
+        pages.push(totalPages);
+      }
+
+      return pages;
+    };
+
+    const pageNumbers = getPageNumbers();
+
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          disabled={page === 1 || loading}
+          style={{
+            padding: "0.45rem 0.75rem",
+            borderRadius: "0.5rem",
+            border: "1px solid #D1D5DB",
+            backgroundColor: page === 1 || loading ? "#F3F4F6" : "white",
+            color: "#374151",
+            cursor: page === 1 || loading ? "not-allowed" : "pointer",
+            fontSize: "0.85rem",
+            fontWeight: 500,
+          }}
+        >
+          ←
+        </button>
+
+        {pageNumbers.map((pageNum, index) => {
+          if (pageNum === "...") {
+            return (
+              <span key={`ellipsis-${index}`} style={{ padding: "0 0.5rem", color: "#6B7280", fontSize: "0.85rem" }}>
+                ...
+              </span>
+            );
+          }
+
+          const pageNumber = pageNum as number;
+          const isActive = pageNumber === page;
+
+          return (
+            <button
+              key={pageNumber}
+              type="button"
+              onClick={() => setPage(pageNumber)}
+              disabled={loading}
+              style={{
+                padding: "0.45rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid",
+                borderColor: isActive ? "#2563EB" : "#D1D5DB",
+                backgroundColor: isActive ? "#2563EB" : "white",
+                color: isActive ? "white" : "#374151",
+                cursor: loading ? "not-allowed" : "pointer",
+                fontSize: "0.85rem",
+                fontWeight: isActive ? 600 : 500,
+                minWidth: "2.5rem",
+                textAlign: "center",
+              }}
+            >
+              {pageNumber}
+            </button>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          disabled={page >= totalPages || loading}
+          style={{
+            padding: "0.45rem 0.75rem",
+            borderRadius: "0.5rem",
+            border: "1px solid #D1D5DB",
+            backgroundColor: page >= totalPages || loading ? "#F3F4F6" : "white",
+            color: "#374151",
+            cursor: page >= totalPages || loading ? "not-allowed" : "pointer",
+            fontSize: "0.85rem",
+            fontWeight: 500,
+          }}
+        >
+          →
+        </button>
+      </div>
+    );
+  };
 
   const selectedCount = selectedCompanies.length;
   const hasActiveFilters = useMemo(
@@ -409,7 +530,6 @@ export default function CompanyVerifyPage() {
         qualified: 0,
         rejected: 0,
         needsReview: 0,
-        blocked: 0,
         total: 0,
       });
       return;
@@ -417,22 +537,20 @@ export default function CompanyVerifyPage() {
 
     try {
       const baseUrl = `/api/company-selection/list?selectionId=${selectionId}&limit=1`;
-      const [pendingRes, qualifiedRes, rejectedRes, needsReviewRes, blockedRes, totalRes] =
+      const [pendingRes, qualifiedRes, rejectedRes, needsReviewRes, totalRes] =
         await Promise.all([
           fetch(`${baseUrl}&status=PENDING`),
           fetch(`${baseUrl}&status=QUALIFIED`),
           fetch(`${baseUrl}&status=REJECTED`),
           fetch(`${baseUrl}&status=NEEDS_REVIEW`),
-          fetch(`${baseUrl}&status=BLOCKED`),
           fetch(baseUrl),
         ]);
 
-      const [pending, qualified, rejected, needsReview, blocked, total] = await Promise.all([
+      const [pending, qualified, rejected, needsReview, total] = await Promise.all([
           pendingRes.json(),
           qualifiedRes.json(),
           rejectedRes.json(),
           needsReviewRes.json(),
-          blockedRes.json(),
           totalRes.json(),
         ]);
 
@@ -441,7 +559,6 @@ export default function CompanyVerifyPage() {
         qualified: qualified.pagination?.total || 0,
         rejected: rejected.pagination?.total || 0,
         needsReview: needsReview.pagination?.total || 0,
-        blocked: blocked.pagination?.total || 0,
         total: total.pagination?.total || 0,
       });
     } catch (error) {
@@ -569,6 +686,45 @@ export default function CompanyVerifyPage() {
     }
   };
 
+  const handleSelectAllPending = async () => {
+    if (!selectionId) return;
+
+    try {
+      // Pobierz wszystkie firmy ze statusem PENDING z selekcji
+      const response = await fetch(
+        `/api/company-selection/list?selectionId=${selectionId}&status=PENDING&limit=10000`
+      );
+      
+      if (!response.ok) {
+        throw new Error("Błąd pobierania firm");
+      }
+
+      const data = await response.json();
+      const pendingCompanies = data.companies || [];
+
+      // Filtruj tylko te z uzupełnioną stroną www
+      const selectableIds = pendingCompanies
+        .filter((company: Company) => hasCompanyWebsite(company))
+        .map((company: Company) => company.id);
+
+      if (selectableIds.length === 0) {
+        alert("Brak firm 'Do weryfikacji' z uzupełnioną stroną www w tej selekcji.");
+        return;
+      }
+
+      // Dodaj wszystkie do zaznaczonych (bez duplikatów)
+      setSelectedCompanies((prev) => {
+        const combined = [...new Set([...prev, ...selectableIds])];
+        return combined;
+      });
+
+      alert(`Zaznaczono ${selectableIds.length} firm 'Do weryfikacji' z uzupełnioną stroną www.`);
+    } catch (error) {
+      console.error("Błąd zaznaczania wszystkich firm Do weryfikacji:", error);
+      alert("Nie udało się zaznaczyć wszystkich firm. Spróbuj ponownie.");
+    }
+  };
+
   const handleVerifySingle = async (companyId: number) => {
     if (!selectedCriteriaId) {
       alert("Wybierz kryteria weryfikacji przed weryfikacją firm.");
@@ -591,6 +747,7 @@ export default function CompanyVerifyPage() {
         body: JSON.stringify({ 
           companyId,
           criteriaId: selectedCriteriaId,
+          selectionId: selectionId,
         }),
       });
 
@@ -680,6 +837,7 @@ export default function CompanyVerifyPage() {
         body: JSON.stringify({ 
           companyId: detailCompany.id,
           criteriaId: selectedCriteriaId,
+          selectionId: selectionId,
         }),
       });
 
@@ -766,6 +924,7 @@ export default function CompanyVerifyPage() {
         body: JSON.stringify({
           companyId: detailCompany.id,
           status: newStatus,
+          selectionId: selectionId,
         }),
       });
 
@@ -790,11 +949,17 @@ export default function CompanyVerifyPage() {
     }
   };
 
-  const handleBlockCompany = async (companyId: number, companyName: string) => {
+  const handleBlockCompany = async (companyId: number, companyName: string, companyWebsite: string | null | undefined) => {
+    if (!companyWebsite) {
+      alert("Nie można zablokować firmy bez adresu www. Blokowanie działa tylko po adresie www.");
+      return;
+    }
+
     if (
       !confirm(
         `Czy na pewno chcesz zablokować firmę "${companyName}"?\n\n` +
-          "Firma zostanie dodana do listy zablokowanych i oznaczona jako BLOKOWANA."
+          `Adres www: ${companyWebsite}\n\n` +
+          "Firma zostanie dodana do globalnej listy zablokowanych i automatycznie oznaczona jako BLOKOWANA we wszystkich selekcjach."
       )
     ) {
       return;
@@ -808,6 +973,7 @@ export default function CompanyVerifyPage() {
         },
         body: JSON.stringify({
           companyName,
+          website: companyWebsite,
           reason: "Zablokowane z widoku weryfikacji",
         }),
       });
@@ -818,30 +984,16 @@ export default function CompanyVerifyPage() {
         return;
       }
 
-      const statusResponse = await fetch("/api/company-selection/update-status", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          companyId,
-          status: "BLOCKED",
-          reason: `Firma zablokowana: ${companyName}`,
-        }),
-      });
-
-      const statusData = await statusResponse.json();
-      if (statusData.success) {
-        loadStats();
-        loadCompanies();
-      } else {
-        alert(`Błąd: ${statusData.error}`);
+      // Endpoint /api/company-selection/blocked automatycznie ustawia status BLOCKED we wszystkich selekcjach
+      // Odświeżamy dane
+      loadStats();
+      loadCompanies();
+      if (detailCompany?.id === companyId) {
+        setDetailCompany(null);
       }
+      alert(`Firma "${companyName}" została zablokowana globalnie i usunięta z tej selekcji.`);
     } catch (error) {
-        alert(
-        "Błąd blokowania firmy: " +
-          (error instanceof Error ? error.message : String(error))
-      );
+      alert("Błąd blokowania firmy: " + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -856,20 +1008,53 @@ export default function CompanyVerifyPage() {
       return;
     }
 
-      const selectableIds = selectedCompanies.filter((companyId) => {
-        const company = companies.find((c) => c.id === companyId);
-        return hasCompanyWebsite(company);
-      });
+    // Sprawdź, które zaznaczone firmy są na aktualnej stronie
+    const companiesOnPage = selectedCompanies.filter((companyId) =>
+      companies.some((c) => c.id === companyId)
+    );
 
-      if (selectableIds.length === 0) {
-        alert("Żadna z zaznaczonych firm nie ma uzupełnionej strony www. Uzupełnij dane przed weryfikacją.");
+    // Jeśli są firmy poza aktualną stroną, pobierz ich dane z API
+    let allSelectedCompaniesData: Company[] = [];
+    
+    if (companiesOnPage.length < selectedCompanies.length) {
+      // Pobierz dane o wszystkich zaznaczonych firmach z API
+      try {
+        const response = await fetch(
+          `/api/company-selection/list?selectionId=${selectionId}&limit=10000`
+        );
+        if (!response.ok) {
+          throw new Error("Błąd pobierania firm");
+        }
+        const data = await response.json();
+        allSelectedCompaniesData = (data.companies || []).filter((c: Company) =>
+          selectedCompanies.includes(c.id)
+        );
+      } catch (error) {
+        console.error("Błąd pobierania danych firm:", error);
+        alert("Nie udało się pobrać danych o zaznaczonych firmach. Spróbuj ponownie.");
         return;
       }
+    } else {
+      // Wszystkie zaznaczone firmy są na aktualnej stronie
+      allSelectedCompaniesData = companies.filter((c) =>
+        selectedCompanies.includes(c.id)
+      );
+    }
 
-      if (selectableIds.length !== selectedCompanies.length) {
-        alert("Pominięto firmy bez adresu www.");
-        setSelectedCompanies(selectableIds);
-      }
+    // Filtruj tylko te z uzupełnioną stroną www
+    const selectableIds = allSelectedCompaniesData
+      .filter((company) => hasCompanyWebsite(company))
+      .map((company) => company.id);
+
+    if (selectableIds.length === 0) {
+      alert("Żadna z zaznaczonych firm nie ma uzupełnionej strony www. Uzupełnij dane przed weryfikacją.");
+      return;
+    }
+
+    if (selectableIds.length !== selectedCompanies.length) {
+      alert(`Pominięto ${selectedCompanies.length - selectableIds.length} firm bez adresu www.`);
+      setSelectedCompanies(selectableIds);
+    }
 
     try {
       setVerifying(true);
@@ -908,6 +1093,7 @@ export default function CompanyVerifyPage() {
           companyIds: selectableIds,
           progressId: newProgressId,
           criteriaId: criteriaIdNum,
+          selectionId: selectionId,
         }),
       });
 
@@ -1067,44 +1253,72 @@ export default function CompanyVerifyPage() {
               </select>
             </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-          <div style={{ fontSize: "0.875rem", color: "#4B5563" }}>
-            Zaznaczono firm: <strong>{selectedCount}</strong> / {companies.length}
-          </div>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={handleVerifyBatch}
-              disabled={verifying || selectedCount === 0 || !selectedCriteriaId}
-            style={{
-                padding: "0.6rem 1.2rem",
-                backgroundColor: verifying || selectedCount === 0 || !selectedCriteriaId ? "#CBD5F5" : "#3B82F6",
-              color: "white",
-              borderRadius: "0.5rem",
-                border: "none",
-                cursor: verifying || selectedCount === 0 || !selectedCriteriaId ? "not-allowed" : "pointer",
-                fontWeight: 600,
-            }}
-          >
-              {verifying ? "Weryfikuję..." : "Zweryfikuj zaznaczone"}
-          </button>
-            <button
-              type="button"
-              onClick={handleClearFilters}
-              disabled={!hasActiveFilters}
-            style={{
-                padding: "0.6rem 1rem",
-                backgroundColor: hasActiveFilters ? "#FEE2E2" : "#F3F4F6",
-                color: hasActiveFilters ? "#B91C1C" : "#6B7280",
-              borderRadius: "0.5rem",
-                border: "1px solid #FECACA",
-                cursor: hasActiveFilters ? "pointer" : "not-allowed",
-                fontWeight: 500,
-              }}
-            >
-              Wyczyść filtry
-            </button>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <div style={{ fontSize: "0.875rem", color: "#4B5563" }}>
+                  Zaznaczono firm: <strong>{selectedCount}</strong> / {companies.length}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>
+                    Łącznie rekordów: {total?.toLocaleString("pl-PL")}
+                  </span>
+                  <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>
+                    Strona {page} z {totalPages}
+                  </span>
+                </div>
               </div>
+              <PaginationControls position="top" />
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleSelectAllPending}
+                disabled={verifying || stats.pending === 0}
+                style={{
+                  padding: "0.6rem 1.2rem",
+                  backgroundColor: verifying || stats.pending === 0 ? "#E5E7EB" : "#10B981",
+                  color: "white",
+                  borderRadius: "0.5rem",
+                  border: "none",
+                  cursor: verifying || stats.pending === 0 ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                }}
+                title={stats.pending === 0 ? "Brak firm 'Do weryfikacji' w tej selekcji" : ""}
+              >
+                Zaznacz wszystkie Do weryfikacji
+              </button>
+              <button
+                type="button"
+                onClick={handleVerifyBatch}
+                disabled={verifying || selectedCount === 0 || !selectedCriteriaId}
+                style={{
+                  padding: "0.6rem 1.2rem",
+                  backgroundColor: verifying || selectedCount === 0 || !selectedCriteriaId ? "#CBD5F5" : "#3B82F6",
+                  color: "white",
+                  borderRadius: "0.5rem",
+                  border: "none",
+                  cursor: verifying || selectedCount === 0 || !selectedCriteriaId ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                {verifying ? "Weryfikuję..." : "Zweryfikuj zaznaczone"}
+              </button>
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                disabled={!hasActiveFilters}
+                style={{
+                  padding: "0.6rem 1rem",
+                  backgroundColor: hasActiveFilters ? "#FEE2E2" : "#F3F4F6",
+                  color: hasActiveFilters ? "#B91C1C" : "#6B7280",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #FECACA",
+                  cursor: hasActiveFilters ? "pointer" : "not-allowed",
+                  fontWeight: 500,
+                }}
+              >
+                Wyczyść filtry
+              </button>
             </div>
           </div>
         </>
@@ -1313,18 +1527,6 @@ export default function CompanyVerifyPage() {
                         >
                           Zweryfikuj
               </button>
-              <button
-                          type="button"
-                          onClick={() => handleBlockCompany(company.id, company.name)}
-                style={{
-                            ...secondaryActionStyle,
-                            color: "#B91C1C",
-                            borderColor: "#FECACA",
-                            backgroundColor: "#FEF2F2",
-                          }}
-                        >
-                          Zablokuj
-              </button>
                       </div>
                     </td>
                   </tr>
@@ -1335,45 +1537,11 @@ export default function CompanyVerifyPage() {
         </div>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginTop: "1.5rem",
-          flexWrap: "wrap",
-          gap: "1rem",
-        }}
-      >
-        <div style={{ fontSize: "0.875rem", color: "#4B5563" }}>
-          Strona {page} z {totalPages} • Łącznie rekordów: {total}
-        </div>
-        <div style={{ display: "flex", gap: "0.75rem" }}>
-          <button
-            type="button"
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page === 1}
-            style={{
-              ...secondaryActionStyle,
-              cursor: page === 1 ? "not-allowed" : "pointer",
-              opacity: page === 1 ? 0.6 : 1,
-            }}
-          >
-            Poprzednia
-          </button>
-          <button
-            type="button"
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= totalPages}
-            style={{
-              ...secondaryActionStyle,
-              cursor: page >= totalPages ? "not-allowed" : "pointer",
-              opacity: page >= totalPages ? 0.6 : 1,
-            }}
-          >
-            Następna
-          </button>
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginTop: "1.5rem" }}>
+        <span style={{ fontSize: "0.85rem", color: "#6B7280" }}>
+          Wyświetlono {companies.length} z {total?.toLocaleString("pl-PL")}
+        </span>
+        <PaginationControls position="bottom" />
       </div>
 
       {detailCompany && (
@@ -1563,7 +1731,7 @@ export default function CompanyVerifyPage() {
                     minWidth: "200px",
                   }}
                 >
-                  {STATUS_OPTIONS.filter(opt => opt.value !== "ALL").map((option) => (
+                  {STATUS_OPTIONS.filter(opt => opt.value !== "ALL" && opt.value !== "BLOCKED").map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -1586,6 +1754,25 @@ export default function CompanyVerifyPage() {
                   }}
                 >
                   {reverifying ? "Weryfikuję..." : "Wykonaj ponowną weryfikację"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => detailCompany && handleBlockCompany(detailCompany.id, detailCompany.name, detailCompany.website)}
+                  disabled={!detailCompany?.website}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    borderRadius: "0.5rem",
+                    border: "none",
+                    backgroundColor: !detailCompany?.website ? "#9CA3AF" : "#EF4444",
+                    color: "white",
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                    cursor: !detailCompany?.website ? "not-allowed" : "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={!detailCompany?.website ? "Firma musi mieć adres www, aby można było ją zablokować" : ""}
+                >
+                  Blokuj firmę
                 </button>
               </div>
             </section>
@@ -1637,14 +1824,6 @@ function StatsOverview({
       bg: "#FEF3C7",
       border: "#FDE68A",
       textColor: "#B45309",
-    },
-    {
-      status: "BLOCKED",
-      label: "Zablokowane",
-      value: stats.blocked,
-      bg: "#F3E8FF",
-      border: "#E9D5FF",
-      textColor: "#7C3AED",
     },
     {
       status: "ALL",
@@ -1762,7 +1941,7 @@ function getStatusColor(status: string) {
     case "NEEDS_REVIEW":
       return "#F59E0B";
     case "BLOCKED":
-      return "#7C3AED";
+      return "#EF4444";
     case "PENDING":
     default:
       return "#3B82F6";

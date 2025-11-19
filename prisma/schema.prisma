@@ -917,18 +917,18 @@ model PendingMaterialDecision {
 // ============================================================================
 
 model CompanyImportBatch {
-  id             Int      @id @default(autoincrement())
-  name           String
-  language       String
-  market         String   @default("PL")
-  totalRows      Int
-  processedRows  Int      @default(0)
-  importedCount  Int      @default(0)
-  updatedCount   Int      @default(0)
-  skippedCount   Int      @default(0)
-  errorCount     Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  name          String
+  language      String
+  market        String   @default("PL")
+  totalRows     Int
+  processedRows Int      @default(0)
+  importedCount Int      @default(0)
+  updatedCount  Int      @default(0)
+  skippedCount  Int      @default(0)
+  errorCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   companies Company[]
 
@@ -939,28 +939,28 @@ model Company {
   id Int @id @default(autoincrement())
 
   // Podstawowe dane z CSV
-  name                String // Nazwa firmy
-  industry            String? // Branża (np. "Targi")
-  market              String?
-  country             String? // Kraj (np. "Polska")
-  city                String? // Miasto
-  postalCode          String? // Kod pocztowy
-  street              String? // Ulica
-  buildingNumber      String? // Numer budynku
-  website             String? // Strona www (URL)
-  description         String? // Opis firmy (długi tekst z CSV)
-  activityDescription String? // Opis działalności (krótki opis)
-  descriptionPl      String? // Opis w języku polskim (automatyczne tłumaczenie)
-  activityDescriptionPl String? // Opis działalności po polsku
-  detectedLanguage   String? // Wykryty język opisu
-  translationUpdatedAt DateTime? // Kiedy ostatnio przetłumaczono
-  classificationClass String? // PS | WK | WKK | KK
-  classificationSubClass String? // np. PS_AGENCY, WK_TRADESHOW
-  classificationConfidence Float?
-  classificationSource String? // RULES | AI | MANUAL
-  classificationSignals String? // JSON array of matches
+  name                      String // Nazwa firmy
+  industry                  String? // Branża (np. "Targi")
+  market                    String?
+  country                   String? // Kraj (np. "Polska")
+  city                      String? // Miasto
+  postalCode                String? // Kod pocztowy
+  street                    String? // Ulica
+  buildingNumber            String? // Numer budynku
+  website                   String? // Strona www (URL)
+  description               String? // Opis firmy (długi tekst z CSV)
+  activityDescription       String? // Opis działalności (krótki opis)
+  descriptionPl             String? // Opis w języku polskim (automatyczne tłumaczenie)
+  activityDescriptionPl     String? // Opis działalności po polsku
+  detectedLanguage          String? // Wykryty język opisu
+  translationUpdatedAt      DateTime? // Kiedy ostatnio przetłumaczono
+  classificationClass       String? // PS | WK | WKK | KK
+  classificationSubClass    String? // np. PS_AGENCY, WK_TRADESHOW
+  classificationConfidence  Float?
+  classificationSource      String? // RULES | AI | MANUAL
+  classificationSignals     String? // JSON array of matches
   classificationNeedsReview Boolean? // true jeśli brak jednoznacznej klasyfikacji
-  classificationUpdatedAt DateTime?
+  classificationUpdatedAt   DateTime?
 
   // Dane prawne
   nip               String? // NIP
@@ -970,13 +970,13 @@ model Company {
   establishmentDate DateTime? // Data założenia
 
   // Dane biznesowe
-  companySize   String? // Wielkość firmy (Duża, Średnia, Mała)
-  employeeCount String? // Liczba pracowników (zakres, np. "50-99")
-  revenue       String? // Przychody (zakres, np. "20-50 mln PLN")
-  netProfit     String? // Zysk netto (zakres)
-  locationCount Int? // Liczba lokalizacji
-  ratingPoints  Int? // Punkty oceny
-  keywords      String? // Lista słów kluczowych (CSV lub JSON)
+  companySize     String? // Wielkość firmy (Duża, Średnia, Mała)
+  employeeCount   String? // Liczba pracowników (zakres, np. "50-99")
+  revenue         String? // Przychody (zakres, np. "20-50 mln PLN")
+  netProfit       String? // Zysk netto (zakres)
+  locationCount   Int? // Liczba lokalizacji
+  ratingPoints    Int? // Punkty oceny
+  keywords        String? // Lista słów kluczowych (CSV lub JSON)
   apolloAccountId String? // ID konta w Apollo (jeśli dostępne)
 
   // Kody branżowe
@@ -1007,8 +1007,8 @@ model Company {
   scrapedAt      DateTime? // Kiedy pobrano zawartość
 
   // Notatki użytkownika
-  notes String?
-  tags  String? // JSON array of tags
+  notes     String?
+  tags      String? // JSON array of tags
   tagScores CompanyTagScore[]
 
   // Dane z CSV (jeśli były ręcznie zweryfikowane)
@@ -1020,11 +1020,12 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  verificationLogs CompanyVerificationLog[]
-  personaVerifications PersonaVerificationResult[]
-  selectionMemberships CompanySelectionCompany[]
-  classifications CompanyClassification[]
+  verificationLogs       CompanyVerificationLog[]
+  personaVerifications   PersonaVerificationResult[]
+  selectionMemberships   CompanySelectionCompany[]
+  classifications        CompanyClassification[]
   createdSpecializations CompanySpecialization[] // Specjalizacje utworzone przez tę firmę
+  blockedCompanies       BlockedCompany[] // Blokady firm (dla firm bez www)
 
   @@index([verificationStatus])
   @@index([verifiedAt])
@@ -1053,16 +1054,16 @@ model CompanyTagScore {
 }
 
 model CompanyClassification {
-  id                Int      @id @default(autoincrement())
-  companyId         Int
+  id                 Int      @id @default(autoincrement())
+  companyId          Int
   specializationCode String
-  score             Int      // 1-5 scoring
-  confidence        Float?   // 0.0-1.0 confidence from AI
-  isPrimary         Boolean  @default(false) // Main specialization
-  reason            String?  // AI explanation
-  source            String   @default("AI") // AI | MANUAL | RULES
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  score              Int // 1-5 scoring
+  confidence         Float? // 0.0-1.0 confidence from AI
+  isPrimary          Boolean  @default(false) // Main specialization
+  reason             String? // AI explanation
+  source             String   @default("AI") // AI | MANUAL | RULES
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -1076,22 +1077,22 @@ model CompanyClassification {
 }
 
 model CompanySpecialization {
-  id                Int      @id @default(autoincrement())
-  code              String   @unique // np. PS_AGENCY, AI_PROMO_PRODUCER
-  label             String   // Nazwa specjalizacji (PL)
-  description       String   // Opis specjalizacji
-  companyClass      String   // PS | WK | WKK
-  createdBy         String   @default("MANUAL") // MANUAL | AI
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  id           Int      @id @default(autoincrement())
+  code         String   @unique // np. PS_AGENCY, AI_PROMO_PRODUCER
+  label        String // Nazwa specjalizacji (PL)
+  description  String // Opis specjalizacji
+  companyClass String // PS | WK | WKK
+  createdBy    String   @default("MANUAL") // MANUAL | AI
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
   // Jeśli stworzona przez AI:
-  firstCompanyId    Int?     // ID pierwszej firmy, która wymusiła utworzenie tej specjalizacji
-  firstCompanyName  String?  // Nazwa pierwszej firmy
+  firstCompanyId     Int? // ID pierwszej firmy, która wymusiła utworzenie tej specjalizacji
+  firstCompanyName   String? // Nazwa pierwszej firmy
   firstCompanyReason String? // Powód utworzenia (uzasadnienie AI)
-  aiConfidence      Float?   // Confidence z klasyfikacji, która utworzyła specjalizację
-  
-  firstCompany      Company? @relation(fields: [firstCompanyId], references: [id], onDelete: SetNull)
+  aiConfidence       Float? // Confidence z klasyfikacji, która utworzyła specjalizację
+
+  firstCompany Company? @relation(fields: [firstCompanyId], references: [id], onDelete: SetNull)
 
   @@index([code])
   @@index([companyClass])
@@ -1100,17 +1101,17 @@ model CompanySpecialization {
 }
 
 model CompanySelection {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String?
-  market      String
-  language    String? // preferowany język pracy nad selekcją
-  filters     String? // JSON z parametrami filtrów użytych do utworzenia selekcji
-  totalCompanies Int   @default(0)
-  activeCompanies Int  @default(0)
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  name            String
+  description     String?
+  market          String
+  language        String? // preferowany język pracy nad selekcją
+  filters         String? // JSON z parametrami filtrów użytych do utworzenia selekcji
+  totalCompanies  Int      @default(0)
+  activeCompanies Int      @default(0)
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   companies CompanySelectionCompany[]
   criteria  CompanyVerificationCriteria[]
@@ -1120,17 +1121,17 @@ model CompanySelection {
 }
 
 model CompanySelectionCompany {
-  id           Int      @id @default(autoincrement())
-  selectionId  Int
-  companyId    Int
-  status       String   @default("PENDING") // PENDING | QUALIFIED | REJECTED | NEEDS_REVIEW | BLOCKED | ERROR
-  score        Float?
-  reason       String?
-  verifiedAt   DateTime?
+  id                 Int       @id @default(autoincrement())
+  selectionId        Int
+  companyId          Int
+  status             String    @default("PENDING") // PENDING | QUALIFIED | REJECTED | NEEDS_REVIEW | BLOCKED | ERROR
+  score              Float?
+  reason             String?
+  verifiedAt         DateTime?
   verificationResult String?
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   selection CompanySelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
   company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1142,14 +1143,22 @@ model CompanySelectionCompany {
 
 model BlockedCompany {
   id          Int      @id @default(autoincrement())
-  companyName String // Nazwa firmy do blokowania (może być częściowa)
+  companyName String? // Nazwa firmy (tylko informacyjna, do wyświetlania)
+  website     String? // Adres www do blokowania (opcjonalny - null dla firm bez www)
   reason      String? // Powód blokady (opcjonalny)
+  blockType   String   @default("MANUAL") // MANUAL - ręczna blokada, NO_WEBSITE - automatyczna blokada firm bez www
+  companyId   Int?     @unique // ID firmy (dla firm bez www - jednoznaczne powiązanie)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdBy   String? // Kto dodał (opcjonalnie)
 
-  @@unique([companyName])
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([website]) // Unikalność tylko dla website (nie dla null)
+  @@index([website])
   @@index([companyName])
+  @@index([blockType])
+  @@index([companyId])
 }
 
 model CompanyVerificationLog {
@@ -1206,7 +1215,7 @@ model CompanyVerificationCriteria {
   updatedAt DateTime @updatedAt
 
   personaCriteria CompanyPersonaCriteria?
-  selection       CompanySelection?         @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  selection       CompanySelection?       @relation(fields: [selectionId], references: [id], onDelete: Cascade)
 
   @@index([isActive])
   @@index([isDefault])
@@ -1214,8 +1223,8 @@ model CompanyVerificationCriteria {
 }
 
 model CompanyPersonaCriteria {
-  id                Int @id @default(autoincrement())
-  companyCriteriaId Int? @unique
+  id                Int      @id @default(autoincrement())
+  companyCriteriaId Int?     @unique
   name              String
   description       String?
   positiveRoles     String
@@ -1230,46 +1239,48 @@ model CompanyPersonaCriteria {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  companyCriteria     CompanyVerificationCriteria? @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
-  personaBrief        PersonaBrief?
+  companyCriteria      CompanyVerificationCriteria? @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
+  personaBrief         PersonaBrief?
   personaVerifications PersonaVerificationResult[]
 
   @@index([createdAt]) // Indeks dla szybkiego sortowania po dacie utworzenia
 }
 
 model PersonaBrief {
-  id                Int      @id @default(autoincrement())
-  companyCriteriaId Int      @unique
-  summary           String   @default("")
+  id                 Int      @id @default(autoincrement())
+  companyCriteriaId  Int      @unique
+  summary            String   @default("")
   decisionGuidelines String?
-  targetProfiles    String?
-  avoidProfiles     String?
-  additionalNotes   String?
-  aiRole            String?  // Rola/perspektywa AI podczas weryfikacji (np. "ekspert od stoisk targowych", "analityk sprzedażowy B2B")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  targetProfiles     String?
+  avoidProfiles      String?
+  additionalNotes    String?
+  aiRole             String? // Rola/perspektywa AI podczas weryfikacji (np. "ekspert od stoisk targowych", "analityk sprzedażowy B2B")
+  positiveThreshold  Float    @default(0.5) // Próg procentowy (0.0-1.0) dla klasyfikacji pozytywnej. Score >= threshold = positive, score < threshold = negative
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   personaCriteria CompanyPersonaCriteria @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
 }
 
 model PersonaVerificationResult {
-  id                 Int      @id @default(autoincrement())
-  companyId          Int
-  personaCriteriaId  Int?
-  verifiedAt         DateTime @default(now())
-  positiveCount      Int      @default(0)
-  negativeCount      Int      @default(0)
-  unknownCount       Int      @default(0)
-  employees          String
-  metadata           String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  companyId         Int
+  personaCriteriaId Int?
+  verifiedAt        DateTime @default(now())
+  positiveCount     Int      @default(0)
+  negativeCount     Int      @default(0)
+  unknownCount      Int      @default(0)
+  employees         String
+  metadata          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  company        Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company         Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
   personaCriteria CompanyPersonaCriteria? @relation(fields: [personaCriteriaId], references: [id], onDelete: SetNull)
 
-  @@unique([companyId]) // @@unique automatycznie tworzy indeks na companyId
+  @@unique([companyId, personaCriteriaId]) // Unikalność per firma + kryteria person
   @@index([verifiedAt])
+  @@index([personaCriteriaId])
 }
 
 model IndustrySpecializationRule {
@@ -1291,18 +1302,18 @@ model IndustrySpecializationRule {
 }
 
 model IndustryMappingSuggestion {
-  id                 Int      @id @default(autoincrement())
+  id                 Int       @id @default(autoincrement())
   industry           String
   specializationCode String
   score              Float
   explanation        String?
   evidence           String? // JSON: keywords, descriptions used by AI
-  status             String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
-  createdBy          String? @default("AI")
+  status             String    @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  createdBy          String?   @default("AI")
   reviewedBy         String?
   reviewedAt         DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([industry])
   @@index([status])

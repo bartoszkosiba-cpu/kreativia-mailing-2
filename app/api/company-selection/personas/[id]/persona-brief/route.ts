@@ -20,6 +20,7 @@ const payloadSchema = z.object({
   avoidProfiles: z.array(z.string()).optional(),
   additionalNotes: z.string().nullable().optional(),
   aiRole: z.string().nullable().optional(),
+  positiveThreshold: z.number().min(0).max(1).optional(),
 });
 
 function cleanStringArray(value?: string[]): string[] {
@@ -91,6 +92,7 @@ export async function PUT(
       avoidProfiles: cleanStringArray(parsed.avoidProfiles),
       additionalNotes: parsed.additionalNotes?.trim() ?? null,
       aiRole: aiRoleFinal,
+      positiveThreshold: parsed.positiveThreshold,
     });
 
     const updatedBrief = await getPersonaBrief(personaId);

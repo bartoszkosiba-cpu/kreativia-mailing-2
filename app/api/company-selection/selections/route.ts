@@ -186,28 +186,56 @@ export async function GET(req: NextRequest) {
     });
 
     // Pobierz daty ostatniej weryfikacji i ostatnich zmian dla każdej selekcji
-    const lastVerificationDates = await db.companySelectionCompany.groupBy({
-      by: ["selectionId"],
+    // Używamy findMany zamiast groupBy, bo groupBy ma problemy z konwersją DateTime w SQLite
+    const lastVerificationDatesRaw = await db.companySelectionCompany.findMany({
       where: {
         selectionId: { in: selectionIds },
         verifiedAt: { not: null },
       },
-      _max: {
+      select: {
+        selectionId: true,
         verifiedAt: true,
+      },
+      orderBy: {
+        verifiedAt: "desc",
       },
     });
 
     // Pobierz daty ostatnich zmian statusu (updatedAt) dla zweryfikowanych firm (status != PENDING)
-    const lastStatusChangeDates = await db.companySelectionCompany.groupBy({
-      by: ["selectionId"],
+    const lastStatusChangeDatesRaw = await db.companySelectionCompany.findMany({
       where: {
         selectionId: { in: selectionIds },
         status: { not: "PENDING" },
       },
-      _max: {
+      select: {
+        selectionId: true,
         updatedAt: true,
       },
+      orderBy: {
+        updatedAt: "desc",
+      },
     });
+
+    // Grupuj ręcznie po selectionId i znajdź maksymalne daty
+    const lastVerificationDates = new Map<number, Date>();
+    for (const item of lastVerificationDatesRaw) {
+      if (item.verifiedAt) {
+        const existing = lastVerificationDates.get(item.selectionId);
+        if (!existing || item.verifiedAt > existing) {
+          lastVerificationDates.set(item.selectionId, item.verifiedAt);
+        }
+      }
+    }
+
+    const lastStatusChangeDates = new Map<number, Date>();
+    for (const item of lastStatusChangeDatesRaw) {
+      if (item.updatedAt) {
+        const existing = lastStatusChangeDates.get(item.selectionId);
+        if (!existing || item.updatedAt > existing) {
+          lastStatusChangeDates.set(item.selectionId, item.updatedAt);
+        }
+      }
+    }
 
     // Zmapuj statystyki do selekcji
     const statsMap = new Map<number, {
@@ -219,22 +247,8 @@ export async function GET(req: NextRequest) {
       total: number;
     }>();
 
-    const lastVerificationMap = new Map<number, Date>();
-    const lastStatusChangeMap = new Map<number, Date>();
-
-    // Zmapuj daty ostatniej weryfikacji (najnowsza dla każdej selekcji)
-    for (const item of lastVerificationDates) {
-      if (item._max.verifiedAt) {
-        lastVerificationMap.set(item.selectionId, item._max.verifiedAt);
-      }
-    }
-
-    // Zmapuj daty ostatnich zmian statusu (najnowsza dla każdej selekcji)
-    for (const item of lastStatusChangeDates) {
-      if (item._max.updatedAt) {
-        lastStatusChangeMap.set(item.selectionId, item._max.updatedAt);
-      }
-    }
+    const lastVerificationMap = lastVerificationDates;
+    const lastStatusChangeMap = lastStatusChangeDates;
 
     for (const stat of verificationStats) {
       if (!statsMap.has(stat.selectionId)) {
@@ -271,12 +285,7 @@ export async function GET(req: NextRequest) {
       stats.total = stats.pending + stats.qualified + stats.rejected + stats.needsReview + stats.blocked;
     }
 
-    // Zmapuj daty ostatniej weryfikacji (najnowsza dla każdej selekcji)
-    for (const item of lastVerificationDates) {
-      if (item._max.verifiedAt) {
-        lastVerificationMap.set(item.selectionId, item._max.verifiedAt);
-      }
-    }
+    // Mapy lastVerificationMap i lastStatusChangeMap są już gotowe (utworzone wcześniej)
 
     // Pobierz kryteria tylko jeśli są potrzebne
     let criteriaMap = new Map<number, Array<{ id: number; name: string; isActive: boolean; updatedAt: Date }>>();
@@ -541,7 +550,7 @@ export async function POST(req: NextRequest) {
         data: companies.map((company) => ({
           selectionId: createdSelection.id,
           companyId: company.id,
-          status: company.verificationStatus ?? "PENDING",
+          status: "PENDING", // Nowa selekcja - zawsze zaczynamy od PENDING, niezależnie od globalnego statusu
         })),
       });
 

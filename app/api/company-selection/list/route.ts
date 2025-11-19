@@ -65,6 +65,34 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const search = searchParams.get("search");
 
+    // Pobierz listę zablokowanych firm (adresy www + firmy bez www) - tylko jeśli selectionId jest podane
+    let blockedWebsites: Set<string> = new Set();
+    let blockedCompanyIds: Set<number> = new Set();
+    if (selectionId != null && Number.isFinite(selectionId)) {
+      try {
+        // Używamy surowego zapytania SQL, bo Prisma Client może jeszcze nie widzieć nowych pól
+        // Pobierz firmy zablokowane po adresie www
+        const blockedByWebsite = await db.$queryRaw<Array<{ website: string }>>`
+          SELECT website FROM BlockedCompany 
+          WHERE website IS NOT NULL AND TRIM(website) != '' AND blockType = 'MANUAL'
+        `;
+        blockedWebsites = new Set(
+          blockedByWebsite.map((b) => b.website.toLowerCase().trim())
+        );
+        
+        // Pobierz firmy zablokowane bez www (po companyId)
+        const blockedNoWebsite = await db.$queryRaw<Array<{ companyId: number }>>`
+          SELECT companyId FROM BlockedCompany 
+          WHERE companyId IS NOT NULL AND blockType = 'NO_WEBSITE'
+        `;
+        blockedCompanyIds = new Set(
+          blockedNoWebsite.map((b) => b.companyId)
+        );
+      } catch (error) {
+        console.error("Błąd pobierania listy zablokowanych firm:", error);
+      }
+    }
+
     let filterConditions: FilterCondition[] = [];
 
     // Domyślnie wykluczamy firmy zablokowane (chyba że użytkownik JAWNO wybierze status BLOCKED)
@@ -212,8 +240,9 @@ export async function GET(req: NextRequest) {
     if (selectionId != null) {
       // Jeśli podano status i selectionId, filtrujemy po statusie w CompanySelectionCompany
       const membershipWhere: any = { selectionId };
-      if (status && status !== "ALL" && status !== "BLOCKED") {
+      if (status && status !== "ALL") {
         // Dla selekcji, status pochodzi z CompanySelectionCompany, nie z Company.verificationStatus
+        // Dotyczy to również statusu BLOCKED
         membershipWhere.status = status;
       }
       
@@ -247,8 +276,8 @@ export async function GET(req: NextRequest) {
       });
       
       // Jeśli filtrujemy po statusie w selekcji, usuwamy filtr statusu z Company.verificationStatus
-      // (bo status pochodzi z CompanySelectionCompany)
-      if (status && status !== "ALL" && status !== "BLOCKED") {
+      // (bo status pochodzi z CompanySelectionCompany - dotyczy to wszystkich statusów, w tym BLOCKED)
+      if (status && status !== "ALL") {
         filterConditions = filterConditions.filter((f) => f.key !== "status");
       }
     }
@@ -398,8 +427,47 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Filtruj firmy z listy zablokowanych (po adresie www lub po companyId dla firm bez www)
+    const filteredCompanies = companies.filter((company) => {
+      // Sprawdź czy firma jest zablokowana bez www (po companyId)
+      if (blockedCompanyIds.size > 0 && blockedCompanyIds.has(company.id)) {
+        return false; // Firma jest zablokowana bez www
+      }
+      
+      // Sprawdź czy firma jest zablokowana po adresie www
+      if (blockedWebsites.size === 0) return true; // Jeśli nie ma listy zablokowanych, nie filtruj
+      if (!company.website) return true; // Firma bez www nie może być zablokowana po www (chyba że jest w blockedCompanyIds)
+      
+      const companyWebsite = company.website.toLowerCase().trim();
+      // Sprawdź czy adres www firmy pasuje do któregoś z zablokowanych adresów (dokładne dopasowanie)
+      return !blockedWebsites.has(companyWebsite);
+    });
+
+    // Jeśli filtrujemy zablokowane firmy, musimy przeliczyć total
+    // Pobierz wszystkie firmy (bez paginacji) aby policzyć ile ich jest po filtrowaniu
+    let adjustedTotal = total;
+    if (selectionId != null && (blockedWebsites.size > 0 || blockedCompanyIds.size > 0)) {
+      // Pobierz wszystkie firmy z selekcji (bez paginacji) aby przefiltrować i policzyć
+      const allCompanies = await db.company.findMany({
+        where: whereFull,
+        select: { id: true, website: true },
+      });
+      
+      const filteredAll = allCompanies.filter((company) => {
+        if (blockedCompanyIds.size > 0 && blockedCompanyIds.has(company.id)) {
+          return false;
+        }
+        if (blockedWebsites.size === 0) return true;
+        if (!company.website) return true;
+        const companyWebsite = company.website.toLowerCase().trim();
+        return !blockedWebsites.has(companyWebsite);
+      });
+      
+      adjustedTotal = filteredAll.length;
+    }
+
     const responseData = {
-      companies: companies.map((company) => {
+      companies: filteredCompanies.map((company) => {
         // Jeśli mamy status z selekcji, użyj go zamiast verificationStatus z Company
         const selectionStatus = membershipStatusMap.get(company.id);
         return {
@@ -416,8 +484,8 @@ export async function GET(req: NextRequest) {
       pagination: {
         page,
         limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+        total: adjustedTotal,
+        totalPages: Math.ceil(adjustedTotal / limit),
       },
       aggregations: {
         class: classAggregationRaw

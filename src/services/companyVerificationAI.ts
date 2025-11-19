@@ -210,38 +210,63 @@ Odpowiedz w formacie JSON:
  * Sprawdza czy firma jest na liście zablokowanych
  * Zwraca nazwę zablokowanej firmy jeśli znaleziono dopasowanie
  */
-export async function checkIfBlocked(companyName: string): Promise<string | null> {
+export async function checkIfBlocked(companyId: number, companyWebsite: string | null | undefined): Promise<string | null> {
   try {
-    // Pobierz wszystkie zablokowane firmy
+    // Sprawdź czy firma jest zablokowana jako "bez www" (po companyId)
+    const noWebsiteBlock = await db.blockedCompany.findUnique({
+      where: { companyId } as any,
+    });
+    
+    if (noWebsiteBlock && noWebsiteBlock.blockType === "NO_WEBSITE") {
+      logger.info("company-verify", `Firma zablokowana (brak www): companyId=${companyId}`);
+      return "NO_WEBSITE";
+    }
+
+    // Sprawdź blokady po adresie www (tylko jeśli firma ma www)
+    if (!companyWebsite) {
+      return null; // Firma bez www nie może być zablokowana po www
+    }
+
+    // Pobierz wszystkie zablokowane firmy (tylko te z website)
     const blockedCompanies = await db.blockedCompany.findMany({
-      select: { companyName: true },
+      where: {
+        website: { not: null },
+        blockType: "MANUAL",
+      } as any,
+      select: { website: true, companyName: true } as any,
     });
 
-    // Sprawdź czy nazwa firmy zawiera którąkolwiek z zablokowanych nazw (case-insensitive)
-    const companyNameLower = companyName.toLowerCase().trim();
+    // Normalizuj adres www firmy
+    const companyWebsiteLower = companyWebsite.toLowerCase().trim();
     
+    // Sprawdź czy adres www firmy pasuje do któregoś z zablokowanych adresów (dokładne dopasowanie)
     for (const blocked of blockedCompanies) {
-      const blockedNameLower = blocked.companyName.toLowerCase().trim();
-      // Sprawdź czy nazwa firmy zawiera zablokowaną nazwę lub odwrotnie
-      if (companyNameLower.includes(blockedNameLower) || blockedNameLower.includes(companyNameLower)) {
-        logger.info("company-verify", `Firma zablokowana: ${companyName} (dopasowanie: ${blocked.companyName})`);
-        return blocked.companyName;
+      const blockedWebsite = (blocked as any).website;
+      if (!blockedWebsite) continue;
+      const blockedWebsiteLower = blockedWebsite.toLowerCase().trim();
+      if (companyWebsiteLower === blockedWebsiteLower) {
+        logger.info("company-verify", `Firma zablokowana: ${companyWebsite} (dopasowanie: ${blockedWebsite})`);
+        return blockedWebsite;
       }
     }
 
     return null;
   } catch (error) {
-    logger.error("company-verify", "Błąd sprawdzania listy zablokowanych firm", { companyName }, error instanceof Error ? error : new Error(String(error)));
+    logger.error("company-verify", "Błąd sprawdzania listy zablokowanych firm", { companyId, companyWebsite }, error instanceof Error ? error : new Error(String(error)));
     return null;
   }
 }
 
 /**
  * Weryfikuje firmę i zapisuje wynik do bazy
+ * @param companyId - ID firmy do weryfikacji
+ * @param criteria - Kryteria weryfikacji
+ * @param selectionId - ID selekcji (opcjonalne). Jeśli podane, aktualizuje tylko status w tej selekcji. Jeśli null, aktualizuje globalny status.
  */
 export async function verifyAndSaveCompany(
   companyId: number,
-  criteria?: VerificationCriteria | null
+  criteria?: VerificationCriteria | null,
+  selectionId?: number | null
 ): Promise<VerificationResult> {
   // Pobierz firmę
   let company = await db.company.findUnique({
@@ -254,12 +279,14 @@ export async function verifyAndSaveCompany(
 
   company = await ensureCompanyClassification(company);
 
-  // SPRAWDŹ CZY FIRMA JEST ZABLOKOWANA - PRZED weryfikacją AI
-  const blockedMatch = await checkIfBlocked(company.name);
+  // SPRAWDŹ CZY FIRMA JEST ZABLOKOWANA - PRZED weryfikacją AI (po companyId lub adresie www)
+  const blockedMatch = await checkIfBlocked(companyId, company.website);
   if (blockedMatch) {
-    const blockedReason = `Firma zablokowana (dopasowanie: ${blockedMatch})`;
+    const blockedReason = blockedMatch === "NO_WEBSITE" 
+      ? "Firma zablokowana automatycznie: brak adresu strony www"
+      : `Firma zablokowana (adres www: ${blockedMatch})`;
     
-    // Firma jest zablokowana - oznacz jako BLOCKED i zakończ
+    // Firma jest zablokowana - oznacz jako BLOCKED (globalnie - blokada dotyczy wszystkich selekcji)
     await db.company.update({
       where: { id: companyId },
       data: {
@@ -272,7 +299,7 @@ export async function verifyAndSaveCompany(
       },
     });
 
-    // Zaktualizuj również status w CompanySelectionCompany dla wszystkich selekcji
+    // Zaktualizuj również status w CompanySelectionCompany dla wszystkich selekcji (blokada dotyczy wszystkich)
     await db.companySelectionCompany.updateMany({
       where: { companyId },
       data: {
@@ -325,37 +352,48 @@ export async function verifyAndSaveCompany(
   const qualifiedThreshold = activeCriteria?.qualifiedThreshold || 0.8;
   const rejectedThreshold = activeCriteria?.rejectedThreshold || 0.3;
 
-  // Zaktualizuj firmę
-  await db.company.update({
-    where: { id: companyId },
-    data: {
-      verificationStatus: result.status,
-      verificationScore: result.score,
-      verificationReason: result.reason,
-      verifiedAt: new Date(),
-      verifiedBy: "AI",
-      verificationSource: "DESCRIPTION",
-      confidenceThreshold: result.status === "QUALIFIED" 
-        ? qualifiedThreshold 
-        : result.status === "REJECTED" 
-        ? rejectedThreshold 
-        : (qualifiedThreshold + rejectedThreshold) / 2,
-      verificationResult: JSON.stringify(result),
-    },
-  });
-
-  // Zaktualizuj również status w CompanySelectionCompany dla wszystkich selekcji, w których jest ta firma
-  // (API używa statusu z CompanySelectionCompany, nie z Company.verificationStatus)
-  await db.companySelectionCompany.updateMany({
-    where: { companyId },
-    data: {
-      status: result.status,
-      score: result.score,
-      verifiedAt: new Date(),
-      reason: result.reason,
-      verificationResult: JSON.stringify(result),
-    },
-  });
+  // Jeśli selectionId jest podane, aktualizuj tylko status w tej selekcji (per-selekcja)
+  // Jeśli nie, aktualizuj globalny status (dla firm bez selekcji - nie powinno się zdarzyć w normalnym użyciu)
+  if (selectionId != null && Number.isFinite(selectionId)) {
+    // Weryfikacja per-selekcja - aktualizuj tylko status w tej selekcji
+    await db.companySelectionCompany.update({
+      where: {
+        selectionId_companyId: {
+          selectionId,
+          companyId,
+        },
+      },
+      data: {
+        status: result.status,
+        score: result.score,
+        verifiedAt: new Date(),
+        reason: result.reason,
+        verificationResult: JSON.stringify(result),
+      },
+    });
+    
+    // NIE aktualizujemy globalnego statusu - pozostaje taki, jaki był po imporcie CSV
+  } else {
+    // Weryfikacja bez selekcji (nie powinno się zdarzyć, ale dla bezpieczeństwa)
+    // Aktualizuj globalny status
+    await db.company.update({
+      where: { id: companyId },
+      data: {
+        verificationStatus: result.status,
+        verificationScore: result.score,
+        verificationReason: result.reason,
+        verifiedAt: new Date(),
+        verifiedBy: "AI",
+        verificationSource: "DESCRIPTION",
+        confidenceThreshold: result.status === "QUALIFIED" 
+          ? qualifiedThreshold 
+          : result.status === "REJECTED" 
+          ? rejectedThreshold 
+          : (qualifiedThreshold + rejectedThreshold) / 2,
+        verificationResult: JSON.stringify(result),
+      },
+    });
+  }
 
   // Zapisz log
   await db.companyVerificationLog.create({

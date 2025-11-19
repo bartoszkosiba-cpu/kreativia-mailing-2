@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fetchApolloEmployeesForCompany } from "@/services/apolloEmployeesService";
-import { getPersonaCriteria } from "@/services/personaCriteriaService";
+import { getPersonaCriteria, getPersonaCriteriaById } from "@/services/personaCriteriaService";
 import { getPersonaBrief } from "@/services/personaBriefService";
 import { verifyEmployeesWithAI } from "@/services/personaVerificationAI";
 import {
@@ -28,7 +28,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Nieprawidłowe companyId" }, { status: 400 });
     }
 
-    const existing = await getPersonaVerification(companyId);
+    // Użyj personaCriteriaId z body, jeśli jest dostępne
+    const criteriaIdForLookup = personaCriteriaId ?? null;
+    const existing = await getPersonaVerification(companyId, criteriaIdForLookup);
 
     if (!force && existing) {
       return NextResponse.json({
@@ -60,26 +62,13 @@ export async function POST(req: NextRequest) {
 
     // Jeśli podano personaCriteriaId, użyj go bezpośrednio
     if (personaCriteriaId && Number.isFinite(personaCriteriaId)) {
-      const persona = await db.companyPersonaCriteria.findUnique({
-        where: { id: personaCriteriaId },
-      });
-      if (!persona) {
+      personaCriteria = await getPersonaCriteriaById(personaCriteriaId);
+      if (!personaCriteria) {
         return NextResponse.json(
           { success: false, error: "Nie znaleziono kryteriów person o podanym ID" },
           { status: 404 }
         );
       }
-      // Konwertuj na format PersonaCriteriaDto
-      personaCriteria = {
-        id: persona.id,
-        name: persona.name,
-        description: persona.description || undefined,
-        positiveRoles: persona.positiveRoles ? JSON.parse(persona.positiveRoles) : [],
-        negativeRoles: persona.negativeRoles ? JSON.parse(persona.negativeRoles) : [],
-        conditionalRules: persona.conditionalRules ? JSON.parse(persona.conditionalRules) : [],
-        language: persona.language || "pl",
-        companyCriteriaId: persona.companyCriteriaId,
-      };
     } else {
       // Fallback: szukaj przez CompanyVerificationCriteria (stara logika)
       const activeCriteria = await db.companyVerificationCriteria.findFirst({
@@ -120,7 +109,7 @@ export async function POST(req: NextRequest) {
         apolloOrganization: body.apolloOrganization || null,
       };
     } else if (useStoredEmployees && existing) {
-      // Użyj zapisanych person z bazy
+      // Użyj zapisanych person z bazy (z tego samego personaCriteriaId lub z null jeśli nie ma weryfikacji AI)
       const existingMetadata = existing.metadata ? JSON.parse(existing.metadata) : {};
       employeesResult = {
         success: true,
@@ -221,11 +210,20 @@ export async function POST(req: NextRequest) {
         });
       }
       
+      // Użyj progu z briefu do konwersji score na decision (jeśli decision jest "conditional" lub nie ma decision)
+      const positiveThreshold = personaBrief?.positiveThreshold ?? 0.5; // Domyślnie 50%
+      let finalDecision = aiInfo?.decision ?? "conditional";
+      
+      // Jeśli decision jest "conditional" lub nie ma decision, ale jest score, użyj progu do konwersji
+      if ((finalDecision === "conditional" || !finalDecision) && typeof aiInfo?.score === "number") {
+        finalDecision = aiInfo.score >= positiveThreshold ? "positive" : "negative";
+      }
+      
       const scoreText = typeof aiInfo?.score === "number" ? `Ocena: ${(aiInfo.score * 100).toFixed(0)}%` : null;
       const combinedReason = [scoreText, aiInfo?.reason].filter(Boolean).join(" — ");
       return {
         ...person,
-        personaMatchStatus: aiInfo?.decision ?? "conditional",
+        personaMatchStatus: finalDecision,
         personaMatchReason: combinedReason || "Brak uzasadnienia",
         personaMatchScore: aiInfo?.score ?? null,
       };
@@ -237,11 +235,12 @@ export async function POST(req: NextRequest) {
     const unknownCount = enrichedEmployees.length - positiveCount - negativeCount - conditionalCount;
 
     // Sprawdź, czy istnieje już weryfikacja person z apolloFetchedAt w metadanych
-    // Użyj istniejącego 'existing' jeśli jest dostępne, w przeciwnym razie pobierz ponownie
-    const existingForMetadata = existing || await getPersonaVerification(companyId);
-    const existingMetadata = existingForMetadata?.metadata ? JSON.parse(existingForMetadata.metadata) : {};
-    // Zachowaj istniejące apolloFetchedAt lub ustaw nowe, jeśli persony zostały właśnie pobrane z Apollo
-    const apolloFetchedAt = existingMetadata.apolloFetchedAt || (employeesResult.apolloFetchedAt ? new Date().toISOString() : null);
+    // WAŻNE: apolloFetchedAt jest zawsze w rekordzie z personaCriteriaId=null (dane z Apollo)
+    // Sprawdź rekord Apollo niezależnie od tego, czy istnieje weryfikacja AI
+    const apolloRecord = await getPersonaVerification(companyId, null);
+    const apolloMetadata = apolloRecord?.metadata ? JSON.parse(apolloRecord.metadata) : {};
+    // Zachowaj istniejące apolloFetchedAt z rekordu Apollo lub ustaw nowe, jeśli persony zostały właśnie pobrane z Apollo
+    const apolloFetchedAt = apolloMetadata.apolloFetchedAt || ((employeesResult as any).apolloFetchedAt ? new Date().toISOString() : null);
 
     const saved = await savePersonaVerification({
       companyId,
