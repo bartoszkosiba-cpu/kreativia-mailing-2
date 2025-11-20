@@ -1726,6 +1726,23 @@ export default function PersonaVerifyPage() {
                 )}
               </div>
             )}
+            </div>
+            {selectedPersonaCriteriaId && (
+              <div style={{ 
+                padding: "0.75rem", 
+                backgroundColor: "#F0F9FF", 
+                borderRadius: "0.5rem", 
+                border: "1px solid #BAE6FD",
+                fontSize: "0.875rem",
+                color: "#0C4A6E"
+              }}>
+                <span style={{ fontWeight: 500 }}>Model AI do weryfikacji: </span>
+                <span style={{ fontWeight: 600 }}>{verificationModel === "gpt-4o" ? "GPT-4o" : "GPT-4o Mini"}</span>
+                <span style={{ color: "#6B7280", marginLeft: "0.5rem" }}>
+                  (możesz zmienić w zakładce "Prompt do analizy" na stronie kryteriów)
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
