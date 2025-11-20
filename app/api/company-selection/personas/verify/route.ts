@@ -219,13 +219,15 @@ export async function POST(req: NextRequest) {
           ? "positive" 
           : "negative";
       
-      const scoreText = typeof aiInfo?.score === "number" ? `Ocena: ${(aiInfo.score * 100).toFixed(0)}%` : null;
+      // Upewnij się że score jest zawsze liczbą (użyj domyślnego jeśli null)
+      const scoreValue = typeof aiInfo?.score === "number" ? aiInfo.score : (finalDecision === "positive" ? 1.0 : 0.0);
+      const scoreText = `Ocena: ${(scoreValue * 100).toFixed(0)}%`;
       const combinedReason = [scoreText, aiInfo?.reason].filter(Boolean).join(" — ");
       return {
         ...person,
         personaMatchStatus: finalDecision,
         personaMatchReason: combinedReason || "Brak uzasadnienia",
-        personaMatchScore: aiInfo?.score ?? null,
+        personaMatchScore: scoreValue,
       };
     });
 
