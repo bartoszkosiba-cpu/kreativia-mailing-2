@@ -610,7 +610,8 @@ export async function verifyEmployeesWithAI(
   personaCriteria: PersonaCriteriaDto,
   employees: PersonaVerificationAIInputPerson[],
   brief?: PersonaBriefContext,
-  useCache: boolean = true // Opcja wyłączenia cache (domyślnie włączona)
+  useCache: boolean = true, // Opcja wyłączenia cache (domyślnie włączona)
+  model: "gpt-4o-mini" | "gpt-4o" = "gpt-4o-mini" // Model AI do użycia
 ): Promise<PersonaVerificationAIResponse> {
   if (!employees.length) {
     return { results: [] };
@@ -897,7 +898,7 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
   // Funkcja retry z obsługą rate limit i timeout
   const callAIWithRetry = async (maxRetries = 3): Promise<any> => {
     let requestParams: any = {
-    model: "gpt-4o-mini",
+    model: model, // Użyj wybranego modelu
     messages,
       temperature: 0.4,
       max_tokens: 4000, // Zwiększony limit, aby uniknąć obcięcia odpowiedzi

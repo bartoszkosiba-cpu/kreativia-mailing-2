@@ -262,7 +262,8 @@ async function processVerificationBatch(
         personaCriteria, 
         employeesForAI, 
         personaBrief || undefined,
-        !forceRefresh // useCache = !forceRefresh (jeśli forceRefresh, wyłącz cache)
+        !forceRefresh, // useCache = !forceRefresh (jeśli forceRefresh, wyłącz cache)
+        "gpt-4o-mini" // Domyślnie gpt-4o-mini (można później dodać wybór modelu w UI weryfikacji)
       );
       const aiDuration = Date.now() - aiStartTime;
       logger.info("persona-verify-batch", `Weryfikacja AI dla firmy ${companyId} (${company.name}) zakończona w ${aiDuration}ms`, {

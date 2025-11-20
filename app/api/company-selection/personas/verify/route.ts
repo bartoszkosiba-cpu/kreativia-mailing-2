@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    const aiResponse = await verifyEmployeesWithAI(personaCriteria, employeesForAI, personaBrief);
+    const aiResponse = await verifyEmployeesWithAI(personaCriteria, employeesForAI, personaBrief, true, "gpt-4o-mini");
 
     const classificationMap = new Map<string, { decision: string; reason: string; score?: number }>();
     for (const result of aiResponse.results) {

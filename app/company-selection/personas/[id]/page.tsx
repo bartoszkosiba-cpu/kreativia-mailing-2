@@ -136,7 +136,17 @@ export default function PersonasPage() {
   const [personas, setPersonas] = useState<PersonaCriteria | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"view" | "chat" | "edit" | "cache" | "prompt">("view");
+  const [activeTab, setActiveTab] = useState<"view" | "chat" | "edit" | "cache" | "prompt" | "test">("view");
+  const [verificationModel, setVerificationModel] = useState<"gpt-4o-mini" | "gpt-4o">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`persona-verification-model-${personaId}`);
+      return (saved === "gpt-4o" || saved === "gpt-4o-mini") ? saved : "gpt-4o-mini";
+    }
+    return "gpt-4o-mini";
+  });
+  const [testTitle, setTestTitle] = useState("");
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testing, setTesting] = useState(false);
   const [promptText, setPromptText] = useState<string | null>(null);
   const [loadingPrompt, setLoadingPrompt] = useState(false);
   const [cacheTab, setCacheTab] = useState<"positive" | "negative">("positive");
@@ -234,7 +244,41 @@ export default function PersonasPage() {
     if (activeTab === "prompt" && personaId && !promptText) {
       loadPrompt();
     }
+    // Aktualizuj model z localStorage gdy personaId się zmienia
+    if (personaId && typeof window !== "undefined") {
+      const saved = localStorage.getItem(`persona-verification-model-${personaId}`);
+      if (saved === "gpt-4o" || saved === "gpt-4o-mini") {
+        setVerificationModel(saved);
+      }
+    }
   }, [activeTab, personaId]);
+
+  const handleTestTitle = async () => {
+    if (!testTitle.trim() || !personaId || testing) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const response = await fetch(`/api/company-selection/personas/${personaId}/test-title`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          title: testTitle.trim(),
+          model: verificationModel 
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTestResult(data.result);
+      } else {
+        alert(data.error || "Błąd podczas testowania stanowiska");
+      }
+    } catch (err) {
+      console.error("[Test Title] Błąd", err);
+      alert("Błąd podczas testowania stanowiska");
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const loadPrompt = async () => {
     if (!personaId) return;
@@ -1299,6 +1343,7 @@ export default function PersonasPage() {
             { key: "edit", label: "Edycja ręczna", disabled: !hasPersonas },
             { key: "cache", label: "Zapisane decyzje", disabled: false },
             { key: "prompt", label: "Prompt do analizy", disabled: false },
+            { key: "test", label: "Testowanie", disabled: false },
           ] as const
         ).map((tab) => (
           <button
@@ -2359,9 +2404,65 @@ export default function PersonasPage() {
             <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem" }}>
               Prompt do analizy person przez AI
             </h2>
-            <p style={{ fontSize: "0.95rem", color: "#6B7280" }}>
+            <p style={{ fontSize: "0.95rem", color: "#6B7280", marginBottom: "1rem" }}>
               Poniżej znajduje się dokładny prompt, który jest używany przez AI do weryfikacji person. Prompt zawiera brief strategiczny, reguły klasyfikacji oraz przykłady.
             </p>
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "1rem",
+              padding: "1rem",
+              backgroundColor: "#F9FAFB",
+              borderRadius: "0.5rem",
+              border: "1px solid #E5E7EB"
+            }}>
+              <label style={{ fontSize: "0.95rem", fontWeight: 500, color: "#374151" }}>
+                Model AI:
+              </label>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  onClick={() => {
+                    setVerificationModel("gpt-4o-mini");
+                    if (typeof window !== "undefined" && personaId) {
+                      localStorage.setItem(`persona-verification-model-${personaId}`, "gpt-4o-mini");
+                    }
+                  }}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    borderRadius: "0.375rem",
+                    border: "1px solid #D1D5DB",
+                    backgroundColor: verificationModel === "gpt-4o-mini" ? "#3B82F6" : "white",
+                    color: verificationModel === "gpt-4o-mini" ? "white" : "#374151",
+                    cursor: "pointer",
+                    fontWeight: verificationModel === "gpt-4o-mini" ? 600 : 400,
+                  }}
+                >
+                  GPT-4o Mini
+                </button>
+                <button
+                  onClick={() => {
+                    setVerificationModel("gpt-4o");
+                    if (typeof window !== "undefined" && personaId) {
+                      localStorage.setItem(`persona-verification-model-${personaId}`, "gpt-4o");
+                    }
+                  }}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    borderRadius: "0.375rem",
+                    border: "1px solid #D1D5DB",
+                    backgroundColor: verificationModel === "gpt-4o" ? "#3B82F6" : "white",
+                    color: verificationModel === "gpt-4o" ? "white" : "#374151",
+                    cursor: "pointer",
+                    fontWeight: verificationModel === "gpt-4o" ? 600 : 400,
+                  }}
+                >
+                  GPT-4o
+                </button>
+              </div>
+              <span style={{ fontSize: "0.85rem", color: "#6B7280" }}>
+                Wybrany model będzie używany do weryfikacji person
+              </span>
+            </div>
           </div>
 
           {loadingPrompt ? (
