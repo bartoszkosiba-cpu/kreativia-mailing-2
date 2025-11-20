@@ -186,25 +186,25 @@ async function computeVerification(
     const ruleInfo = ruleClassifications.get(lookupKey) || ruleClassifications.get(key);
     const aiInfo = classificationMap.get(lookupKey) || classificationMap.get(key);
 
-    let decision: string = "conditional";
+    let decision: string = "negative"; // Domyślnie negative - jeśli nie ma pewności, nie dodajemy do pozytywnych
     let score: number | null = null;
     let reason = "Brak dopasowania reguł ani dodatkowych informacji.";
     let personaMatchOverridden = false;
     let source: string | undefined;
 
     if (ruleInfo) {
-      decision = ruleInfo.decision;
+      decision = ruleInfo.decision === "conditional" ? "negative" : ruleInfo.decision; // Konwertuj conditional na negative
       score = ruleInfo.decision === "positive" ? 1 : ruleInfo.decision === "negative" ? 0 : null;
       reason = ruleInfo.reason;
       personaMatchOverridden = true;
       source = ruleInfo.source;
     } else if (aiInfo) {
-      decision = aiInfo.decision ?? "conditional";
+      decision = aiInfo.decision === "conditional" ? "negative" : (aiInfo.decision ?? "negative"); // Konwertuj conditional na negative
       score = typeof aiInfo.score === "number" ? aiInfo.score : null;
       reason = aiInfo.reason && aiInfo.reason.trim().length > 0 ? aiInfo.reason : "AI nie podał szczegółowego uzasadnienia.";
       source = "ai";
     } else {
-      decision = "conditional";
+      decision = "negative";
       score = null;
       reason = "AI nie dostarczyło klasyfikacji dla tego stanowiska.";
       source = "ai";
@@ -244,15 +244,15 @@ async function computeVerification(
 
   const positiveCount = enrichedEmployees.filter((person: any) => person.personaMatchStatus === "positive").length;
   const negativeCount = enrichedEmployees.filter((person: any) => person.personaMatchStatus === "negative").length;
-  const conditionalCount = enrichedEmployees.filter((person: any) => person.personaMatchStatus === "conditional").length;
-  const unknownCount = enrichedEmployees.length - positiveCount - negativeCount - conditionalCount;
+  // Usunięto conditional - wszystkie są teraz positive lub negative
+  const unknownCount = enrichedEmployees.length - positiveCount - negativeCount;
 
   const saved = await savePersonaVerification({
     companyId,
     personaCriteriaId: personaCriteria.id,
     positiveCount,
     negativeCount,
-    unknownCount: conditionalCount + unknownCount,
+      unknownCount: unknownCount,
     employees: enrichedEmployees,
     metadata: {
       statistics: employeesSource.statistics,

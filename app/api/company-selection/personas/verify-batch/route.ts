@@ -21,7 +21,7 @@ function buildEmployeeKey(person: any) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { companyIds, progressId, personaCriteriaId } = body;
+    const { companyIds, progressId, personaCriteriaId, forceRefresh } = body;
 
     if (!Array.isArray(companyIds) || companyIds.length === 0) {
       return NextResponse.json(
@@ -72,7 +72,7 @@ export async function PUT(req: NextRequest) {
     });
 
     // Uruchom przetwarzanie w tle (nie czekaj na zakończenie)
-    processVerificationBatch(companyIds, progressId, personaCriteria).catch((error) => {
+    processVerificationBatch(companyIds, progressId, personaCriteria, Boolean(forceRefresh)).catch((error) => {
       logger.error("persona-verify-batch", "Błąd przetwarzania batch", { progressId }, error);
       updateProgress(progressId, {
         status: 'error',
@@ -98,7 +98,8 @@ export async function PUT(req: NextRequest) {
 async function processVerificationBatch(
   companyIds: number[],
   progressId: string,
-  personaCriteria: any
+  personaCriteria: any,
+  forceRefresh: boolean = false // Jeśli true, wyłącza cache i wymusza ponowną weryfikację przez AI
 ) {
   let verified = 0;
   let withPersonas = 0;
@@ -143,7 +144,7 @@ async function processVerificationBatch(
             companyId,
             personaCriteriaId: personaCriteria.id,
           },
-        },
+        } as any, // Workaround: TypeScript nie widzi zaktualizowanych typów, ale w bazie constraint istnieje
       });
       
       // Jeśli nie znaleziono dla personaCriteriaId, sprawdź dla null (dane z Apollo)
@@ -173,7 +174,10 @@ async function processVerificationBatch(
           };
         } catch (parseError) {
           // Jeśli nie można sparsować danych z bazy, pobierz z Apollo
-          logger.warn("persona-verify-batch", `Błąd parsowania danych z bazy dla firmy ${companyId}, pobieram z Apollo`, { companyId }, parseError);
+          logger.warn("persona-verify-batch", `Błąd parsowania danych z bazy dla firmy ${companyId}, pobieram z Apollo`, { 
+            companyId, 
+            error: parseError instanceof Error ? parseError.message : String(parseError) 
+          });
           const fetched = await fetchApolloEmployeesForCompany(companyId);
           if (!fetched.success) {
             errors++;
@@ -244,26 +248,42 @@ async function processVerificationBatch(
       });
 
       // Weryfikuj persony z AI
+      // Jeśli forceRefresh=true, wyłącz cache aby wymusić ponowną weryfikację (przydatne do wypełnienia cache)
+      logger.info("persona-verify-batch", `Rozpoczynam weryfikację AI dla firmy ${companyId} (${company.name})`, {
+        companyId,
+        companyName: company.name,
+        employeesCount: employeesForAI.length,
+        forceRefresh,
+        useCache: !forceRefresh,
+      });
+      
       const aiStartTime = Date.now();
-      const aiResponse = await verifyEmployeesWithAI(personaCriteria, employeesForAI, personaBrief || undefined);
+      const aiResponse = await verifyEmployeesWithAI(
+        personaCriteria, 
+        employeesForAI, 
+        personaBrief || undefined,
+        !forceRefresh // useCache = !forceRefresh (jeśli forceRefresh, wyłącz cache)
+      );
       const aiDuration = Date.now() - aiStartTime;
       logger.info("persona-verify-batch", `Weryfikacja AI dla firmy ${companyId} (${company.name}) zakończona w ${aiDuration}ms`, {
         companyId,
         companyName: company.name,
         employeesCount: employeesForAI.length,
+        resultsCount: aiResponse.results.length,
         duration: aiDuration,
+        forceRefresh,
       });
 
       // Użyj progu z briefu do konwersji score na decision
+      // Zawsze używamy progu do konwersji score na decision (nie ufamy decyzji AI)
       const positiveThreshold = personaBrief?.positiveThreshold ?? 0.5; // Domyślnie 50%
       
-      // Zastosuj próg do wyników AI (konwertuj "conditional" na "positive" lub "negative" na podstawie score)
+      // Zastosuj próg do wyników AI
       const processedResults = aiResponse.results.map((result) => {
-        let finalDecision = result.decision;
-        // Jeśli decision jest "conditional" lub nie ma decision, ale jest score, użyj progu do konwersji
-        if ((finalDecision === "conditional" || !finalDecision) && typeof result.score === "number") {
-          finalDecision = result.score >= positiveThreshold ? "positive" : "negative";
-        }
+        const finalDecision: "positive" | "negative" = 
+          typeof result.score === "number" && result.score >= positiveThreshold 
+            ? "positive" 
+            : "negative";
         return {
           ...result,
           decision: finalDecision,
@@ -273,8 +293,8 @@ async function processVerificationBatch(
       // Oblicz statystyki z przetworzonych wyników AI
       const positiveCount = processedResults.filter((r) => r.decision === "positive").length;
       const negativeCount = processedResults.filter((r) => r.decision === "negative").length;
-      const conditionalCount = processedResults.filter((r) => r.decision === "conditional").length;
-      const unknownCount = employeesForAI.length - positiveCount - negativeCount - conditionalCount;
+      // Usunięto conditional - wszystkie są teraz positive lub negative
+      const unknownCount = employeesForAI.length - positiveCount - negativeCount;
 
       // Utwórz mapę decyzji AI (używając przetworzonych wyników)
       const aiDecisionsMap = new Map<string, { decision: string; reason: string; score?: number }>();
@@ -307,12 +327,12 @@ async function processVerificationBatch(
         }
         
         // Użyj progu z briefu do konwersji score na decision
+        // Zawsze używamy progu do konwersji score na decision (nie ufamy decyzji AI)
         const positiveThreshold = personaBrief?.positiveThreshold ?? 0.5;
-        let finalDecision = aiInfo?.decision ?? "conditional";
-        
-        if ((finalDecision === "conditional" || !finalDecision) && typeof aiInfo?.score === "number") {
-          finalDecision = aiInfo.score >= positiveThreshold ? "positive" : "negative";
-        }
+        const finalDecision: "positive" | "negative" = 
+          typeof aiInfo?.score === "number" && aiInfo.score >= positiveThreshold 
+            ? "positive" 
+            : "negative";
         
         const scoreText = typeof aiInfo?.score === "number" ? `Ocena: ${(aiInfo.score * 100).toFixed(0)}%` : null;
         const combinedReason = [scoreText, aiInfo?.reason].filter(Boolean).join(" — ");
@@ -330,7 +350,7 @@ async function processVerificationBatch(
         personaCriteriaId: personaCriteria.id,
         positiveCount,
         negativeCount,
-        unknownCount: conditionalCount + unknownCount,
+        unknownCount: unknownCount,
         employees: enrichedEmployees,
         metadata: {
           statistics: employeesResult.statistics,
@@ -358,7 +378,12 @@ async function processVerificationBatch(
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       const companyName = company?.name || `Firma ${companyId}`;
-      logger.error("persona-verify-batch", `Błąd weryfikacji firmy ${companyId} (${companyName}): ${errorMessage}`, { companyId, companyName, errorStack }, error);
+      logger.error("persona-verify-batch", `Błąd weryfikacji firmy ${companyId} (${companyName}): ${errorMessage}`, { 
+        companyId, 
+        companyName, 
+        errorStack,
+        error: error instanceof Error ? error.message : String(error),
+      });
       
       // Zapisz szczegóły ostatniego błędu
       lastError = {

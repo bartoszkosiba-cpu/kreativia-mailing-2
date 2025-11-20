@@ -136,7 +136,27 @@ export default function PersonasPage() {
   const [personas, setPersonas] = useState<PersonaCriteria | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"view" | "chat" | "edit">("view");
+  const [activeTab, setActiveTab] = useState<"view" | "chat" | "edit" | "cache" | "prompt">("view");
+  const [promptText, setPromptText] = useState<string | null>(null);
+  const [loadingPrompt, setLoadingPrompt] = useState(false);
+  const [cacheTab, setCacheTab] = useState<"positive" | "negative">("positive");
+  const [cachePage, setCachePage] = useState<{ positive: number; negative: number }>({ positive: 1, negative: 1 });
+  const itemsPerPage = 10;
+  
+  const [verificationCache, setVerificationCache] = useState<Array<{
+    id: number;
+    titleNormalized: string;
+    titleEnglish: string | null;
+    departments: string[] | null;
+    seniority: string | null;
+    decision: string;
+    score: number | null;
+    reason: string | null;
+    useCount: number;
+    verifiedAt: string;
+    lastUsedAt: string;
+  }>>([]);
+  const [loadingCache, setLoadingCache] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -153,6 +173,50 @@ export default function PersonasPage() {
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [tempName, setTempName] = useState("");
 
+  const loadVerificationCache = async () => {
+    if (!personaId) return;
+    setLoadingCache(true);
+    try {
+      const response = await fetch(`/api/company-selection/personas/${personaId}/verification-cache`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setVerificationCache(data.data.map((item: any) => ({
+            ...item,
+            verifiedAt: item.verifiedAt ? new Date(item.verifiedAt).toISOString() : "",
+            lastUsedAt: item.lastUsedAt ? new Date(item.lastUsedAt).toISOString() : "",
+          })));
+        }
+      }
+    } catch (err) {
+      console.error("[Personas Cache] Błąd ładowania cache", err);
+    } finally {
+      setLoadingCache(false);
+    }
+  };
+
+  const handleDeleteCache = async (cacheId?: number) => {
+    if (!personaId) return;
+    if (!confirm(cacheId ? "Czy na pewno chcesz usunąć ten wpis z cache?" : "Czy na pewno chcesz wyczyścić cały cache?")) {
+      return;
+    }
+    try {
+      const url = cacheId
+        ? `/api/company-selection/personas/${personaId}/verification-cache?cacheId=${cacheId}`
+        : `/api/company-selection/personas/${personaId}/verification-cache`;
+      const response = await fetch(url, { method: "DELETE" });
+      if (response.ok) {
+        await loadVerificationCache();
+        alert(cacheId ? "Wpis został usunięty" : "Cache został wyczyszczony");
+      } else {
+        alert("Błąd usuwania cache");
+      }
+    } catch (err) {
+      console.error("[Personas Cache] Błąd usuwania cache", err);
+      alert("Błąd usuwania cache");
+    }
+  };
+
   useEffect(() => {
     if (personaId) {
       loadPersonas(personaId);
@@ -161,6 +225,34 @@ export default function PersonasPage() {
       setLoading(false);
     }
   }, [personaId]);
+
+  // Załaduj cache gdy przełączamy na zakładkę cache
+  useEffect(() => {
+    if (activeTab === "cache" && personaId) {
+      loadVerificationCache();
+    }
+    if (activeTab === "prompt" && personaId && !promptText) {
+      loadPrompt();
+    }
+  }, [activeTab, personaId]);
+
+  const loadPrompt = async () => {
+    if (!personaId) return;
+    setLoadingPrompt(true);
+    try {
+      const response = await fetch(`/api/company-selection/personas/${personaId}/prompt`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setPromptText(data.data.promptText);
+        }
+      }
+    } catch (err) {
+      console.error("[Personas Prompt] Błąd pobierania promptu", err);
+    } finally {
+      setLoadingPrompt(false);
+    }
+  };
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -1190,22 +1282,6 @@ export default function PersonasPage() {
             </div>
           )}
         </div>
-        <div style={{ marginTop: "1rem", padding: "1.25rem", backgroundColor: "#F0F9FF", border: "1px solid #BAE6FD", borderRadius: "0.5rem", maxWidth: "900px" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", color: "#1E40AF" }}>
-            Jak korzystać z tego modułu?
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", color: "#1E3A8A", fontSize: "0.9rem" }}>
-            <div>
-              <strong>1. Podgląd</strong> — zobacz aktualną konfigurację person, brief strategiczny i reguły AI
-            </div>
-            <div>
-              <strong>2. Czat o personach</strong> — rozmawiaj z AI, aby zdefiniować persony. Brief strategiczny uzupełni się automatycznie na podstawie rozmowy.
-            </div>
-            <div>
-              <strong>3. Edycja ręczna</strong> — edytuj szczegóły person, brief i reguły ręcznie
-            </div>
-          </div>
-        </div>
       </div>
 
       <div
@@ -1221,6 +1297,8 @@ export default function PersonasPage() {
             { key: "view", label: "Podgląd", disabled: !hasPersonas },
             { key: "chat", label: "Czat o personach", disabled: false },
             { key: "edit", label: "Edycja ręczna", disabled: !hasPersonas },
+            { key: "cache", label: "Zapisane decyzje", disabled: false },
+            { key: "prompt", label: "Prompt do analizy", disabled: false },
           ] as const
         ).map((tab) => (
           <button
@@ -1472,22 +1550,6 @@ export default function PersonasPage() {
             >
               Wyślij
             </button>
-            {chatMessages.length > 0 && !shouldGenerate && (
-              <button
-                onClick={generatePersonas}
-                disabled={generating}
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  backgroundColor: generating ? "#9CA3AF" : "#10B981",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "0.5rem",
-                  cursor: generating ? "not-allowed" : "pointer",
-                }}
-              >
-                {generating ? "Generowanie..." : "Generuj persony"}
-              </button>
-            )}
           </div>
         </div>
           )}
@@ -1985,6 +2047,358 @@ export default function PersonasPage() {
               {saving ? "Zapisywanie..." : "Zapisz persony"}
             </button>
           </div>
+        </div>
+      )}
+
+      {activeTab === "cache" && (
+        <div
+          style={{
+            padding: "2rem",
+            backgroundColor: "white",
+            borderRadius: "0.5rem",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+            <div>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem" }}>
+                Zapisane decyzje weryfikacji stanowisk
+              </h2>
+              <p style={{ fontSize: "0.95rem", color: "#6B7280" }}>
+                System zapisuje decyzje AI dla stanowisk, aby przyspieszyć weryfikację dla powtarzających się stanowisk w różnych firmach.
+                {verificationCache.length > 0 && (
+                  <span style={{ marginLeft: "0.5rem", fontWeight: 500 }}>
+                    Znaleziono {verificationCache.length} {verificationCache.length === 1 ? "zapis" : "zapisów"}.
+                  </span>
+                )}
+              </p>
+            </div>
+            {verificationCache.length > 0 && (
+              <button
+                onClick={() => handleDeleteCache()}
+                style={{
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#EF4444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "0.5rem",
+                  cursor: "pointer",
+                  fontSize: "0.9rem",
+                }}
+              >
+                Wyczyść cały cache
+              </button>
+            )}
+          </div>
+
+          {loadingCache ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>Ładowanie...</div>
+          ) : verificationCache.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "3rem",
+                backgroundColor: "#F9FAFB",
+                borderRadius: "0.5rem",
+                color: "#6B7280",
+              }}
+            >
+              <p style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Brak zapisanych decyzji</p>
+              <p style={{ fontSize: "0.9rem" }}>
+                Decyzje będą zapisywane automatycznie podczas weryfikacji person przez AI.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              {/* Podsumowanie */}
+              <div
+                style={{
+                  padding: "1rem 1.5rem",
+                  backgroundColor: "#F9FAFB",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #E5E7EB",
+                  display: "flex",
+                  gap: "2rem",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>Pozytywne:</span>
+                  <span style={{ fontSize: "1.1rem", fontWeight: 600, color: "#065F46" }}>
+                    {verificationCache.filter((item) => item.decision === "positive").length}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>Negatywne:</span>
+                  <span style={{ fontSize: "1.1rem", fontWeight: 600, color: "#991B1B" }}>
+                    {verificationCache.filter((item) => item.decision === "negative").length}
+                  </span>
+                </div>
+                <div style={{ marginLeft: "auto", fontSize: "0.9rem", color: "#6B7280" }}>
+                  Razem: {verificationCache.length}
+                </div>
+              </div>
+
+              {/* Podkarty */}
+              <div>
+                <div style={{ display: "flex", gap: "0.5rem", borderBottom: "2px solid #E5E7EB", marginBottom: "1.5rem" }}>
+                  <button
+                    onClick={() => {
+                      setCacheTab("positive");
+                      setCachePage((prev) => ({ ...prev, positive: 1 }));
+                    }}
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      border: "none",
+                      backgroundColor: "transparent",
+                      color: cacheTab === "positive" ? "#065F46" : "#6B7280",
+                      fontWeight: cacheTab === "positive" ? 600 : 400,
+                      borderBottom: cacheTab === "positive" ? "2px solid #065F46" : "2px solid transparent",
+                      cursor: "pointer",
+                      marginBottom: "-2px",
+                    }}
+                  >
+                    Pozytywne ({verificationCache.filter((item) => item.decision === "positive").length})
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCacheTab("negative");
+                      setCachePage((prev) => ({ ...prev, negative: 1 }));
+                    }}
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      border: "none",
+                      backgroundColor: "transparent",
+                      color: cacheTab === "negative" ? "#991B1B" : "#6B7280",
+                      fontWeight: cacheTab === "negative" ? 600 : 400,
+                      borderBottom: cacheTab === "negative" ? "2px solid #991B1B" : "2px solid transparent",
+                      cursor: "pointer",
+                      marginBottom: "-2px",
+                    }}
+                  >
+                    Negatywne ({verificationCache.filter((item) => item.decision === "negative").length})
+                  </button>
+                </div>
+
+                {/* Zawartość karty */}
+                {(() => {
+                  const filteredItems = verificationCache.filter((item) => item.decision === cacheTab);
+                  const currentPage = cachePage[cacheTab];
+                  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+                  const startIndex = (currentPage - 1) * itemsPerPage;
+                  const endIndex = startIndex + itemsPerPage;
+                  const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+                  if (filteredItems.length === 0) {
+                    return (
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "3rem",
+                          backgroundColor: "#F9FAFB",
+                          borderRadius: "0.5rem",
+                          color: "#6B7280",
+                        }}
+                      >
+                        <p style={{ fontSize: "1rem" }}>
+                          Brak {cacheTab === "positive" ? "pozytywnych" : "negatywnych"} decyzji
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                        {paginatedItems.map((item) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            padding: "1.25rem",
+                            backgroundColor: cacheTab === "positive" ? "#F0FDF4" : "#FEF2F2",
+                            borderRadius: "0.5rem",
+                            border: cacheTab === "positive" ? "1px solid #D1FAE5" : "1px solid #FEE2E2",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                                <h4 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#111827" }}>
+                                  {item.titleNormalized}
+                                </h4>
+                                <span
+                                  style={{
+                                    padding: "0.25rem 0.75rem",
+                                    borderRadius: "0.375rem",
+                                    fontSize: "0.85rem",
+                                    fontWeight: 500,
+                                    backgroundColor: cacheTab === "positive" ? "#D1FAE5" : "#FEE2E2",
+                                    color: cacheTab === "positive" ? "#065F46" : "#991B1B",
+                                  }}
+                                >
+                                  {cacheTab === "positive" ? "Pozytywne" : "Negatywne"}
+                                </span>
+                                <span style={{ fontSize: "0.9rem", color: "#6B7280", fontWeight: 500 }}>
+                                  Score: {item.score !== null ? `${(item.score * 100).toFixed(0)}%` : "brak"}
+                                </span>
+                              </div>
+                              {item.titleEnglish && item.titleEnglish !== item.titleNormalized && (
+                                <p style={{ fontSize: "0.9rem", color: "#6B7280", marginBottom: "0.25rem" }}>
+                                  EN: {item.titleEnglish}
+                                </p>
+                              )}
+                              <div style={{ display: "flex", gap: "1rem", fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.5rem" }}>
+                                {item.departments && item.departments.length > 0 && (
+                                  <span>Działy: {item.departments.join(", ")}</span>
+                                )}
+                                {item.seniority && <span>Seniority: {item.seniority}</span>}
+                              </div>
+                              {item.reason && (
+                                <p style={{ fontSize: "0.9rem", color: "#374151", marginTop: "0.5rem", lineHeight: 1.5 }}>
+                                  {item.reason}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteCache(item.id)}
+                              style={{
+                                padding: "0.375rem 0.75rem",
+                                backgroundColor: "transparent",
+                                color: "#EF4444",
+                                border: "1px solid #EF4444",
+                                borderRadius: "0.375rem",
+                                cursor: "pointer",
+                                fontSize: "0.85rem",
+                                marginLeft: "1rem",
+                              }}
+                              title="Usuń ten wpis z cache"
+                            >
+                              Usuń
+                            </button>
+                          </div>
+                          <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.8rem", color: "#9CA3AF", marginTop: "0.75rem" }}>
+                            <span>Użyto: {item.useCount} {item.useCount === 1 ? "raz" : "razy"}</span>
+                            <span>
+                              Zweryfikowano: {new Date(item.verifiedAt).toLocaleString("pl-PL")}
+                            </span>
+                            <span>
+                              Ostatnie użycie: {new Date(item.lastUsedAt).toLocaleString("pl-PL")}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      </div>
+
+                      {/* Paginacja */}
+                      {totalPages > 1 && (
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            marginTop: "1.5rem",
+                            paddingTop: "1rem",
+                            borderTop: "1px solid #E5E7EB",
+                          }}
+                        >
+                          <button
+                            onClick={() => setCachePage((prev) => ({ ...prev, [cacheTab]: Math.max(1, currentPage - 1) }))}
+                            disabled={currentPage === 1}
+                            style={{
+                              padding: "0.5rem 1rem",
+                              backgroundColor: currentPage === 1 ? "#F3F4F6" : "white",
+                              color: currentPage === 1 ? "#9CA3AF" : "#374151",
+                              border: "1px solid #D1D5DB",
+                              borderRadius: "0.375rem",
+                              cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            Poprzednia
+                          </button>
+                          <span style={{ fontSize: "0.9rem", color: "#6B7280", padding: "0 1rem" }}>
+                            Strona {currentPage} z {totalPages}
+                          </span>
+                          <button
+                            onClick={() => setCachePage((prev) => ({ ...prev, [cacheTab]: Math.min(totalPages, currentPage + 1) }))}
+                            disabled={currentPage === totalPages}
+                            style={{
+                              padding: "0.5rem 1rem",
+                              backgroundColor: currentPage === totalPages ? "#F3F4F6" : "white",
+                              color: currentPage === totalPages ? "#9CA3AF" : "#374151",
+                              border: "1px solid #D1D5DB",
+                              borderRadius: "0.375rem",
+                              cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            Następna
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "prompt" && (
+        <div
+          style={{
+            padding: "2rem",
+            backgroundColor: "white",
+            borderRadius: "0.5rem",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          }}
+        >
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem" }}>
+              Prompt do analizy person przez AI
+            </h2>
+            <p style={{ fontSize: "0.95rem", color: "#6B7280" }}>
+              Poniżej znajduje się dokładny prompt, który jest używany przez AI do weryfikacji person. Prompt zawiera brief strategiczny, reguły klasyfikacji oraz przykłady.
+            </p>
+          </div>
+
+          {loadingPrompt ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>Ładowanie promptu...</div>
+          ) : promptText ? (
+            <div
+              style={{
+                padding: "1.5rem",
+                backgroundColor: "#F9FAFB",
+                borderRadius: "0.5rem",
+                border: "1px solid #E5E7EB",
+                fontFamily: "monospace",
+                fontSize: "0.875rem",
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                maxHeight: "70vh",
+                overflowY: "auto",
+                color: "#374151",
+              }}
+            >
+              {promptText}
+            </div>
+          ) : (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "3rem",
+                backgroundColor: "#F9FAFB",
+                borderRadius: "0.5rem",
+                color: "#6B7280",
+              }}
+            >
+              <p style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Nie udało się załadować promptu</p>
+              <p style={{ fontSize: "0.9rem" }}>Spróbuj odświeżyć stronę.</p>
+            </div>
+          )}
         </div>
       )}
     </div>

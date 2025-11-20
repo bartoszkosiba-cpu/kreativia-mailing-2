@@ -200,24 +200,24 @@ export async function POST(req: NextRequest) {
         };
       }
       
-      // Debug: loguj jeśli nie znaleziono dopasowania
-      if (!aiInfo) {
-        console.warn("[personas.verify] Nie znaleziono dopasowania AI dla persony:", {
-          personKey: key,
-          personName: person.name,
-          personTitle: person.title,
-          availableKeys: Array.from(classificationMap.keys()),
-        });
-      }
-      
-      // Użyj progu z briefu do konwersji score na decision (jeśli decision jest "conditional" lub nie ma decision)
+      // Użyj progu z briefu do konwersji score na decision
+      // Zawsze używamy progu do konwersji score na decision (nie ufamy decyzji AI)
       const positiveThreshold = personaBrief?.positiveThreshold ?? 0.5; // Domyślnie 50%
-      let finalDecision = aiInfo?.decision ?? "conditional";
       
-      // Jeśli decision jest "conditional" lub nie ma decision, ale jest score, użyj progu do konwersji
-      if ((finalDecision === "conditional" || !finalDecision) && typeof aiInfo?.score === "number") {
-        finalDecision = aiInfo.score >= positiveThreshold ? "positive" : "negative";
+      // Jeśli nie znaleziono dopasowania AI, użyj domyślnej decyzji
+      if (!aiInfo) {
+        return {
+          ...person,
+          personaMatchStatus: "negative" as const,
+          personaMatchReason: "Brak klasyfikacji AI",
+          personaMatchScore: null,
+        };
       }
+      
+      const finalDecision: "positive" | "negative" = 
+        typeof aiInfo.score === "number" && aiInfo.score >= positiveThreshold 
+          ? "positive" 
+          : "negative";
       
       const scoreText = typeof aiInfo?.score === "number" ? `Ocena: ${(aiInfo.score * 100).toFixed(0)}%` : null;
       const combinedReason = [scoreText, aiInfo?.reason].filter(Boolean).join(" — ");
@@ -231,8 +231,8 @@ export async function POST(req: NextRequest) {
 
     const positiveCount = enrichedEmployees.filter((p: any) => p.personaMatchStatus === "positive").length;
     const negativeCount = enrichedEmployees.filter((p: any) => p.personaMatchStatus === "negative").length;
-    const conditionalCount = enrichedEmployees.filter((p: any) => p.personaMatchStatus === "conditional").length;
-    const unknownCount = enrichedEmployees.length - positiveCount - negativeCount - conditionalCount;
+    // Usunięto conditional - wszystkie są teraz positive lub negative
+    const unknownCount = enrichedEmployees.length - positiveCount - negativeCount;
 
     // Sprawdź, czy istnieje już weryfikacja person z apolloFetchedAt w metadanych
     // WAŻNE: apolloFetchedAt jest zawsze w rekordzie z personaCriteriaId=null (dane z Apollo)
@@ -247,7 +247,7 @@ export async function POST(req: NextRequest) {
       personaCriteriaId: personaCriteria.id, // To jest CompanyPersonaCriteria.id
       positiveCount,
       negativeCount,
-      unknownCount: conditionalCount + unknownCount,
+      unknownCount: unknownCount,
       employees: enrichedEmployees,
       metadata: {
         statistics: employeesResult.statistics,
@@ -266,7 +266,7 @@ export async function POST(req: NextRequest) {
         personaCriteriaId: personaCriteria.id,
         positiveCount,
         negativeCount,
-        unknownCount: conditionalCount + unknownCount,
+        unknownCount: unknownCount,
         verifiedAt: saved.verifiedAt,
         employees: enrichedEmployees,
         metadata: {

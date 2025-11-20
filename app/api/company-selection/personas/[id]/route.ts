@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/services/logger";
 import { PersonaCriteriaPayload } from "@/services/personaCriteriaService";
+import { regeneratePromptForPersonaCriteria } from "@/services/personaBriefService";
 
 /**
  * Pobierz szczegóły persony
@@ -144,6 +145,15 @@ export async function PUT(
     });
 
     logger.info("persona-criteria", `Zaktualizowano personę: ${id}`);
+
+    // Regeneruj prompt jeśli PersonaCriteria zostało zmienione (może wpłynąć na prompt)
+    try {
+      await regeneratePromptForPersonaCriteria(id);
+      logger.info("persona-criteria", `Zregenerowano prompt dla persony: ${id}`);
+    } catch (promptError) {
+      // Nie przerywamy procesu jeśli regeneracja promptu się nie powiodła
+      logger.error("persona-criteria", "Błąd regeneracji promptu", { personaId: id }, promptError as Error);
+    }
 
     return NextResponse.json({
       success: true,

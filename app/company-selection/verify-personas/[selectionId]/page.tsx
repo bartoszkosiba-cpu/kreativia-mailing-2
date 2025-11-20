@@ -188,6 +188,7 @@ export default function PersonaVerifyPage() {
   const [filteredAllCompanies, setFilteredAllCompanies] = useState<Company[]>([]); // Wszystkie firmy po filtrowaniu (przed paginacją)
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
+  const [forceRefreshCache, setForceRefreshCache] = useState(false); // Wymuś ponowną weryfikację (wyłącz cache)
   const [detailCompany, setDetailCompany] = useState<Company | null>(null);
   const [showModal, setShowModal] = useState(false); // Kontrola widoczności modala - opóźnione renderowanie
   const [selectedRowCompanyId, setSelectedRowCompanyId] = useState<number | null>(null); // ID firmy, której wiersz jest zaznaczony
@@ -204,7 +205,96 @@ export default function PersonaVerifyPage() {
   const [allQualifiedCompanyIds, setAllQualifiedCompanyIds] = useState<number[]>([]); // Wszystkie ID firm QUALIFIED z www
   const [searchQuery, setSearchQuery] = useState("");
   const [selectionName, setSelectionName] = useState<string>("");
+  
+  // Zapamiętaj wybór kryteriów person w localStorage (per selekcja)
+  const getStoredPersonaCriteriaId = useCallback((): string => {
+    if (typeof window === "undefined" || !selectionId) return "";
+    try {
+      const stored = localStorage.getItem(`personaCriteriaId_${selectionId}`);
+      return stored || "";
+    } catch {
+      return "";
+    }
+  }, [selectionId]);
+
   const [selectedPersonaCriteriaId, setSelectedPersonaCriteriaId] = useState<string>("");
+  const [showCacheModal, setShowCacheModal] = useState(false);
+  const [cacheModalData, setCacheModalData] = useState<Array<{
+    id: number;
+    titleNormalized: string;
+    titleEnglish: string | null;
+    departments: string[] | null;
+    seniority: string | null;
+    decision: string;
+    score: number | null;
+    reason: string | null;
+    useCount: number;
+    verifiedAt: string;
+    lastUsedAt: string;
+  }>>([]);
+  const [loadingCacheModal, setLoadingCacheModal] = useState(false);
+  const [cacheModalTab, setCacheModalTab] = useState<"positive" | "negative">("positive");
+  const [cacheModalPage, setCacheModalPage] = useState<{ positive: number; negative: number }>({ positive: 1, negative: 1 });
+  const cacheModalItemsPerPage = 10;
+  const [cacheCount, setCacheCount] = useState<{ positive: number; negative: number; total: number }>({ positive: 0, negative: 0, total: 0 });
+  const [loadingCacheCount, setLoadingCacheCount] = useState(false);
+  
+  // Załaduj zapisany wybór z localStorage po załadowaniu selectionId
+  useEffect(() => {
+    if (selectionId) {
+      const stored = getStoredPersonaCriteriaId();
+      if (stored) {
+        setSelectedPersonaCriteriaId(stored);
+      }
+    }
+  }, [selectionId, getStoredPersonaCriteriaId]);
+  
+  // Zapisz wybór do localStorage gdy się zmienia
+  const handlePersonaCriteriaChange = useCallback((value: string) => {
+    setSelectedPersonaCriteriaId(value);
+    if (typeof window !== "undefined" && selectionId) {
+      try {
+        if (value) {
+          localStorage.setItem(`personaCriteriaId_${selectionId}`, value);
+        } else {
+          localStorage.removeItem(`personaCriteriaId_${selectionId}`);
+        }
+      } catch (error) {
+        console.error("Błąd zapisu do localStorage:", error);
+      }
+    }
+    // Reset cache count gdy zmienia się wybór
+    setCacheCount({ positive: 0, negative: 0, total: 0 });
+  }, [selectionId]);
+
+  // Pobierz liczbę zapisanych decyzji dla wybranych kryteriów
+  const loadCacheCount = useCallback(async (personaCriteriaId: string) => {
+    if (!personaCriteriaId) {
+      setCacheCount({ positive: 0, negative: 0, total: 0 });
+      return;
+    }
+    setLoadingCacheCount(true);
+    try {
+      const response = await fetch(`/api/company-selection/personas/${personaCriteriaId}/verification-cache`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          const positive = data.data.filter((item: any) => item.decision === "positive").length;
+          const negative = data.data.filter((item: any) => item.decision === "negative").length;
+          setCacheCount({ positive, negative, total: data.data.length });
+        } else {
+          setCacheCount({ positive: 0, negative: 0, total: 0 });
+        }
+      } else {
+        setCacheCount({ positive: 0, negative: 0, total: 0 });
+      }
+    } catch (error) {
+      console.error("Błąd ładowania liczby cache:", error);
+      setCacheCount({ positive: 0, negative: 0, total: 0 });
+    } finally {
+      setLoadingCacheCount(false);
+    }
+  }, []);
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [hideZeroPersonas, setHideZeroPersonas] = useState<boolean>(false);
   const [hideZeroEmails, setHideZeroEmails] = useState<boolean>(false);
@@ -479,6 +569,15 @@ export default function PersonaVerifyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionId, selectedPersonaCriteriaId]); // selectedPersonaCriteriaId jest używane w loadCompanies przez closure
 
+  // Pobierz liczbę zapisanych decyzji gdy zmienia się selectedPersonaCriteriaId
+  useEffect(() => {
+    if (selectedPersonaCriteriaId) {
+      loadCacheCount(selectedPersonaCriteriaId);
+    } else {
+      setCacheCount({ positive: 0, negative: 0, total: 0 });
+    }
+  }, [selectedPersonaCriteriaId, loadCacheCount]);
+
   // Filtruj lokalnie wszystkie pobrane dane gdy zmienia się selectedStatus, hideZeroPersonas, hideZeroEmails lub searchQuery
   useEffect(() => {
     if (allCompanies.length > 0) {
@@ -667,9 +766,20 @@ export default function PersonaVerifyPage() {
             description: persona.description,
           }))
         );
-        // Ustaw pierwsze kryteria jako domyślne, jeśli są dostępne
-        if (data.personas.length > 0 && !selectedPersonaCriteriaId) {
-          setSelectedPersonaCriteriaId(String(data.personas[0].id));
+        // Ustaw pierwsze kryteria jako domyślne TYLKO jeśli:
+        // 1. Są dostępne kryteria
+        // 2. NIE ma zapisanego wyboru w localStorage
+        // 3. NIE ma aktualnie wybranych kryteriów w state
+        // WAŻNE: Nie nadpisuj wyboru użytkownika - jeśli już coś wybrał, zostaw to
+        const storedId = getStoredPersonaCriteriaId();
+        const currentId = selectedPersonaCriteriaId || storedId;
+        
+        if (data.personas.length > 0 && !currentId) {
+          // Tylko jeśli NIE MA żadnego wyboru (ani w state, ani w localStorage), ustaw pierwsze dostępne
+          handlePersonaCriteriaChange(String(data.personas[0].id));
+        } else if (storedId && !selectedPersonaCriteriaId) {
+          // Jeśli jest zapisany wybór w localStorage, ale state nie jest ustawiony, przywróć go
+          setSelectedPersonaCriteriaId(storedId);
         }
       }
     } catch (error) {
@@ -1344,6 +1454,7 @@ export default function PersonaVerifyPage() {
       }
 
       // Uruchom weryfikację w tle (PUT request do endpointu batch) - tylko dla firm z pobranymi personami
+      // forceRefresh: jeśli true, wyłącza cache i wymusza ponowną weryfikację przez AI (przydatne do wypełnienia cache)
       const response = await fetch("/api/company-selection/personas/verify-batch", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1351,6 +1462,7 @@ export default function PersonaVerifyPage() {
           companyIds: companiesWithPersonas, // Tylko firmy z pobranymi personami
           progressId: newProgressId,
           personaCriteriaId: criteriaIdNum,
+          forceRefresh: forceRefreshCache, // Jeśli true, wyłącza cache i wymusza ponowną weryfikację (przydatne do wypełnienia cache)
         }),
       });
 
@@ -1514,25 +1626,94 @@ export default function PersonaVerifyPage() {
         {personaCriteriaLoading ? (
           <div style={{ color: "#6B7280" }}>Ładowanie kryteriów...</div>
         ) : (
-          <select
-            value={selectedPersonaCriteriaId}
-            onChange={(e) => setSelectedPersonaCriteriaId(e.target.value)}
-            style={{
-              width: "100%",
-              maxWidth: "500px",
-              padding: "0.5rem 0.75rem",
-              borderRadius: "0.5rem",
-              border: "1px solid #D1D5DB",
-              fontSize: "0.95rem",
-            }}
-          >
-            <option value="">-- Wybierz kryteria --</option>
-            {personaCriteriaList.map((persona) => (
-              <option key={persona.id} value={String(persona.id)}>
-                {persona.name}
-              </option>
-            ))}
-          </select>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+            <select
+              value={selectedPersonaCriteriaId}
+              onChange={(e) => handlePersonaCriteriaChange(e.target.value)}
+              style={{
+                width: "100%",
+                maxWidth: "500px",
+                padding: "0.5rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #D1D5DB",
+                fontSize: "0.95rem",
+              }}
+            >
+              <option value="">-- Wybierz kryteria --</option>
+              {personaCriteriaList.map((persona) => (
+                <option key={persona.id} value={String(persona.id)}>
+                  {persona.name}
+                </option>
+              ))}
+            </select>
+            {selectedPersonaCriteriaId && (
+              <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                <button
+                  onClick={async () => {
+                    setShowCacheModal(true);
+                    setLoadingCacheModal(true);
+                    try {
+                      const response = await fetch(`/api/company-selection/personas/${selectedPersonaCriteriaId}/verification-cache`);
+                      if (response.ok) {
+                        const data = await response.json();
+                        if (data.success && data.data) {
+                          setCacheModalData(data.data.map((item: any) => ({
+                            ...item,
+                            verifiedAt: item.verifiedAt ? new Date(item.verifiedAt).toISOString() : "",
+                            lastUsedAt: item.lastUsedAt ? new Date(item.lastUsedAt).toISOString() : "",
+                          })));
+                          // Ustaw domyślną kartę na podstawie dostępnych danych
+                          const positiveCount = data.data.filter((item: any) => item.decision === "positive").length;
+                          const negativeCount = data.data.filter((item: any) => item.decision === "negative").length;
+                          if (positiveCount > 0) {
+                            setCacheModalTab("positive");
+                          } else if (negativeCount > 0) {
+                            setCacheModalTab("negative");
+                          }
+                          setCacheModalPage({ positive: 1, negative: 1 });
+                          // Zaktualizuj cache count
+                          setCacheCount({ positive: positiveCount, negative: negativeCount, total: data.data.length });
+                        }
+                      }
+                    } catch (error) {
+                      console.error("Błąd ładowania cache:", error);
+                    } finally {
+                      setLoadingCacheModal(false);
+                    }
+                  }}
+                  disabled={cacheCount.total === 0}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: cacheCount.total === 0 ? "#D1D5DB" : "#3B82F6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    cursor: cacheCount.total === 0 ? "not-allowed" : "pointer",
+                    fontSize: "0.9rem",
+                    whiteSpace: "nowrap",
+                    opacity: cacheCount.total === 0 ? 0.6 : 1,
+                  }}
+                >
+                  Znalezione stanowiska
+                </button>
+                {loadingCacheCount ? (
+                  <span style={{ fontSize: "0.85rem", color: "#6B7280" }}>Ładowanie...</span>
+                ) : cacheCount.total > 0 ? (
+                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", fontSize: "0.85rem", color: "#6B7280" }}>
+                    <span>
+                      <span style={{ color: "#065F46", fontWeight: 600 }}>{cacheCount.positive}</span> pozytywnych
+                    </span>
+                    <span>•</span>
+                    <span>
+                      <span style={{ color: "#991B1B", fontWeight: 600 }}>{cacheCount.negative}</span> negatywnych
+                    </span>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: "0.85rem", color: "#9CA3AF" }}>Brak zapisanych stanowisk</span>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -1712,6 +1893,30 @@ export default function PersonaVerifyPage() {
               ? `Zweryfikuj stanowiska (${selectedWithPersonasCount})` 
               : "Zweryfikuj stanowiska"}
           </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
+            <input
+              type="checkbox"
+              id="forceRefreshCache"
+              checked={forceRefreshCache}
+              onChange={(e) => setForceRefreshCache(e.target.checked)}
+              style={{
+                width: "16px",
+                height: "16px",
+                cursor: "pointer",
+              }}
+            />
+            <label
+              htmlFor="forceRefreshCache"
+              style={{
+                fontSize: "0.85rem",
+                color: "#374151",
+                cursor: "pointer",
+              }}
+              title="Wymuś ponowną weryfikację przez AI (wyłącz cache). Przydatne do wypełnienia cache dla już zweryfikowanych firm."
+            >
+              Wymuś ponowną weryfikację (wypełnij cache)
+            </label>
+          </div>
         </div>
       </div>
 
@@ -2654,6 +2859,306 @@ export default function PersonaVerifyPage() {
                 </div>
               </>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Modal z zapisanymi decyzjami */}
+      {showCacheModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: "2rem",
+            zIndex: 1000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCacheModal(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "0.75rem",
+              boxShadow: "0 24px 48px rgba(15, 23, 42, 0.18)",
+              padding: "2rem",
+              maxWidth: "1200px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.5rem",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem" }}>
+                  Zapisane decyzje weryfikacji stanowisk
+                </h2>
+                <p style={{ fontSize: "0.95rem", color: "#6B7280" }}>
+                  System zapisuje decyzje AI dla stanowisk, aby przyspieszyć weryfikację dla powtarzających się stanowisk w różnych firmach.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCacheModal(false)}
+                style={{
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#EF4444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "0.5rem",
+                  cursor: "pointer",
+                  fontSize: "0.9rem",
+                }}
+              >
+                Zamknij
+              </button>
+            </div>
+
+            {loadingCacheModal ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>Ładowanie...</div>
+            ) : cacheModalData.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "3rem",
+                  backgroundColor: "#F9FAFB",
+                  borderRadius: "0.5rem",
+                  color: "#6B7280",
+                }}
+              >
+                <p style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Brak zapisanych decyzji</p>
+                <p style={{ fontSize: "0.9rem" }}>
+                  Decyzje będą zapisywane automatycznie podczas weryfikacji person przez AI.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                {/* Podsumowanie */}
+                <div
+                  style={{
+                    padding: "1rem 1.5rem",
+                    backgroundColor: "#F9FAFB",
+                    borderRadius: "0.5rem",
+                    border: "1px solid #E5E7EB",
+                    display: "flex",
+                    gap: "2rem",
+                    alignItems: "center",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>Pozytywne:</span>
+                    <span style={{ fontSize: "1.1rem", fontWeight: 600, color: "#065F46" }}>
+                      {cacheModalData.filter((item) => item.decision === "positive").length}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>Negatywne:</span>
+                    <span style={{ fontSize: "1.1rem", fontWeight: 600, color: "#991B1B" }}>
+                      {cacheModalData.filter((item) => item.decision === "negative").length}
+                    </span>
+                  </div>
+                  <div style={{ marginLeft: "auto", fontSize: "0.9rem", color: "#6B7280" }}>
+                    Razem: {cacheModalData.length}
+                  </div>
+                </div>
+
+                {/* Podkarty */}
+                <div>
+                  <div style={{ display: "flex", gap: "0.5rem", borderBottom: "2px solid #E5E7EB", marginBottom: "1.5rem" }}>
+                    <button
+                      onClick={() => {
+                        setCacheModalTab("positive");
+                        setCacheModalPage((prev) => ({ ...prev, positive: 1 }));
+                      }}
+                      style={{
+                        padding: "0.75rem 1.5rem",
+                        border: "none",
+                        backgroundColor: "transparent",
+                        color: cacheModalTab === "positive" ? "#065F46" : "#6B7280",
+                        fontWeight: cacheModalTab === "positive" ? 600 : 400,
+                        borderBottom: cacheModalTab === "positive" ? "2px solid #065F46" : "2px solid transparent",
+                        cursor: "pointer",
+                        marginBottom: "-2px",
+                      }}
+                    >
+                      Pozytywne ({cacheModalData.filter((item) => item.decision === "positive").length})
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCacheModalTab("negative");
+                        setCacheModalPage((prev) => ({ ...prev, negative: 1 }));
+                      }}
+                      style={{
+                        padding: "0.75rem 1.5rem",
+                        border: "none",
+                        backgroundColor: "transparent",
+                        color: cacheModalTab === "negative" ? "#991B1B" : "#6B7280",
+                        fontWeight: cacheModalTab === "negative" ? 600 : 400,
+                        borderBottom: cacheModalTab === "negative" ? "2px solid #991B1B" : "2px solid transparent",
+                        cursor: "pointer",
+                        marginBottom: "-2px",
+                      }}
+                    >
+                      Negatywne ({cacheModalData.filter((item) => item.decision === "negative").length})
+                    </button>
+                  </div>
+
+                  {/* Zawartość karty */}
+                  {(() => {
+                    const filteredItems = cacheModalData.filter((item) => item.decision === cacheModalTab);
+                    const currentPage = cacheModalPage[cacheModalTab];
+                    const totalPages = Math.ceil(filteredItems.length / cacheModalItemsPerPage);
+                    const startIndex = (currentPage - 1) * cacheModalItemsPerPage;
+                    const endIndex = startIndex + cacheModalItemsPerPage;
+                    const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+                    if (filteredItems.length === 0) {
+                      return (
+                        <div
+                          style={{
+                            textAlign: "center",
+                            padding: "3rem",
+                            backgroundColor: "#F9FAFB",
+                            borderRadius: "0.5rem",
+                            color: "#6B7280",
+                          }}
+                        >
+                          <p style={{ fontSize: "1rem" }}>
+                            Brak {cacheModalTab === "positive" ? "pozytywnych" : "negatywnych"} decyzji
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                          {paginatedItems.map((item) => (
+                            <div
+                              key={item.id}
+                              style={{
+                                padding: "1.25rem",
+                                backgroundColor: cacheModalTab === "positive" ? "#F0FDF4" : "#FEF2F2",
+                                borderRadius: "0.5rem",
+                                border: cacheModalTab === "positive" ? "1px solid #D1FAE5" : "1px solid #FEE2E2",
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                                    <h4 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#111827" }}>
+                                      {item.titleNormalized}
+                                    </h4>
+                                    <span
+                                      style={{
+                                        padding: "0.25rem 0.75rem",
+                                        borderRadius: "0.375rem",
+                                        fontSize: "0.85rem",
+                                        fontWeight: 500,
+                                        backgroundColor: cacheModalTab === "positive" ? "#D1FAE5" : "#FEE2E2",
+                                        color: cacheModalTab === "positive" ? "#065F46" : "#991B1B",
+                                      }}
+                                    >
+                                      {cacheModalTab === "positive" ? "Pozytywne" : "Negatywne"}
+                                    </span>
+                                    <span style={{ fontSize: "0.9rem", color: "#6B7280", fontWeight: 500 }}>
+                                      Score: {item.score !== null ? `${(item.score * 100).toFixed(0)}%` : "brak"}
+                                    </span>
+                                  </div>
+                                  {item.titleEnglish && item.titleEnglish !== item.titleNormalized && (
+                                    <p style={{ fontSize: "0.9rem", color: "#6B7280", marginBottom: "0.25rem" }}>
+                                      EN: {item.titleEnglish}
+                                    </p>
+                                  )}
+                                  <div style={{ display: "flex", gap: "1rem", fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.5rem" }}>
+                                    {item.departments && item.departments.length > 0 && (
+                                      <span>Działy: {item.departments.join(", ")}</span>
+                                    )}
+                                    {item.seniority && <span>Seniority: {item.seniority}</span>}
+                                  </div>
+                                  {item.reason && (
+                                    <p style={{ fontSize: "0.9rem", color: "#374151", marginTop: "0.5rem", lineHeight: 1.5 }}>
+                                      {item.reason}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.8rem", color: "#9CA3AF", marginTop: "0.75rem" }}>
+                                <span>Użyto: {item.useCount} {item.useCount === 1 ? "raz" : "razy"}</span>
+                                <span>
+                                  Zweryfikowano: {new Date(item.verifiedAt).toLocaleString("pl-PL")}
+                                </span>
+                                <span>
+                                  Ostatnie użycie: {new Date(item.lastUsedAt).toLocaleString("pl-PL")}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Paginacja */}
+                        {totalPages > 1 && (
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "center",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              marginTop: "1.5rem",
+                              paddingTop: "1rem",
+                              borderTop: "1px solid #E5E7EB",
+                            }}
+                          >
+                            <button
+                              onClick={() => setCacheModalPage((prev) => ({ ...prev, [cacheModalTab]: Math.max(1, currentPage - 1) }))}
+                              disabled={currentPage === 1}
+                              style={{
+                                padding: "0.5rem 1rem",
+                                backgroundColor: currentPage === 1 ? "#F3F4F6" : "white",
+                                color: currentPage === 1 ? "#9CA3AF" : "#374151",
+                                border: "1px solid #D1D5DB",
+                                borderRadius: "0.375rem",
+                                cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                                fontSize: "0.9rem",
+                              }}
+                            >
+                              Poprzednia
+                            </button>
+                            <span style={{ fontSize: "0.9rem", color: "#6B7280", padding: "0 1rem" }}>
+                              Strona {currentPage} z {totalPages}
+                            </span>
+                            <button
+                              onClick={() => setCacheModalPage((prev) => ({ ...prev, [cacheModalTab]: Math.min(totalPages, currentPage + 1) }))}
+                              disabled={currentPage === totalPages}
+                              style={{
+                                padding: "0.5rem 1rem",
+                                backgroundColor: currentPage === totalPages ? "#F3F4F6" : "white",
+                                color: currentPage === totalPages ? "#9CA3AF" : "#374151",
+                                border: "1px solid #D1D5DB",
+                                borderRadius: "0.375rem",
+                                cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                                fontSize: "0.9rem",
+                              }}
+                            >
+                              Następna
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

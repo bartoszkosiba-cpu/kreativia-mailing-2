@@ -9,7 +9,7 @@ import {
   type PersonaCriteriaPayload,
   type PersonaCriteriaDto,
 } from "@/services/personaCriteriaService";
-import { upsertPersonaBrief } from "@/services/personaBriefService";
+import { upsertPersonaBrief, regeneratePromptForPersonaCriteria } from "@/services/personaBriefService";
 
 type AllowedRole = "system" | "user" | "assistant";
 
@@ -70,17 +70,56 @@ function buildPayload(
   };
 }
 
-function detectReadyToGenerate(response: string): boolean {
+function detectReadyToGenerate(response: string, lastUserMessage?: string): boolean {
   const normalized = response.toLowerCase();
+  const userMessage = (lastUserMessage || "").toLowerCase();
 
-  return (
-    normalized.includes("pozytywne persony") ||
-    normalized.includes("negatywne persony") ||
-    normalized.includes("lista person") ||
-    normalized.includes("role docelowe") ||
-    normalized.includes("role do unikania") ||
-    normalized.includes("podsumowanie person")
+  // Sprawdź czy AI przedstawiło podsumowanie w wymaganym formacie
+  // Musi zawierać DOKŁADNIE nagłówek "## PODSUMOWANIE - PROSZĘ POTWIERDŹ" lub podobny
+  const hasSummaryHeader = (
+    (normalized.includes("## podsumowanie") && normalized.includes("proszę potwierdź")) ||
+    normalized.includes("podsumowanie - proszę potwierdź") ||
+    (normalized.includes("podsumowanie") && normalized.includes("proszę potwierdź") && 
+     (normalized.includes("##") || normalized.includes("###")))
   );
+
+  // Sprawdź czy są wszystkie wymagane sekcje
+  const hasAllSections = (
+    (normalized.includes("kontekst biznesowy") || normalized.includes("produkt/usługa") || normalized.includes("produkt:") || normalized.includes("odbiorcy:")) &&
+    normalized.includes("seniority") &&
+    (normalized.includes("pozytywne persony") || normalized.includes("pozytywne:")) &&
+    (normalized.includes("negatywne persony") || normalized.includes("negatywne:")) &&
+    (normalized.includes("brief strategiczny") || normalized.includes("brief"))
+  );
+
+  // Sprawdź czy jest pytanie o potwierdzenie
+  const hasConfirmationQuestion = (
+    normalized.includes("czy powyższe") ||
+    normalized.includes("czy chcesz coś zmienić") ||
+    normalized.includes("przed wygenerowaniem") ||
+    normalized.includes("czy powyższe podsumowanie") ||
+    normalized.includes("czy powyższe jest poprawne") ||
+    normalized.includes("czy chcesz coś dodać")
+  );
+
+  const hasSummaryFormat = hasSummaryHeader && hasAllSections && hasConfirmationQuestion;
+
+  // Sprawdź czy użytkownik potwierdził podsumowanie (tylko w ostatniej wiadomości użytkownika)
+  // WAŻNE: użytkownik musi potwierdzić TYLKO jeśli jest podsumowanie w formacie
+  const userMessageTrimmed = userMessage.trim();
+  const userConfirmed = hasSummaryFormat && userMessage && (
+    (userMessage.includes("tak") && (userMessage.includes("poprawne") || userMessage.includes("zgadza") || userMessage.includes("ok"))) ||
+    userMessage.includes("zgadza się") ||
+    userMessage.includes("poprawnie") ||
+    userMessage.includes("wygeneruj") ||
+    userMessage.includes("generuj") ||
+    userMessage.includes("wszystko ok") ||
+    userMessageTrimmed === "ok" || userMessageTrimmed === "ok." || userMessageTrimmed === "ok," // "ok" samo w sobie
+  );
+
+  // Zwróć true TYLKO jeśli jest podsumowanie w formacie I użytkownik potwierdził
+  // Jeśli nie ma podsumowania w formacie, ZAWSZE zwróć false
+  return hasSummaryFormat && userConfirmed;
 }
 
 export async function POST(
@@ -140,14 +179,54 @@ export async function POST(
 
     const systemPrompt = `Jesteś ekspertem ds. prospectingu B2B. Twoim zadaniem jest pomóc zdefiniować persony (stanowiska) do kontaktu handlowego dla kampanii cold mailingowych.
 
-ZASADY:
+KRYTYCZNE - SEKWENCJA DZIAŁAŃ (MUSISZ PRZESTRZEGAĆ TEGO PORZĄDKU):
+
+1. ZBIERZ KONTEKST BIZNESOWY:
+   - Zapytaj o produkt/usługę: "Jaki produkt lub usługę oferujesz? Opisz go krótko."
+   - Zapytaj o odbiorców: "Do jakich firm kierujesz swoją ofertę? Jaki jest ich profil biznesowy?"
+   - Zapytaj o logikę decyzyjną: "Kto w tych firmach podejmuje decyzje zakupowe? Jakie stanowiska mają wpływ na wybór Twojego produktu/usługi?"
+   - Zapytaj o przykłady: "Podaj przykłady stanowisk, które ZAWSZE powinny być pozytywne (np. Project Manager, CEO, Sales Manager)."
+   - Zapytaj o stanowiska do unikania: "Jakie stanowiska lub działy powinniśmy unikać?"
+
+2. ZAPYTAJ O SENIORITY (ZAWSZE, NAWET JEŚLI UŻYTKOWNIK WSPOMNIAŁ):
+   - ZAWSZE zadaj pytanie: "Czy poziom seniority (junior/mid/senior) jest dla Ciebie ważny przy wyborze person?"
+   - Nawet jeśli użytkownik wspomniał o seniority wcześniej, POTWIERDŹ swoje zrozumienie: "Rozumiem, że seniority jest [ważne/nieistotne] - czy to się zgadza?"
+   - Jeśli użytkownik mówi, że seniority nie jest ważne, zapamiętaj to i ustaw minSeniority na null w briefie.
+
+3. PRZEDSTAW PODSUMOWANIE W WYMAGANYM FORMACIE (PRZED ZAPROPONOWANIEM GENEROWANIA):
+   - MUSISZ przedstawić podsumowanie w DOKŁADNIE takim formacie:
+   
+   ## PODSUMOWANIE - PROSZĘ POTWIERDŹ
+   
+   **KONTEKST BIZNESOWY:**
+   [Opisz produkt/usługę, odbiorców, logikę decyzyjną]
+   
+   **SENIORITY:**
+   [Czy seniority jest ważne? Jeśli nie, ustaw minSeniority na null]
+   
+   **POZYTYWNE PERSONY:**
+   [Lista stanowisk, które ZAWSZE powinny być pozytywne]
+   
+   **NEGATYWNE PERSONY:**
+   [Lista stanowisk/działów do unikania]
+   
+   **BRIEF STRATEGICZNY:**
+   [Krótkie podsumowanie strategii weryfikacji]
+   
+   Czy powyższe podsumowanie jest poprawne? Czy chcesz coś zmienić przed wygenerowaniem person?
+
+4. TYLKO PO POTWIERDZENIU PRZEZ UŻYTKOWNIKA:
+   - Jeśli użytkownik potwierdzi (np. "tak", "zgadza się", "wygeneruj", "ok"), wtedy możesz zaproponować generowanie.
+   - NIE proponuj generowania, jeśli nie przedstawiłeś podsumowania w wymaganym formacie.
+   - NIE proponuj generowania, jeśli użytkownik nie potwierdził podsumowania.
+
+ZASADY DODATKOWE:
 - Na początku rozmowy (jeśli jeszcze nie ustalono) zapytaj użytkownika: "W jakiej roli mam się wcielić podczas weryfikacji person? (np. ekspert od stoisk targowych, analityk sprzedażowy B2B, specjalista od produktu X). To pomoże mi lepiej ocenić, które osoby są wartościowe dla Twojej kampanii."
 - Jeśli użytkownik nie poda roli, zaproponuj rolę na podstawie opisu persony i kontekstu kampanii.
 - Ustal pozytywne persony: stanowiska, role, zakresy obowiązków, słowa kluczowe w tytułach i działach.
 - Zidentyfikuj negatywne persony: kogo unikać.
 - Zwracaj uwagę na seniority, działy, język komunikacji.
 - Przedstawiaj wnioski w punktach, pytaj o brakujące informacje.
-- Gdy będziesz gotowy, podsumuj pozytywne/negatywne persony.
 - Nie generuj finalnej struktury JSON – to nastąpi w osobnym kroku.
 - Jeśli użytkownik chce zmodyfikować istniejące persony, zapytaj o szczegóły zmian i zaproponuj aktualizacje.
 
@@ -196,13 +275,147 @@ ${!existingPositiveRoles && !existingNegativeRoles ? "Uwaga: To jest nowa konfig
 
     const saved = await upsertPersonaCriteriaById(personaId, payload);
 
+    // Regeneruj prompt jeśli PersonaCriteria zostało zmienione
+    try {
+      await regeneratePromptForPersonaCriteria(personaId);
+    } catch (promptError) {
+      // Nie przerywamy procesu jeśli regeneracja promptu się nie powiodła
+      logger.error("persona-criteria-chat", "Błąd regeneracji promptu", { personaId }, promptError as Error);
+    }
+
+    // Sprawdź gotowość do generowania - sprawdź OSTATNIĄ odpowiedź AI LUB poprzednie odpowiedzi w historii
+    // Jeśli użytkownik potwierdził (np. "ok"), sprawdź czy w poprzednich odpowiedziach AI było podsumowanie
+    let shouldGenerateFromFunction = detectReadyToGenerate(aiResponse, message);
+    
+    // Jeśli ostatnia odpowiedź AI nie zawiera podsumowania, ale użytkownik potwierdził,
+    // sprawdź poprzednie odpowiedzi AI w historii
+    if (!shouldGenerateFromFunction && message) {
+      const userMsg = message.toLowerCase().trim();
+      const isConfirmation = userMsg === "ok" || userMsg === "ok." || userMsg === "ok," ||
+        userMsg.includes("zgadza się") || userMsg.includes("poprawnie") ||
+        userMsg.includes("wygeneruj") || userMsg.includes("generuj") ||
+        (userMsg.includes("tak") && (userMsg.includes("poprawne") || userMsg.includes("zgadza")));
+      
+      if (isConfirmation) {
+        // Sprawdź poprzednie odpowiedzi AI w historii
+        for (let i = chatHistory.length - 2; i >= 0; i--) {
+          const prevResponse = chatHistory[i];
+          if (prevResponse.role === "assistant" && prevResponse.content) {
+            const prevCheck = detectReadyToGenerate(prevResponse.content, message);
+            if (prevCheck) {
+              shouldGenerateFromFunction = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // Sprawdź jeszcze raz lokalnie (dla pewności) - to jest ostateczna weryfikacja
+    // Sprawdź OSTATNIĄ odpowiedź AI LUB poprzednie odpowiedzi
+    let normalized = aiResponse.toLowerCase();
+    const userMsg = message.toLowerCase();
+    
+    // Sprawdź ostatnią odpowiedź AI
+    let hasHeader = (normalized.includes("## podsumowanie") && normalized.includes("proszę potwierdź")) ||
+      normalized.includes("podsumowanie - proszę potwierdź");
+    let hasSections = (normalized.includes("kontekst biznesowy") || normalized.includes("produkt/usługa") || normalized.includes("produkt:") || normalized.includes("odbiorcy:")) &&
+      normalized.includes("seniority") &&
+      (normalized.includes("pozytywne persony") || normalized.includes("pozytywne:")) &&
+      (normalized.includes("negatywne persony") || normalized.includes("negatywne:")) &&
+      (normalized.includes("brief strategiczny") || normalized.includes("brief"));
+    let hasQuestion = normalized.includes("czy powyższe") ||
+      normalized.includes("czy chcesz coś zmienić") ||
+      normalized.includes("przed wygenerowaniem") ||
+      normalized.includes("czy powyższe podsumowanie") ||
+      normalized.includes("czy powyższe jest poprawne") ||
+      normalized.includes("czy chcesz coś dodać");
+    
+    // Jeśli nie ma w ostatniej odpowiedzi, sprawdź poprzednie odpowiedzi w historii
+    if (!hasHeader || !hasSections || !hasQuestion) {
+      for (let i = chatHistory.length - 2; i >= 0; i--) {
+        const prevResponse = chatHistory[i];
+        if (prevResponse.role === "assistant" && prevResponse.content) {
+          const prevNormalized = prevResponse.content.toLowerCase();
+          if (!hasHeader) {
+            hasHeader = (prevNormalized.includes("## podsumowanie") && prevNormalized.includes("proszę potwierdź")) ||
+              prevNormalized.includes("podsumowanie - proszę potwierdź");
+          }
+          if (!hasSections) {
+            hasSections = (prevNormalized.includes("kontekst biznesowy") || prevNormalized.includes("produkt/usługa") || prevNormalized.includes("produkt:") || prevNormalized.includes("odbiorcy:")) &&
+              prevNormalized.includes("seniority") &&
+              (prevNormalized.includes("pozytywne persony") || prevNormalized.includes("pozytywne:")) &&
+              (prevNormalized.includes("negatywne persony") || prevNormalized.includes("negatywne:")) &&
+              (prevNormalized.includes("brief strategiczny") || prevNormalized.includes("brief"));
+          }
+          if (!hasQuestion) {
+            hasQuestion = prevNormalized.includes("czy powyższe") ||
+              prevNormalized.includes("czy chcesz coś zmienić") ||
+              prevNormalized.includes("przed wygenerowaniem") ||
+              prevNormalized.includes("czy powyższe podsumowanie") ||
+              prevNormalized.includes("czy powyższe jest poprawne") ||
+              prevNormalized.includes("czy chcesz coś dodać");
+          }
+          if (hasHeader && hasSections && hasQuestion) {
+            normalized = prevNormalized; // Użyj poprzedniej odpowiedzi do dalszej weryfikacji
+            break;
+          }
+        }
+      }
+    }
+    
+    // Musi być wszystko razem
+    const hasFormat = hasHeader && hasSections && hasQuestion;
+    
+    // Sprawdź czy użytkownik potwierdził
+    // "ok" samo w sobie powinno być uznane za potwierdzenie jeśli jest podsumowanie
+    const userConfirmed = hasFormat && userMsg && (
+      (userMsg.includes("tak") && (userMsg.includes("poprawne") || userMsg.includes("zgadza") || userMsg.includes("ok"))) ||
+      userMsg.includes("zgadza się") ||
+      userMsg.includes("poprawnie") ||
+      userMsg.includes("wygeneruj") ||
+      userMsg.includes("generuj") ||
+      (userMsg.trim() === "ok" || userMsg.trim() === "ok." || userMsg.trim() === "ok,") // "ok" samo w sobie
+    );
+    
+    // FINALNA wartość - ZAWSZE false jeśli nie ma podsumowania w formacie
+    const finalShouldGenerate = hasFormat && userConfirmed;
+    
+    // Logowanie - użyj logger.info (zapisuje do plików)
+    logger.info("persona-criteria-chat", "shouldGenerate check", {
+      shouldGenerateFromFunction,
+      finalShouldGenerate,
+      hasHeader,
+      hasSections,
+      hasQuestion,
+      hasFormat,
+      userConfirmed: !!userConfirmed,
+      aiResponseLength: aiResponse.length,
+      userMessagePreview: message.substring(0, 100),
+      aiResponsePreview: aiResponse.substring(0, 300)
+    });
+    
+    // WYŚWIETL W TERMINALU - użyj console.error (zawsze widoczne)
+    if (!finalShouldGenerate) {
+      console.error("\n[PERSONA-CHAT] shouldGenerate=FALSE");
+      console.error("  hasHeader:", hasHeader);
+      console.error("  hasSections:", hasSections);
+      console.error("  hasQuestion:", hasQuestion);
+      console.error("  hasFormat:", hasFormat);
+      console.error("  userConfirmed:", !!userConfirmed);
+      console.error("  AI Response preview:", aiResponse.substring(0, 200));
+      console.error("");
+    } else {
+      console.error("\n[PERSONA-CHAT] shouldGenerate=TRUE - gotowe do generowania!\n");
+    }
+
     logger.info("persona-criteria-chat", "Zapisano wiadomość w czacie person", { personaId });
 
     return NextResponse.json({
       success: true,
       response: aiResponse,
       chatHistory,
-      shouldGenerate: detectReadyToGenerate(aiResponse),
+      shouldGenerate: finalShouldGenerate, // ZAWSZE użyj finalnej wartości - false jeśli nie ma podsumowania
       data: saved,
     });
   } catch (error) {
@@ -358,23 +571,46 @@ ${JSON.stringify(history, null, 2)}`;
 
     const saved = await upsertPersonaCriteriaById(personaId, payload);
 
+    // Regeneruj prompt jeśli PersonaCriteria zostało zmienione
+    try {
+      await regeneratePromptForPersonaCriteria(personaId);
+    } catch (promptError) {
+      // Nie przerywamy procesu jeśli regeneracja promptu się nie powiodła
+      logger.error("persona-criteria-chat", "Błąd regeneracji promptu", { personaId }, promptError as Error);
+    }
+
     // Automatycznie wygeneruj brief strategiczny na podstawie rozmowy
     try {
+      // Sprawdź czy użytkownik powiedział, że seniority nie jest ważne
+      const historyText = JSON.stringify(history, null, 2).toLowerCase();
+      const seniorityNotImportant = historyText.includes("seniority nie") || 
+        historyText.includes("seniority nie jest") ||
+        historyText.includes("seniority nie ma") ||
+        historyText.includes("seniority nieistotne") ||
+        historyText.includes("seniority nie ważne") ||
+        (historyText.includes("seniority") && (historyText.includes("nie ważne") || historyText.includes("nieistotne")));
+      
       const briefPrompt = `Na podstawie historii rozmowy z użytkownikiem przygotuj brief strategiczny dla weryfikacji person. Odpowiedz TYLKO w JSON:
 {
-  "summary": "Krótkie podsumowanie celów i kontekstu kampanii",
-  "decisionGuidelines": ["Wskazówka 1", "Wskazówka 2"],
-  "targetProfiles": ["Przykładowa persona pozytywna 1", "Przykładowa persona pozytywna 2"],
-  "avoidProfiles": ["Przykładowa persona negatywna 1", "Przykładowa persona negatywna 2"],
+  "summary": "SZCZEGÓŁOWE podsumowanie kontekstu biznesowego - MUSISZ uwzględnić: 1) Co to za produkt/usługa (dokładny opis), 2) Do jakich firm jest kierowany (profil odbiorców), 3) Kto w tych firmach podejmuje decyzje zakupowe i dlaczego (logika decyzyjna), 4) Jaki jest cel kampanii. To jest KLUCZOWE dla poprawnej weryfikacji person przez AI.",
+  "decisionGuidelines": ["Wskazówka 1 - jak oceniać stanowiska", "Wskazówka 2 - co brać pod uwagę"],
+  "targetProfiles": ["Wszystkie stanowiska pozytywne z wygenerowanych person - MUSISZ uwzględnić WSZYSTKIE z listy poniżej"],
+  "avoidProfiles": ["Wszystkie stanowiska negatywne z wygenerowanych person - MUSISZ uwzględnić WSZYSTKIE z listy poniżej"],
   "aiRole": "Rola AI podczas weryfikacji (np. ekspert od stoisk targowych, analityk sprzedażowy B2B)"
 }
+
+${seniorityNotImportant ? "WAŻNE: Użytkownik wyraźnie stwierdził, że seniority nie jest ważne. W briefie nie uwzględniaj wymagań dotyczących poziomu seniority." : ""}
+
+WAŻNE - MUSISZ uwzględnić WSZYSTKIE stanowiska z wygenerowanych person w targetProfiles i avoidProfiles. Nie pomijaj żadnego stanowiska.
 
 Historia rozmowy:
 ${JSON.stringify(history, null, 2)}
 
 Wygenerowane persony:
 Pozytywne: ${JSON.stringify(parsed.positiveRoles?.map((r: any) => r.label) || [], null, 2)}
-Negatywne: ${JSON.stringify(parsed.negativeRoles?.map((r: any) => r.label) || [], null, 2)}`;
+Negatywne: ${JSON.stringify(parsed.negativeRoles?.map((r: any) => r.label) || [], null, 2)}
+
+Uwaga: W targetProfiles i avoidProfiles MUSISZ uwzględnić WSZYSTKIE stanowiska z powyższych list. Nie pomijaj żadnego.`;
 
       const briefCompletion = await openai.chat.completions.create({
         model: "gpt-4o",

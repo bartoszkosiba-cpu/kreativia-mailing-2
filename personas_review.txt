@@ -1,0 +1,2084 @@
+
+=== KRYTERIA PERSON ===
+
+Pozytywne role:
+  - Grafik komputerowy (minSeniority: junior)
+  - Project Manager (minSeniority: junior)
+  - Specjalista ds. sprzedaży (minSeniority: junior)
+  - Właściciel firmy (minSeniority: junior)
+  - Kierownik/dyrektor produkcji (minSeniority: mid)
+  - Specjalista ds. zakupów (minSeniority: junior)
+  - Stanowisko marketingowo-sprzedażowe (minSeniority: junior)
+
+Negatywne role:
+  - Kierownik/dyrektor finansowy
+  - Stanowisko logistyczne
+  - Stanowisko wyłącznie marketingowe
+  - Stanowisko administracyjne
+
+
+=== OCENA POZYTYWNYCH PERSON (87) ===
+
+1. ✓ Aamna Shaikh - "Business Development Manager"
+   Firma: AARS Exhibitions worldwide
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Business Development Manager' zawiera słowo 'sales', co wskazuje na bezpośredni wpływ na decyzje zakupowe związane z podwieszeniami targowymi.
+   Email: Brak (extrapolated)
+   Działy: master_sales
+   Seniority: manager
+
+2. ✓ Dwisha Chakravarty - "Business Development - International Sales"
+   Firma: AARS Exhibitions worldwide
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Business Development - International Sales' zawiera słowo 'sales', co wskazuje na bezpośredni wpływ na decyzje zakupowe związane z podwieszeniami targowymi.
+   Email: Brak (extrapolated)
+   Działy: master_sales
+   Seniority: entry
+
+3. ✓ Jan Szofer - "Co-Owner | F__k up Manager"
+   Firma: ABYSS s.c.
+   Score: 100%
+   Powód: Ocena: 100% — Jako współwłaściciel firmy, Jan Szofer ma wpływ na decyzje zakupowe dotyczące stoisk targowych, co czyni go odpowiednim odbiorcą dla podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: owner
+
+4. ✓ Milena Linkiewicz - "Project Manager"
+   Firma: AG-EXPO Andrzej Groblewski Sp. J.
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może używać podwieszeń w swojej pracy.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+5. ✓ Akansha N - "AVP - Sales - Europe & Asia"
+   Firma: All For Expo
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko zawiera słowo 'sales', co zgodnie z zasadami klasyfikacji oznacza pozytywną decyzję.
+   Email: akansha.n@allforexpo.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+6. ✓ Marcin Pociegiel - "Project Manager"
+   Firma: AMAKO EXPO Stand Builders
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może używać podwieszeń w swojej pracy.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+7. ✓ Marcin Styczynski - "Manager of Sales"
+   Firma: ArtExpo Sp. z o.o.
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Manager of Sales' zawiera słowo 'sales', co wskazuje na bezpośredni wpływ na decyzje zakupowe związane z podwieszeniami targowymi.
+   Email: marcin@artexpo.com.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+8. ✓ Monika Gregorczyk - "CEO at Artexpo"
+   Firma: ArtExpo Sp. z o.o.
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'CEO at Artexpo' wskazuje na wysoką pozycję w firmie, co sugeruje wpływ na decyzje dotyczące wyboru podwieszeń targowych.
+   Email: monika@artexpo.com.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+9. ✓ Arkadiusz Zygarlicki - "Kierownik projektu"
+   Firma: ARTEXPO SP.J. POLAND
+   Score: 100%
+   Powód: Ocena: 100% — Kierownik projektu ma wpływ na projektowanie stoisk targowych, co czyni go odpowiednim odbiorcą dla podwieszeń targowych.
+   Email: azygarlicki@artexpo.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+10. ✓ Aneta Laskowska - "Sales and Marketing Specialist"
+   Firma: BRAND EMOTION Fair Services
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko zawiera słowo 'sales', co zgodnie z zasadami klasyfikacji oznacza pozytywną decyzję.
+   Email: Brak (verified)
+   Działy: master_marketing, master_sales
+   Seniority: entry
+
+11. ✓ Bartosz Palicki - "Project Manager BWS Expo"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager has a direct influence on the design and execution of exhibition stands.
+   Email: bartosz.palicki@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+12. ✓ Wlodzimierz Slominski - "CEO"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — CEO has executive authority and influence over purchasing decisions related to exhibition stands.
+   Email: wlodzimierz.slominski@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+13. ✓ Maciej Baranowski - "Project Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager is involved in managing projects that may include exhibition stands.
+   Email: maciej.baranowski@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+14. ✓ Dorota Zak - "Project Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager is responsible for overseeing projects related to exhibition stands.
+   Email: dorota.zak@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+15. ✓ Beata Janicka - "Project Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager plays a key role in the planning and execution of exhibition stands.
+   Email: beata@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+16. ✓ Krzysztof Szofer - "Vice President"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — Vice President has influence over strategic decisions, including those related to exhibition stands.
+   Email: krzysztof.szofer@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+17. ✓ Ewa Judkowiak - "Project manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager is involved in managing projects that may include exhibition stands.
+   Email: ewa.judkowiak@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+18. ✓ Dawid Gorski - "Chief Project Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager plays a key role in the planning and execution of exhibition stands.
+   Email: dawid.gorski@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+19. ✓ Eliza Karczynska - "Designer"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 100%
+   Powód: Ocena: 100% — Designer is directly involved in the design of exhibition stands.
+   Email: Brak (verified)
+   Działy: design
+   Seniority: entry
+
+20. ✓ Magdalena S - "Sales & Operations Manager | Exhibition Stand Design & Construction"
+   Firma: Connect Displays
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Sales & Operations Manager' zawiera słowo 'sales', co jednoznacznie wskazuje na pozytywny wpływ na decyzje zakupowe dotyczące podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: design, master_marketing, master_operations, master_sales
+   Seniority: manager
+
+21. ✓ Nova Faith - "Account Manager"
+   Firma: Connect Displays
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Account Manager' zawiera słowo 'sales', co jednoznacznie wskazuje na pozytywny wpływ na decyzje zakupowe dotyczące podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: master_sales
+   Seniority: manager
+
+22. ✓ Magdalena C - "Project Manager"
+   Firma: DEKY EXPO
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager has a direct influence on the design and execution of trade show booths, making them a key decision-maker for the use of hanging displays.
+   Email: Brak (extrapolated)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+23. ✓ Piotr Urbanski - "Co-Founder"
+   Firma: Dry Forest Expo
+   Score: 90%
+   Powód: Ocena: 90% — Jako współzałożyciel firmy, Piotr Urbanski ma wpływ na decyzje dotyczące projektowania i zakupu stoisk targowych, co czyni go odpowiednim kandydatem do kontaktu w kontekście podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: c_suite
+   Seniority: founder
+
+24. ✓ Jakub Debczynski - "Company Founder"
+   Firma: Excellent Expo
+   Score: 100%
+   Powód: Ocena: 100% — Właściciel firmy ma wpływ na decyzje zakupowe i może korzystać z podwieszeń w projektach.
+   Email: jakub.debczynski@excellent-expo.eu (verified)
+   Działy: Brak
+   Seniority: N/A
+
+25. ✓ Pawel Adamski - "CEO"
+   Firma: Excellent Expo
+   Score: 100%
+   Powód: Ocena: 100% — CEO ma kluczowy wpływ na decyzje zakupowe w firmie, co czyni go odpowiednim odbiorcą.
+   Email: pawel.adamski@excellent-expo.eu (verified)
+   Działy: Brak
+   Seniority: N/A
+
+26. ✓ Michal Kawczyn - "Project Manager Junior"
+   Firma: Excellent Expo
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager Junior może mieć wpływ na projektowanie stoisk i użycie podwieszeń.
+   Email: michal.kawczyn@excellent-expo.eu (verified)
+   Działy: Brak
+   Seniority: N/A
+
+27. ✓ Mateusz Brol - "Project Manager"
+   Firma: Excellent Expo
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma bezpośredni wpływ na projektowanie stoisk i może używać podwieszeń.
+   Email: mateusz.brol@excellent-expo.eu (verified)
+   Działy: Brak
+   Seniority: N/A
+
+28. ✓ Karolina Kazmierska - "Project Manager & CEO Assistant"
+   Firma: Excellent Expo
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager & CEO Assistant ma dostęp do decyzji zakupowych i może wpływać na wybór podwieszeń.
+   Email: karolina.kazmierska@excellent-expo.eu (verified)
+   Działy: Brak
+   Seniority: N/A
+
+29. ✓ Kacper Debczynski - "Project Manager"
+   Firma: Excellent Expo
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk i może korzystać z podwieszeń.
+   Email: kacper.debczynski@excellent-expo.eu (verified)
+   Działy: Brak
+   Seniority: N/A
+
+30. ✓ Weronika Skalska - "Sales and Marketing Specialist"
+   Firma: Excellent Expo
+   Score: 100%
+   Powód: Ocena: 100% — Sales and Marketing Specialist ma wpływ na sprzedaż i może korzystać z podwieszeń w marketingu.
+   Email: Brak (extrapolated)
+   Działy: master_marketing, master_sales
+   Seniority: entry
+
+31. ✓ Tomasz Gozdz - "Project Manager"
+   Firma: Expo Construct Sp. z o.o.
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może użyć podwieszeń w swojej pracy.
+   Email: tomek.g@expo-construct.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+32. ✓ Jakub Kedziora - "Project Manager"
+   Firma: Expo Construct Sp. z o.o.
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może użyć podwieszeń w swojej pracy.
+   Email: jakub@expo-construct.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+33. ✓ Iryna Martsiv - "Sales Manager"
+   Firma: Expo Stand Builder
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko zawiera słowo 'sales', co wskazuje na wpływ na decyzje zakupowe związane z produktami.
+   Email: iryna@expostandbuilders.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+34. ✓ Olesia Sevastianova - "Sales Manager"
+   Firma: Expo Stand Builder
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko zawiera słowo 'sales', co wskazuje na wpływ na decyzje zakupowe związane z produktami.
+   Email: olesia@expostandbuilders.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+35. ✓ Yevheniia Udovenko - "International Project Manager"
+   Firma: Expo Stand Builder
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko zawiera słowo 'Project Manager', co wskazuje na możliwość wpływu na projektowanie stoisk targowych.
+   Email: yevheniia@expostandbuilders.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+36. ✓ Anton Udovenko - "Project Manager | Co-founder"
+   Firma: Expo Stand Builder
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko zawiera słowo 'Project Manager', co wskazuje na możliwość wpływu na projektowanie stoisk targowych.
+   Email: anton@expostandbuilders.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+37. ✓ Hanna Novikova - "Creative Copywriter"
+   Firma: Expo Stand Builder
+   Score: 80%
+   Powód: Ocena: 80% — Stanowisko 'Creative Copywriter' w dziale design może mieć wpływ na projektowanie stoisk, mimo że nie jest bezpośrednio związane z decyzjami zakupowymi.
+   Email: Brak (verified)
+   Działy: design
+   Seniority: entry
+
+38. ✓ Michal Skora - "Sales Director"
+   Firma: H2-Messebau
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Sales Director' wskazuje na bezpośredni wpływ na sprzedaż, co czyni tę osobę odpowiednią do decyzji zakupowych dotyczących podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: master_sales
+   Seniority: director
+
+39. ✓ Bartosz Przybylski - "General Manager, Project Manager"
+   Firma: H2-Messebau
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'General Manager, Project Manager' wskazuje na zarządzanie projektami, co może obejmować projektowanie stoisk targowych.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+40. ✓ Magdalena Metelska - "Project Manager"
+   Firma: H2-Messebau
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Project Manager' wskazuje na zarządzanie projektami, co może obejmować projektowanie stoisk targowych.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+41. ✓ Katarzyna Gawlik - "Project Manager"
+   Firma: H2-Messebau
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Project Manager' wskazuje na zarządzanie projektami, co może obejmować projektowanie stoisk targowych.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+42. ✓ Marcin Zych - "Design Director"
+   Firma: H2-Messebau
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Design Director' wskazuje na bezpośredni wpływ na projektowanie, co czyni tę osobę odpowiednią do decyzji zakupowych dotyczących podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: design
+   Seniority: director
+
+43. ✓ Jakub Lewicki - "Co-founder"
+   Firma: KML Expo
+   Score: 90%
+   Powód: Ocena: 90% — Jako współzałożyciel firmy, Jakub Lewicki ma wpływ na decyzje dotyczące projektowania i zakupu stoisk targowych, co czyni go odpowiednim odbiorcą dla podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: c_suite
+   Seniority: founder
+
+44. ✓ Anna Kosinska - "Project Development Manager"
+   Firma: LINGA EXPO
+   Score: 100%
+   Powód: Ocena: 100% — Project Development Manager ma wpływ na projektowanie stoisk targowych, co czyni tę rolę odpowiednią do użycia produktu.
+   Email: a.kosinska@linga.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+45. ✓ Marta Kulesza - "Project Manager"
+   Firma: Mat  Expo sp z o o
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager has influence on the design and execution of trade show booths, making them a key decision-maker for purchasing hanging systems.
+   Email: mk@mat-expo.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+46. ✓ Jakub Trzmiel - "General manager | Co Owner"
+   Firma: Mat  Expo sp z o o
+   Score: 100%
+   Powód: Ocena: 100% — General manager | Co Owner is an executive role with significant influence over purchasing decisions, including trade show booth components.
+   Email: jt@mat-expo.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+47. ✓ Aleksandra Musial - "Designer/Project Manager"
+   Firma: Melinski-Minuth Ltd
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Designer/Project Manager' wskazuje na wpływ na projektowanie stoisk targowych, co czyni tę osobę odpowiednią do użycia podwieszeń targowych.
+   Email: a.musial@melinski-minuth.com.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+48. ✓ Andrzej Melinski - "Chief Executive Officer"
+   Firma: Melinski-Minuth Ltd
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Chief Executive Officer' sugeruje, że osoba ta ma wpływ na decyzje zakupowe w firmie, co czyni ją odpowiednią do kampanii.
+   Email: a.melinski@melinski-minuth.com.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+49. ✓ Krystian Majer - "Dyrektor Zarządzający"
+   Firma: Melinski-Minuth Ltd
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Creative Department Manager | Designer' wskazuje na zaangażowanie w projektowanie, co czyni tę osobę odpowiednią do użycia podwieszeń targowych.
+   Email: k.majer@melinski-minuth.com.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+50. ✓ Tymoteusz Nowakowski - "Project Manager"
+   Firma: Melinski-Minuth Ltd
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Project Manager' wskazuje na zaangażowanie w zarządzanie projektami, co może obejmować projektowanie stoisk targowych.
+   Email: Brak (extrapolated)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+51. ✓ Kacper Lubawinski - "Project Manager"
+   Firma: MHK Expo
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może używać podwieszeń w swojej pracy.
+   Email: Brak (extrapolated)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+52. ✓ Harsh Singh - "International Sales Marketing Manager"
+   Firma: Monter Vis Sp Zoo
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'International Sales Marketing Manager' zawiera słowo 'sales', co jednoznacznie wskazuje na pozytywny wpływ na decyzje zakupowe dotyczące podwieszeń targowych.
+   Email: Brak (extrapolated)
+   Działy: master_marketing, master_sales
+   Seniority: manager
+
+53. ✓ Ajay Chaurasiya - "Senior 3D Designer for Exhibition"
+   Firma: Monter Vis Sp Zoo
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Senior 3D Designer for Exhibition' zawiera słowo 'designer', co wskazuje na bezpośredni wpływ na projektowanie stoisk targowych i możliwość użycia podwieszeń w pracy.
+   Email: Brak (extrapolated)
+   Działy: design, master_marketing
+   Seniority: senior
+
+54. ✓ Pawel Malaca - "Menedżer Produkcji"
+   Firma: NEOMESSE
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Menedżer Produkcji' może mieć wpływ na projektowanie i realizację stoisk targowych, co uzasadnia pozytywną klasyfikację.
+   Email: pawel.malaca@neomesse.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+55. ✓ Ania Stelmach - "Project Manager"
+   Firma: NEOMESSE
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Project Manager' wskazuje na bezpośredni wpływ na projektowanie stoisk targowych, co uzasadnia pozytywną klasyfikację.
+   Email: ania.stelmach@neomesse.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+56. ✓ Krzysztof Bukalski - "Kierownik Działu Multimediów i DTP"
+   Firma: NEOMESSE
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Kierownik Działu Multimediów i DTP' może mieć wpływ na projektowanie stoisk targowych, co uzasadnia pozytywną klasyfikację.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+57. ✓ Robert Krzyzanski - "Technical and Project Manager"
+   Firma: Pol-Service Expo
+   Score: 90%
+   Powód: Ocena: 90% — Rola Technical and Project Manager sugeruje, że osoba ta ma wpływ na projektowanie stoisk targowych, co czyni ją odpowiednią do rozważenia podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+58. ✓ Kacper Olszewski - "Junior Project Manager"
+   Firma: PPH MAXPOL Sp. z o.o.
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Junior Project Manager' wskazuje na zaangażowanie w zarządzanie projektami, co może obejmować projektowanie i sprzedaż stoisk targowych.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+59. ✓ Karolina Madej - "Sales Manager"
+   Firma: RADON SP. Z O.O. (EUROPE)
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Sales Manager' zawiera słowo 'sales', co zgodnie z zasadami klasyfikacji oznacza pozytywną decyzję. Osoba na tym stanowisku ma wpływ na decyzje zakupowe związane z produktami oferowanymi przez firmę.
+   Email: Brak (verified)
+   Działy: master_sales
+   Seniority: manager
+
+60. ✓ Kavita Chauhan - "Co-Founder"
+   Firma: Ratio3 Exhibits Pvt. ltd
+   Score: 100%
+   Powód: Ocena: 100% — Jako współzałożyciel, ma wpływ na decyzje dotyczące wyboru podwieszeń targowych oraz może wykorzystać je w projektach związanych z wystawami.
+   Email: Brak (verified)
+   Działy: c_suite
+   Seniority: founder
+
+61. ✓ Rahul Basnet - "Co-Founder"
+   Firma: Ratio3 Exhibits Pvt. ltd
+   Score: 100%
+   Powód: Ocena: 100% — Jako współzałożyciel, ma wpływ na decyzje dotyczące wyboru podwieszeń targowych oraz może wykorzystać je w projektach związanych z wystawami.
+   Email: Brak (verified)
+   Działy: c_suite
+   Seniority: founder
+
+62. ✓ Natalia Kedziorska - "Project Manager"
+   Firma: Rolkar Messe
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może używać podwieszeń w swojej pracy.
+   Email: Brak (extrapolated)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+63. ✓ Deepshikha Sharma - "Project Manager"
+   Firma: Sellryt
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager has influence on the design and execution of trade show booths, making them a key decision-maker for the use of hanging displays.
+   Email: deepshikha@sellryt.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+64. ✓ Peeyush Kumar - "Founder & CEO"
+   Firma: Sellryt
+   Score: 100%
+   Powód: Ocena: 100% — Founder & CEO is likely to have significant influence over purchasing decisions related to trade show displays, including hanging displays.
+   Email: Brak (verified)
+   Działy: c_suite
+   Seniority: founder
+
+65. ✓ Sumbul Khan - "Business Development Executive"
+   Firma: Sensations Worldwide
+   Score: 100%
+   Powód: Ocena: 100% — Business Development Executive ma rolę związaną ze sprzedażą, co oznacza, że może mieć wpływ na decyzje dotyczące zakupów podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: master_sales
+   Seniority: entry
+
+66. ✓ Victoriya Rybak - "Owner"
+   Firma: TORI EXPO LTD
+   Score: 100%
+   Powód: Ocena: 100% — Właściciel firmy ma wpływ na decyzje zakupowe i może wykorzystać podwieszenia targowe w projektach.
+   Email: v.rybak@tori-expo.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+67. ✓ Mariia Yaremenko - "Project Manager"
+   Firma: TORI EXPO LTD
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może używać podwieszeń w swojej pracy.
+   Email: m.yaremenko@tori-expo.com (extrapolated)
+   Działy: Brak
+   Seniority: N/A
+
+68. ✓ Yaroslav Tretinichenko - "Project Manager"
+   Firma: TORI EXPO LTD
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może używać podwieszeń w swojej pracy.
+   Email: y.tretinichenko@tori-expo.com (extrapolated)
+   Działy: Brak
+   Seniority: N/A
+
+69. ✓ Vladislav Kushko - "Project Manager"
+   Firma: TORI EXPO LTD
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych i może używać podwieszeń w swojej pracy.
+   Email: v.kushko@tori-expo.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+70. ✓ Aleksandra Nowak - "Business Development Director"
+   Firma: TORI EXPO LTD
+   Score: 100%
+   Powód: Ocena: 100% — Business Development Director ma wpływ na decyzje zakupowe i może wykorzystać podwieszenia targowe w projektach.
+   Email: Brak (verified)
+   Działy: master_sales
+   Seniority: director
+
+71. ✓ Jacek Mackowski - "Creative Director"
+   Firma: Trivent
+   Score: 90%
+   Powód: Ocena: 90% — Rola Creative Director sugeruje wpływ na projektowanie stoisk targowych, co czyni tę osobę odpowiednią do kampanii.
+   Email: jacek@triventlab.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+72. ✓ Alisson Chavez - "Head of Global Marketing and Sales"
+   Firma: Trivent
+   Score: 80%
+   Powód: Ocena: 80% — Rola Head of Global Marketing and Sales wskazuje na wpływ na sprzedaż, co jest zgodne z celami kampanii.
+   Email: Brak (verified)
+   Działy: master_marketing, master_sales
+   Seniority: head
+
+73. ✓ Agnieszka Wojciechowska - "CEO/Owner"
+   Firma: VAN HAGEN Exhibitions
+   Score: 100%
+   Powód: Ocena: 100% — Rola CEO/Owner wskazuje na bezpośredni wpływ na decyzje zakupowe oraz możliwość wykorzystania podwieszeń targowych w projektach związanych z budowaniem stoisk targowych.
+   Email: Brak (verified)
+   Działy: c_suite
+   Seniority: owner
+
+74. ✓ Ania Delimata - "Manager Project"
+   Firma: VMG Expo
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Manager Project' wskazuje na zarządzanie projektami, co sugeruje, że osoba ta ma wpływ na projektowanie stoisk targowych.
+   Email: a.delimata@vmg.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+75. ✓ Agnieszka Wojciechowska - "Project Manager"
+   Firma: VMG Expo
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Project Manager' sugeruje, że osoba ta ma wpływ na projektowanie stoisk targowych.
+   Email: a.wojciechowska@vmg.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+76. ✓ Maciej Przywecki - "CEO"
+   Firma: VMG Expo
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'CEO' wskazuje na najwyższy poziom zarządzania, co sugeruje, że osoba ta ma wpływ na decyzje dotyczące stoisk targowych.
+   Email: Brak (verified)
+   Działy: c_suite
+   Seniority: c_suite
+
+77. ✓ Krzysztof Smurawa - "Dyrektor Wykonawczy ds. Produkcji"
+   Firma: VMG Expo
+   Score: 100%
+   Powód: Ocena: 100% — Rola 'Dyrektor Wykonawczy ds. Produkcji' sugeruje, że osoba ta ma wpływ na produkcję i projektowanie stoisk targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+78. ✓ Bartek Zlobecki - "Project Manager"
+   Firma: Zebra Expo
+   Score: 100%
+   Powód: Ocena: 100% — Stanowisko 'Project Manager' ma bezpośredni wpływ na projektowanie i realizację stoisk targowych, co czyni tę rolę odpowiednią do pozytywnej klasyfikacji.
+   Email: Brak (extrapolated)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+79. ✓ Paulina Debicka-Pluskota - "Managing Partner, Co-Founder"
+   Firma: Plusexpo
+   Score: 100%
+   Powód: Ocena: 100% — Jako Managing Partner i Co-Founder, Paulina Debicka-Pluskota ma wpływ na decyzje dotyczące wyboru podwieszeń targowych, co czyni ją odpowiednią osobą do kontaktu.
+   Email: Brak (verified)
+   Działy: c_suite
+   Seniority: founder
+
+80. ✓ Mariusz Pluskota - "Operations Director/ Owner"
+   Firma: Plusexpo
+   Score: 100%
+   Powód: Ocena: 100% — Mariusz Pluskota jako Operations Director/Owner zarządza procesami i ma wpływ na decyzje dotyczące zakupów, co czyni go odpowiednim kontaktem.
+   Email: Brak (verified)
+   Działy: master_operations
+   Seniority: owner
+
+81. ✓ Kamil Kazmierowski - "Project Manager"
+   Firma: Plusexpo
+   Score: 100%
+   Powód: Ocena: 100% — Kamil Kazmierowski jako Project Manager ma bezpośredni wpływ na projektowanie stoisk targowych, co czyni go odpowiednim kontaktem.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+82. ✓ Agnieszka Kostusiak - "Business Development Manager"
+   Firma: Plusexpo
+   Score: 100%
+   Powód: Ocena: 100% — Agnieszka Kostusiak jako Business Development Manager działa w obszarze sprzedaży, co oznacza, że ma wpływ na decyzje dotyczące wyboru podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: master_sales
+   Seniority: manager
+
+83. ✓ Olga Falczynska - "Owner"
+   Firma: Media Pro - Projekty i Stoiska Targowe
+   Score: 100%
+   Powód: Ocena: 100% — Osoba na stanowisku właściciela firmy ma wpływ na decyzje zakupowe i może być zainteresowana podwieszeniami targowymi do stoisk.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: owner
+
+84. ✓ Aleksander Rusiecki - "Business Owner"
+   Firma: DVG STUDIO
+   Score: 100%
+   Powód: Ocena: 100% — Rola właściciela firmy ma wpływ na decyzje zakupowe i może korzystać z podwieszeń targowych w kontekście projektowania stoisk.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: owner
+
+85. ✓ Adrian Malkiewicz - "Starszy Kierownik Projektu"
+   Firma: ARTMAR.construction
+   Score: 90%
+   Powód: Ocena: 90% — Rola 'Starszy Kierownik Projektu' sugeruje, że osoba ma wpływ na projektowanie stoisk targowych, co czyni ją odpowiednią do rozważenia podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+86. ✓ Marta Kulesza - "Project Manager"
+   Firma: Mat Expo sp z o o
+   Score: 100%
+   Powód: Ocena: 100% — Project Manager ma wpływ na projektowanie stoisk targowych, co czyni go odpowiednim odbiorcą podwieszeń targowych.
+   Email: mk@mat-expo.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+87. ✓ Jakub Trzmiel - "General manager | Co Owner"
+   Firma: Mat Expo sp z o o
+   Score: 100%
+   Powód: Ocena: 100% — General manager | Co Owner ma decydujący wpływ na wybór produktów, w tym podwieszeń targowych, dla firmy.
+   Email: jt@mat-expo.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+
+
+=== OCENA NEGATYWNYCH PERSON (93) ===
+
+1. ✗ Natalia Kosicka - "Managing Director"
+   Firma: A.B.Z. Exhibition Contractor
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Managing Director' jest związane z zarządzaniem, ale nie ma bezpośredniego wpływu na projektowanie ani sprzedaż stoisk targowych, co sprawia, że nie jest to odpowiednia rola dla naszej kampanii.
+   Email: natalia@abz.com.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+2. ✗ Robert Swierkowski - "CEO"
+   Firma: A.B.Z. Exhibition Contractor
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'CEO' jest na poziomie wykonawczym, ale nie wskazuje na bezpośredni wpływ na projektowanie ani sprzedaż stoisk targowych, co czyni tę rolę nieodpowiednią dla kampanii.
+   Email: robert@abz.com.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+3. ✗ Bilal Ansari - "International Operations Manager"
+   Firma: AARS Exhibitions worldwide
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'International Operations Manager' nie pasuje do pozytywnych ról i nie ma wpływu na decyzje dotyczące podwieszeń targowych.
+   Email: Brak (extrapolated)
+   Działy: master_operations
+   Seniority: manager
+
+4. ✗ Aleksandra Wojcik - "Chairman of the Board"
+   Firma: Amarina - Exhibition stands
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Chairman of the Board' jest na poziomie zarządzającym, ale nie jest związana z projektowaniem ani sprzedażą stoisk targowych, co wyklucza możliwość użycia produktu w pracy.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+5. ✗ Jacek Kaluzny - "Kierownik Techniczny"
+   Firma: ARTEXPO SP.J. POLAND
+   Score: 0%
+   Powód: Ocena: 0% — Kierownik Techniczny nie pasuje do pozytywnych ról i nie ma bezpośredniego wpływu na decyzje zakupowe dotyczące stoisk targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+6. ✗ Rahil Siddiqui - "Head of Production"
+   Firma: Blueprint Exhibits
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Head of Production' nie pasuje do pozytywnych ani negatywnych definicji. Chociaż może mieć wpływ na produkcję, nie jest bezpośrednio związana z projektowaniem ani sprzedażą stoisk targowych.
+   Email: Brak (verified)
+   Działy: product_management, master_operations
+   Seniority: head
+
+7. ✗ Emilia Bol - "Koordynator Magazynu i Produkcji na Dziale Grafika"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Ocena: 0% — Logistics Coordinator does not have influence or use of exhibition stands in their role.
+   Email: emilia.bol@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+8. ✗ Radek Rybak - "Senior Project Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: radek@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+9. ✗ Anna Urbanowicz - "Senior project manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: anna@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+10. ✗ Agata Chmielnik - "Project Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: agata.chmielnik@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+11. ✗ Przemyslaw Regulski - "Project Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: przemyslaw.regulski@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+12. ✗ Katarzyna Szymczak - "senior project manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: k.szymczak@bws.poznan.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+13. ✗ Maciej Wrobel - "Kierownik ds. Transportu i Logistyki"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Ocena: 0% — Logistics Manager does not have influence or use of exhibition stands in their role.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+14. ✗ Agnieszka Hodyl - "Freelancer / Technical Designer"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Ocena: 0% — HR and Payroll Specialist does not have influence or use of exhibition stands in their role.
+   Email: Brak (verified)
+   Działy: design
+   Seniority: entry
+
+15. ✗ Rafal Wolowicz - "Production Director"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: master_operations
+   Seniority: director
+
+16. ✗ Rafal Karwinski - "Specjalista Public Relations/ Projektant 2d/3d"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: entry
+
+17. ✗ Jakub Czub - "Kierownik Działu Obsługi Zleceń Zewnętrznych"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Ocena: 0% — Cost Estimator does not have influence or use of exhibition stands in their role.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+18. ✗ Natalia S - "Administration Specialist"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+19. ✗ Marek Kepa - "Projektant Techniczny"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+20. ✗ Marcin Perlicjan - "Specjalista ds. Kosztorysowania"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Ocena: 0% — Cost Estimator does not have influence or use of exhibition stands in their role.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+21. ✗ Robert Tyczynski - "Kierownik Rtv/it"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: master_information_technology
+   Seniority: entry
+
+22. ✗ Marta Smigielska - "Financial Director"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: master_finance
+   Seniority: director
+
+23. ✗ Weronika Rychlewicz - "HR and Payroll Specialist"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: master_human_resources
+   Seniority: entry
+
+24. ✗ Piotr Smiglak - "Kierownik Działu Wycen"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+25. ✗ Jan Marciniak - "Constructor"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Ocena: 0% — Constructor does not have influence or use of exhibition stands in their role.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+26. ✗ Anna Stojecka - "Administrative Assistant Office Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: master_operations
+   Seniority: entry
+
+27. ✗ Mykola Lampitskyi - "Stolarz"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+28. ✗ Marcin Glapinski - "Logistyka Obsługi Klienta"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+29. ✗ Piotr Zmudzinski - "null"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: N/A
+
+30. ✗ Krzysztof Kalmucki - "Stolarz Targowy"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+31. ✗ Wojciech Markowski - "Warehouse Worker"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (extrapolated)
+   Działy: master_operations
+   Seniority: entry
+
+32. ✗ Slawomir Marusiak - "Dekorator Oświetlenia Elektryk"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+33. ✗ Jacek Liss - "Stolarz"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Score: 0%
+   Powód: Ocena: 0% — Logistics Manager does not have influence or use of exhibition stands in their role.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+34. ✗ Jagoda Preibisz - "Technical Manager"
+   Firma: DEKY EXPO
+   Score: 0%
+   Powód: Ocena: 0% — Technical Manager does not fit into the defined positive roles and lacks direct influence or usage of the product in their work.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: manager
+
+35. ✗ Aniket Mehrolia - "Head of Digital Marketing"
+   Firma: Design Desk (Europe)
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Head of Digital Marketing' nie ma bezpośredniego wpływu na projektowanie ani sprzedaż stoisk targowych, a jego rola jest związana z marketingiem, co sugeruje brak możliwości użycia produktu.
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: head
+
+36. ✗ Rohit Saraogi - "Director - Europe & USA"
+   Firma: Design Desk (Europe)
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Director - Europe & USA' jest na poziomie dyrektorskim, ale nie wskazuje na bezpośredni wpływ na projektowanie ani sprzedaż stoisk targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: director
+
+37. ✗ Anna Slusarczyk - "Client Relationship Manager"
+   Firma: Design Desk (Europe)
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Client Relationship Manager' nie ma bezpośredniego wpływu na projektowanie ani sprzedaż stoisk targowych, a jego rola jest bardziej związana z relacjami z klientami.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: manager
+
+38. ✗ Zofia Pietrowska - "Junior Project Manager"
+   Firma: Excellent Expo
+   Score: 0%
+   Powód: Ocena: 0% — Junior Project Manager nie ma wystarczającego wpływu na decyzje zakupowe ani nie może używać produktu.
+   Email: Brak (extrapolated)
+   Działy: master_engineering_technical
+   Seniority: manager
+
+39. ✗ Klaudia Owsianna - "Business Manager"
+   Firma: Exist and Expand
+   Score: 0%
+   Powód: Ocena: 0% — Rola Business Managera nie pasuje do żadnej z pozytywnych definicji i nie ma bezpośredniego wpływu na projektowanie ani sprzedaż stoisk targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: manager
+
+40. ✗ Magdalena Makosa - "Własna.firma"
+   Firma: Expo Construct Sp. z o.o.
+   Score: 0%
+   Powód: Ocena: 0% — Własna firma nie wskazuje na rolę związaną z projektowaniem lub sprzedażą stoisk targowych.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+41. ✗ Malgorzata Przybylska - "Chairman of the Board"
+   Firma: H2-Messebau
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Chairman of the Board' nie ma bezpośredniego wpływu na projektowanie ani sprzedaż stoisk targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+42. ✗ Jagoda Pieciul - "Administration & Marketing Manager"
+   Firma: INTER MARK GROUP
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Administration & Marketing Manager' zawiera elementy administracyjne, co wskazuje na brak możliwości użycia produktu w pracy oraz brak wpływu na decyzje zakupowe dotyczące podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: manager
+
+43. ✗ Jonny Garg - "General Manager"
+   Firma: LINGA EXPO
+   Score: 0%
+   Powód: Ocena: 0% — Rola General Managera nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych.
+   Email: j.garg@linga.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+44. ✗ Michal Paleczka - "Management"
+   Firma: LINGA EXPO
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko Management nie pasuje do żadnej z pozytywnych definicji i nie ma wpływu na decyzje zakupowe.
+   Email: m.paleczka@linga.pl (verified)
+   Działy: Brak
+   Seniority: N/A
+
+45. ✗ Dariusz Stoczynski - "Self-employed"
+   Firma: LINGA EXPO
+   Score: 0%
+   Powód: Ocena: 0% — Rola Self-employed nie dostarcza wystarczających informacji o wpływie na decyzje zakupowe lub użycie produktu.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+46. ✗ Konrad Kosinski - "Kadra Zarządzająca"
+   Firma: LINGA EXPO
+   Score: 0%
+   Powód: Ocena: 0% — Kadra Zarządzająca nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+47. ✗ Ewelina Fidelus - "Office Manager"
+   Firma: LINGA EXPO
+   Score: 0%
+   Powód: Ocena: 0% — Office Manager nie ma wpływu na decyzje dotyczące projektowania lub sprzedaży stoisk targowych.
+   Email: Brak (verified)
+   Działy: master_operations
+   Seniority: manager
+
+48. ✗ Adam Frackowiak - "Kreślarz CAD"
+   Firma: Mat  Expo sp z o o
+   Score: 0%
+   Powód: Ocena: 0% — Kreślarz CAD is a technical support role that does not have direct influence on purchasing decisions or the use of hanging systems in trade show booths.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: entry
+
+49. ✗ Anna Widzgowska - "Marketing Manager"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Marketing Manager' nie wskazuje na bezpośredni wpływ na projektowanie stoisk targowych ani na decyzje zakupowe związane z podwieszeniami.
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: manager
+
+50. ✗ Agnieszka Przybecka - "Creative Department Manager | Designer"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Kierownik Produkcji i Logistyki' wskazuje na zarządzanie logistyką, co nie ma związku z projektowaniem stoisk targowych.
+   Email: Brak (verified)
+   Działy: design
+   Seniority: manager
+
+51. ✗ Grzegorz Zurek - "Head of Electrical Department"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: head
+
+52. ✗ Adam Jurgowiak - "Kierownik Produkcji i Logistyki"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Brak uzasadnienia
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+53. ✗ Justyna Wunderse-Jaloszynska - "null"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Ocena: 0% — Brak danych dotyczących tytułu i roli, co uniemożliwia ocenę wpływu na decyzje zakupowe.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: N/A
+
+54. ✗ Katarzyna Szulc - "Marketing Specialist"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Marketing Specialist' nie wskazuje na bezpośredni wpływ na projektowanie stoisk targowych ani na decyzje zakupowe.
+   Email: Brak (extrapolated)
+   Działy: master_marketing
+   Seniority: entry
+
+55. ✗ Dawid Lesny - "Deputy Manager"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Deputy Manager' nie wskazuje na bezpośredni wpływ na projektowanie stoisk targowych ani na decyzje zakupowe.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: manager
+
+56. ✗ Marta Roszak - "null"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Ocena: 0% — Brak danych dotyczących tytułu i roli, co uniemożliwia ocenę wpływu na decyzje zakupowe.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: N/A
+
+57. ✗ Krzysztof Kusnierek - "Kierownik Działu Elektryczno-audiowizualnego"
+   Firma: Melinski-Minuth Ltd
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Kierownik Działu Elektryczno-audiowizualnego' nie wskazuje na bezpośredni wpływ na projektowanie stoisk targowych ani na decyzje zakupowe.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+58. ✗ Kacper Koralewski - "Stolarz"
+   Firma: MHK Expo
+   Score: 0%
+   Powód: Ocena: 0% — Stolarz nie ma wpływu na decyzje zakupowe ani nie używa podwieszeń w swojej pracy.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+59. ✗ Justyna Sikora - "New Business Manager Polska"
+   Firma: NEOMESSE
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'New Business Manager' nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych, a także nie pasuje do pozytywnych ani negatywnych ról.
+   Email: justyna.sikora@neomesse.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+60. ✗ Pustelnik Monika - "New Business Manager"
+   Firma: NEOMESSE
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'New Business Manager' nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych, a także nie pasuje do pozytywnych ani negatywnych ról.
+   Email: pustelnik.monika@neomesse.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+61. ✗ Malgorzata Slusarczyk - "Key Account Manager"
+   Firma: NEOMESSE
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Key Account Manager' nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych, a także nie pasuje do pozytywnych ani negatywnych ról.
+   Email: malgorzata.slusarczyk@neomesse.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+62. ✗ Anna Cieslik - "Traffic Manager"
+   Firma: NEOMESSE
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Traffic Manager' nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych, a także nie pasuje do pozytywnych ani negatywnych ról.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: manager
+
+63. ✗ Kinga Litewka - "Dyrektor ds. Finansów i Administracji"
+   Firma: NEOMESSE
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Dyrektor ds. Finansów i Administracji' jest związana z finansami, co wyklucza możliwość wpływu na projektowanie stoisk targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+64. ✗ Piotr Stelmach - "Logistics Manager"
+   Firma: NEOMESSE
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Logistics Manager' jest związana z logistyką, co wyklucza możliwość wpływu na projektowanie stoisk targowych.
+   Email: Brak (verified)
+   Działy: master_operations
+   Seniority: manager
+
+65. ✗ Jacek Wisniewski - "Kierownik Laminacji"
+   Firma: NEOMESSE
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Kierownik Laminacji' nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych, a także nie pasuje do pozytywnych ani negatywnych ról.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+66. ✗ Lukas Pilch - "Technologist"
+   Firma: NEOMESSE
+   Score: 0%
+   Powód: Ocena: 0% — Rola 'Technologist' nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych, a także nie pasuje do pozytywnych ani negatywnych ról.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+67. ✗ Sagar Bathla - "Head- Marketing & Vendor Management"
+   Firma: Opulent Expo Sp. z o.o.
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Head- Marketing & Vendor Management' nie ma bezpośredniego wpływu na projektowanie ani sprzedaż stoisk targowych, a jego rola jest bardziej związana z zarządzaniem marketingiem.
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: head
+
+68. ✗ Rishabh K - "Data Analyst"
+   Firma: Opulent Expo Sp. z o.o.
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Data Analyst' nie ma wpływu na decyzje dotyczące projektowania ani sprzedaży stoisk targowych, a jego rola jest techniczna i wspierająca.
+   Email: Brak (extrapolated)
+   Działy: master_engineering_technical
+   Seniority: entry
+
+69. ✗ Suryansh Rajput - "Data Analyst"
+   Firma: Opulent Expo Sp. z o.o.
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Data Analyst' nie ma wpływu na decyzje dotyczące projektowania ani sprzedaży stoisk targowych, a jego rola jest techniczna i wspierająca.
+   Email: Brak (extrapolated)
+   Działy: master_engineering_technical
+   Seniority: entry
+
+70. ✗ Jakub Nobik - "Wspólnik-udziałowiec"
+   Firma: Pol-Service Expo
+   Score: 0%
+   Powód: Ocena: 0% — Rola Wspólnik-udziałowiec nie wskazuje na bezpośredni wpływ na projektowanie ani sprzedaż stoisk targowych, co czyni ją nieodpowiednią dla kampanii.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+71. ✗ Klaudia Mazur - "Marketing Manager"
+   Firma: PPH MAXPOL Sp. z o.o.
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Marketing Manager' jest związane z marketingiem, ale nie ma bezpośredniego wpływu na projektowanie lub sprzedaż stoisk targowych.
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: manager
+
+72. ✗ Wojciech Ryttel - "Dyrektor ds. Marketingu"
+   Firma: PPH MAXPOL Sp. z o.o.
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Dyrektor ds. Marketingu' jest związane z marketingiem, ale nie ma bezpośredniego wpływu na projektowanie lub sprzedaż stoisk targowych.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+73. ✗ Rostyslav Kohun - "Marketing Manager"
+   Firma: PPH MAXPOL Sp. z o.o.
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Marketing Manager' jest związane z marketingiem, ale nie ma bezpośredniego wpływu na projektowanie lub sprzedaż stoisk targowych.
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: manager
+
+74. ✗ Janvi Yadav - "Marketing Team Member"
+   Firma: Ratio3 Exhibits Pvt. ltd
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko marketingowe nie ma bezpośredniego wpływu na decyzje zakupowe dotyczące podwieszeń targowych i nie wykorzystuje ich w pracy.
+   Email: Brak (extrapolated)
+   Działy: master_marketing
+   Seniority: entry
+
+75. ✗ Shreya Singh - "Trade Show Specialist"
+   Firma: Sellryt
+   Score: 0%
+   Powód: Ocena: 0% — Trade Show Specialist may not have direct influence on purchasing decisions or the ability to use hanging displays in their role.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+76. ✗ Pritismita Hazarika - "null"
+   Firma: Sellryt
+   Score: 0%
+   Powód: Ocena: 0% — Lack of defined title and responsibilities makes it unclear if this individual can influence decisions or use the product.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: N/A
+
+77. ✗ Yeshwant Kaushik - "Project Coordinator (Architect)"
+   Firma: Sensations Worldwide
+   Score: 0%
+   Powód: Ocena: 0% — Project Coordinator (Architect) nie ma bezpośredniego wpływu na decyzje zakupowe dotyczące podwieszeń targowych, a jego rola nie wskazuje na możliwość użycia produktu w pracy.
+   Email: yeshwant@sensationsworldwide.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+78. ✗ Mansi Chauhan - "Business Development Manager"
+   Firma: Sensations Worldwide
+   Score: 0%
+   Powód: Ocena: 0% — Business Development Manager nie jest bezpośrednio związany z projektowaniem ani sprzedażą stoisk targowych, co ogranicza jego wpływ na decyzje zakupowe.
+   Email: mansi@sensationsworldwide.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+79. ✗ Naveen Raheja - "Managing Director @Sensations Worldwide"
+   Firma: Sensations Worldwide
+   Score: 0%
+   Powód: Ocena: 0% — Managing Director @Sensations Worldwide, mimo wysokiej pozycji, nie wskazuje na bezpośredni wpływ na projektowanie ani sprzedaż stoisk targowych.
+   Email: naveen@sensationsworldwide.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+80. ✗ Ar Jenia - "Client Services Manager"
+   Firma: Sensations Worldwide
+   Score: 0%
+   Powód: Ocena: 0% — Client Services Manager nie ma bezpośredniego wpływu na decyzje dotyczące podwieszeń targowych ani nie wskazuje na możliwość użycia produktu w pracy.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: manager
+
+81. ✗ Harleen Middha - "Architect"
+   Firma: Sensations Worldwide
+   Score: 0%
+   Powód: Ocena: 0% — Architect, mimo że jest związany z projektowaniem, nie ma wskazania na bezpośredni wpływ na decyzje zakupowe dotyczące stoisk targowych.
+   Email: Brak (extrapolated)
+   Działy: master_information_technology
+   Seniority: entry
+
+82. ✗ Ihor Parshikov - "Head of Customer Service/ Head of Call Centre Operations"
+   Firma: TORI EXPO LTD
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko dotyczy zarządzania operacjami, które nie ma wpływu na projektowanie ani zakup podwieszeń targowych.
+   Email: Brak (verified)
+   Działy: master_operations
+   Seniority: head
+
+83. ✗ Dmitry Ishchenko - "Student Always"
+   Firma: TORI EXPO LTD
+   Score: 0%
+   Powód: Ocena: 0% — Student nie ma wpływu na decyzje zakupowe ani możliwości użycia podwieszeń targowych w pracy.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+84. ✗ Rafal Pypczynski - "Managing Director"
+   Firma: Trivent
+   Score: 0%
+   Powód: Ocena: 0% — Rola Managing Director nie wskazuje na bezpośredni wpływ na projektowanie lub sprzedaż stoisk targowych.
+   Email: rafal@triventlab.com (verified)
+   Działy: Brak
+   Seniority: N/A
+
+85. ✗ Paulina Wlodarczyk - "Chief Operating Officer"
+   Firma: Trivent
+   Score: 0%
+   Powód: Ocena: 0% — Rola Chief Operating Officer nie ma bezpośredniego związku z projektowaniem lub sprzedażą stoisk targowych.
+   Email: Brak (verified)
+   Działy: c_suite, master_information_technology, master_operations
+   Seniority: c_suite
+
+86. ✗ P Joel - "Research Associate"
+   Firma: Trivent
+   Score: 0%
+   Powód: Ocena: 0% — Rola Research Associate nie ma wpływu na decyzje związane z projektowaniem lub sprzedażą stoisk targowych.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: entry
+
+87. ✗ Yuva Raj - "Senior Process Executive"
+   Firma: Trivent
+   Score: 0%
+   Powód: Ocena: 0% — Rola Senior Process Executive nie wskazuje na wpływ na projektowanie lub sprzedaż stoisk targowych.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: senior
+
+88. ✗ Saud Rafeeque - "null"
+   Firma: WHITE FOX EXHIBITS
+   Score: 0%
+   Powód: Ocena: 0% — Brak informacji o tytule i departamentach, co uniemożliwia ocenę wpływu na decyzję zakupową lub możliwość użycia produktu.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: N/A
+
+89. ✗ Michal Bobinski - "Marketing Manager"
+   Firma: Zebra Expo
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko 'Marketing Manager' jest związane z marketingiem, ale nie ma bezpośredniego wpływu na projektowanie ani sprzedaż stoisk targowych, co sprawia, że nie pasuje do pozytywnych ról.
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: manager
+
+90. ✗ Nail Hakov - "Leading Manager"
+   Firma: Plusexpo
+   Score: 0%
+   Powód: Ocena: 0% — Nail Hakov jako Leading Manager nie ma wystarczających informacji o wpływie na decyzje dotyczące stoisk targowych ani możliwości użycia produktu w pracy.
+   Email: Brak (extrapolated)
+   Działy: Brak
+   Seniority: manager
+
+91. ✗ Ada Suchecka - "Filipiak"
+   Firma: DVG STUDIO
+   Score: 0%
+   Powód: Ocena: 0% — Brak informacji o wpływie na decyzje zakupowe lub możliwości użycia produktu w pracy.
+   Email: Brak (verified)
+   Działy: Brak
+   Seniority: entry
+
+92. ✗ Paulina Trzaskalska - "Marketing Manager"
+   Firma: DVG STUDIO
+   Score: 0%
+   Powód: Ocena: 0% — Stanowisko marketingowe, które nie ma bezpośredniego wpływu na projektowanie stoisk targowych ani na decyzje zakupowe dotyczące podwieszeń.
+   Email: Brak (verified)
+   Działy: master_marketing
+   Seniority: manager
+
+93. ✗ Adam Frackowiak - "Kreślarz CAD"
+   Firma: Mat Expo sp z o o
+   Score: 0%
+   Powód: Ocena: 0% — Kreślarz CAD nie ma bezpośredniego wpływu na decyzje zakupowe ani nie używa podwieszeń targowych w swojej pracy.
+   Email: Brak (verified)
+   Działy: master_engineering_technical
+   Seniority: entry
+
+
+
+=== OCENA NIEZNANYCH PERSON (123) ===
+
+1. ? Rohit Gupta - "Director"
+   Firma: AARS Exhibitions worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+2. ? Sultan Sisodia - "Digital Marketing Specialist"
+   Firma: AARS Exhibitions worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+3. ? Devbrat Yadav - "3D Designer"
+   Firma: AARS Exhibitions worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+4. ? Alok Agarwal - "Business Specialist"
+   Firma: AARS Exhibitions worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+5. ? Agnieszka Szofer-Warlich - "Koordynator Biurowy"
+   Firma: ABYSS s.c.
+   Status: unknown
+   Email: Brak (unavailable)
+
+6. ? Tina H - "Project Manager"
+   Firma: All For Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+7. ? Dagmara Boinska - "Project Manager"
+   Firma: All For Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+8. ? Sofia Rodriguez - "Project Manager"
+   Firma: All For Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+9. ? Jyoti Singh - "VP of Marketing"
+   Firma: ArtExpo Sp. z o.o.
+   Status: unknown
+   Email: Brak (unavailable)
+
+10. ? Aleksandra Wiewior - "Office Worker"
+   Firma: ARTEXPO SP.J. POLAND
+   Status: unknown
+   Email: Brak (unavailable)
+
+11. ? Dorota Ruchala - "Manager"
+   Firma: ARTEXPO SP.J. POLAND
+   Status: unknown
+   Email: Brak (unavailable)
+
+12. ? Bhawna Lawera - "Head of Marketing"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+13. ? Alfred Baumann - "CEO"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+14. ? Maaz - "Assistant Marketing & Production Manager"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+15. ? Aman Thakur - "Digital Marketing Executive"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+16. ? Dev Kumar - "Senior Data Specialist | Data Mining & AI-Powered Scalping"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+17. ? Vaishali Pal - "Digital Marketing Executive"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+18. ? Garima Wadhwa - "Senior Marketing Manager"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+19. ? Aman Binjola - "Search Engine Optimization Executive"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+20. ? Yogesh Upadhyay - "Web Developer"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+21. ? Preeti Rani - "Business Development Executive"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+22. ? Nikunj Sharma - "Business Development Specialist"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+23. ? Kamal Srivastava - "Senior Data Specialist"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+24. ? Tomas Machac - "Project Manager"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+25. ? Ruchi Rawat - "Freelence Interior Designer, Exhibition Stand Designer"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+26. ? Nidhi Maharana - "Business Development Executive"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+27. ? Jenita Roy - "Content Writer"
+   Firma: Blueprint Exhibits
+   Status: unknown
+   Email: Brak (unavailable)
+
+28. ? Peter Malanowski - "Co-owner"
+   Firma: BRAND EMOTION Fair Services
+   Status: unknown
+   Email: Brak (unavailable)
+
+29. ? Maria Janosik - "Chief Project Manager"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Status: unknown
+   Email: Brak (unavailable)
+
+30. ? Bws Expo - "Projektant Stoisk Targowych"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Status: unknown
+   Email: Brak (unavailable)
+
+31. ? Joanna Dudek - "Business Travel & Project Coordinator"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Status: unknown
+   Email: Brak (unavailable)
+
+32. ? Piotr Giszczynski - "Manager of Sales"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Status: unknown
+   Email: Brak (unavailable)
+
+33. ? Lukasz Stankowski - "Operator dtp"
+   Firma: BWS Expo TARGI MESSE FAIR       Stand out!
+   Status: unknown
+   Email: Brak (unavailable)
+
+34. ? Dan Primmer - "Director"
+   Firma: Connect Displays
+   Status: unknown
+   Email: Brak (unavailable)
+
+35. ? Nicola Gromadecka - "Head of Projects"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+36. ? Piotr Gromadecki - "CEO & Technical Director"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+37. ? Milosz Brocki - "Key Account Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+38. ? Tomasz Koralewski - "Technical Project Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+39. ? Dominika Kaczor - "Team Leader"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+40. ? Oskar Przygoda - "Technical Project Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+41. ? Sebastian Stanislawski - "Technical Project Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+42. ? Agnieszka Duleba - "Project Manager at DEKY EXPO II Exhibition Stands Construction II Project management ||"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+43. ? Damian Michalski - "Team Leader | Technical Project Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+44. ? Ada Swiderska - "Project Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+45. ? Anna Dratwinska - "Technical Project Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+46. ? Jacob Szczaniecki - "Key Account Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+47. ? Justyna Golecka - "Project Manager"
+   Firma: DEKY EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+48. ? Tomasz Drzewiecki - "Graphic Specialist / Graphic Team Manager"
+   Firma: Expo Construct Sp. z o.o.
+   Status: unknown
+   Email: Brak (unavailable)
+
+49. ? Svitlana Udovenko - "Digital Marketing Consultant & Expert | CMO at Esbau at Expostandbuilders.com"
+   Firma: Expo Stand Builder
+   Status: unknown
+   Email: Brak (unavailable)
+
+50. ? Yaroslav Gerelovsky - "Senior Exhibition Stand Designer"
+   Firma: Expo Stand Builder
+   Status: unknown
+   Email: Brak (unavailable)
+
+51. ? Yevhen Shapovalov - "Lead Software Engineer"
+   Firma: Expo Stand Builder
+   Status: unknown
+   Email: Brak (unavailable)
+
+52. ? Kamil Kilan - "Graphic Manager"
+   Firma: INTER MARK GROUP
+   Status: unknown
+   Email: Brak (Unavailable)
+
+53. ? Monika Nowak - "Project Manager"
+   Firma: INTER MARK GROUP
+   Status: unknown
+   Email: Brak (Unavailable)
+
+54. ? Beata Janicka - "Sales & Marketing Director"
+   Firma: INTER MARK GROUP
+   Status: unknown
+   Email: Brak (Unavailable)
+
+55. ? Maciej Witkowiak - "President"
+   Firma: INTER MARK GROUP
+   Status: unknown
+   Email: Brak (Unavailable)
+
+56. ? Piotr Kuchcinski - "General Manager"
+   Firma: KML Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+57. ? Mikolaj Mrugalski - "Project Manager"
+   Firma: KML Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+58. ? Ahmad Dorra - "Project Manager"
+   Firma: LINGA EXPO
+   Status: unknown
+   Email: Brak (unavailable)
+
+59. ? Maciej Trzmiel - "Chief Executive Officer"
+   Firma: Mat  Expo sp z o o
+   Status: unknown
+   Email: Brak (unavailable)
+
+60. ? Maciej Piechocki - "Designer"
+   Firma: Melinski-Minuth Ltd
+   Status: unknown
+   Email: Brak (unavailable)
+
+61. ? Patryk Bok - "Manager Magazijn en Logistiek"
+   Firma: Melinski-Minuth Ltd
+   Status: unknown
+   Email: Brak (unavailable)
+
+62. ? Iga Piatkowska - "Marketing Specialist"
+   Firma: Melinski-Minuth Ltd
+   Status: unknown
+   Email: Brak (unavailable)
+
+63. ? Robin - "Global Sales Manager"
+   Firma: Monter Vis Sp Zoo
+   Status: unknown
+   Email: Brak (unavailable)
+
+64. ? Visesh Rajput - "Founder of Monter Vis Sp. z o.o."
+   Firma: Monter Vis Sp Zoo
+   Status: unknown
+   Email: Brak (unavailable)
+
+65. ? Ankit Negi - "Project Manager"
+   Firma: Monter Vis Sp Zoo
+   Status: unknown
+   Email: Brak (unknown)
+
+66. ? Barbara Szymanska - "Office Worker"
+   Firma: Monter Vis Sp Zoo
+   Status: unknown
+   Email: Brak (unavailable)
+
+67. ? Vishesh Anand - "Head of Operations"
+   Firma: Opulent Expo Sp. z o.o.
+   Status: unknown
+   Email: Brak (unknown)
+
+68. ? Pawel Ratajczak - "Project Manager"
+   Firma: Pol-Service Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+69. ? Elzbieta K - "Specjalista ds. Kadr i Administracji"
+   Firma: Pol-Service Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+70. ? Piotr Ostrowski - "Chief Accountant"
+   Firma: PPH MAXPOL Sp. z o.o.
+   Status: unknown
+   Email: Brak (unavailable)
+
+71. ? Alicja Podkowinska - "Marketing Manager"
+   Firma: PPH MAXPOL Sp. z o.o.
+   Status: unknown
+   Email: Brak (unavailable)
+
+72. ? Yvonne Ksiazek - "Junior Project Manager"
+   Firma: PPH MAXPOL Sp. z o.o.
+   Status: unknown
+   Email: Brak (unavailable)
+
+73. ? Oliwia Smaruj - "Accounting Assistant"
+   Firma: RADON SP. Z O.O. (EUROPE)
+   Status: unknown
+   Email: Brak (unavailable)
+
+74. ? Aarif Waquar - "Trade Show Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+75. ? Lavanya Sethi - "Trade Show Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+76. ? Rakhi Biswas - "Trade Show Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+77. ? Shikha Sharma - "Sr HR Executive"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+78. ? Jasleen Kaur - "Senior Content Writer"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+79. ? Samriddhi Choubey - "Trade Show Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+80. ? Kapil Nigam - "Executive PPC"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+81. ? Manish Chauhan - "Senior 3d Designer"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+82. ? Sneha Chaudhary - "Trade Show Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+83. ? Alankrit Nigam - "Senior Content Writer"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+84. ? Aayushi Sharma - "HR Recruiter"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+85. ? Samridhi Choubey - "Trade Show Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+86. ? Aditya Singh - "Sr. Graphic Designer"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+87. ? Mrunmayee Naniwadekar - "Trade Show Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+88. ? Vanshika Kakkar - "Content Writer"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+89. ? Aishwarya K - "Senior PPC Executive"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+90. ? Akshay Kumar - "PPC Specialist - Amazon"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+91. ? Shubham Rawat - "E Commerce Excutive"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+92. ? Amit Aggarwal - "Chief Financial Officer"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+93. ? Vinod Gupta - "Practicing in the Field"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+94. ? Asif Khan - "Senior 3D Artist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+95. ? Vijay Singh - "Product Photographer"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+96. ? Digvijay Singh - "Image Editor"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+97. ? Sanjay Kalra - "Ecommerce Manager"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+98. ? Raima Singh - "E-comerce Executive"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+99. ? Amelia Miller - "Business Development | Exhibition & Events | Events Operations | Project Manager"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+100. ? Crazy Boy - "Early Childhood Educator"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+101. ? Sunidhi Singhal - "Trade Show Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+102. ? Meenakshi K - "Ecommerce Specialist"
+   Firma: Sellryt
+   Status: unknown
+   Email: Brak (unavailable)
+
+103. ? Gaurav Kumar - "Group Head"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+104. ? Chetan Kohli - "Chief Operating Officer"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+105. ? Khushbu S - "Global Human Resources Manager"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+106. ? Mayank Jain - "Trade Specialist"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+107. ? Merry Li - "Business Manger"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+108. ? Hemant Bhatt - "Senior Manager"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+109. ? Marcin Krygier - "Operations Manager"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+110. ? Akrati Sharma - "Project Manager"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+111. ? Karina Balik - "Marketing Specialist"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+112. ? Alberta Flak - "Sr Business Development Manager"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+113. ? Awdhesh Kumar - "Full Stack Developer"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+114. ? Patricja Gorka - "Senior Manager International Business"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+115. ? Mike Dawson - "Marketing Specialist"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+116. ? Paulina Gorka - "Marketing Specialist"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+117. ? Oliwia Bartol - "Marketing Specialist"
+   Firma: Sensations Worldwide
+   Status: unknown
+   Email: Brak (unavailable)
+
+118. ? Jerry Chee - "Assistant Manager"
+   Firma: Trivent
+   Status: unknown
+   Email: Brak (unavailable)
+
+119. ? Mary Little - "Sales"
+   Firma: Trivent
+   Status: unknown
+   Email: Brak (unknown)
+
+120. ? Anna Stoklos-Delimata - "Project Manager"
+   Firma: VMG Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+121. ? Aleksandra Fraczek - "Project Manager"
+   Firma: VMG Expo
+   Status: unknown
+   Email: Brak (unavailable)
+
+122. ? Adela Spendowska - "Senior Project Manager"
+   Firma: Plusexpo
+   Status: unknown
+   Email: Brak (unknown)
+
+123. ? Maciej Trzmiel - "Chief Executive Officer"
+   Firma: Mat Expo sp z o o
+   Status: unknown
+   Email: Brak (unavailable)
+

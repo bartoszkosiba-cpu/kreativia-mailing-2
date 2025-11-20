@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { getPersonaCriteriaById } from "./personaCriteriaService";
+import { getFullPromptText } from "./personaVerificationAI";
 
 export interface PersonaBriefDto {
   summary: string;
@@ -8,6 +10,7 @@ export interface PersonaBriefDto {
   additionalNotes?: string | null;
   aiRole?: string | null; // Rola/perspektywa AI podczas weryfikacji
   positiveThreshold?: number; // Próg procentowy (0.0-1.0) dla klasyfikacji pozytywnej. Score >= threshold = positive, score < threshold = negative
+  generatedPrompt?: string | null; // Wygenerowany prompt do weryfikacji person przez AI
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +51,7 @@ export async function getPersonaBrief(companyCriteriaId: number): Promise<Person
     additionalNotes: record.additionalNotes,
     aiRole: record.aiRole ?? null,
     positiveThreshold: typeof (record as any).positiveThreshold === "number" ? (record as any).positiveThreshold : 0.5,
+    generatedPrompt: (record as any).generatedPrompt ?? null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -68,6 +72,53 @@ function safeStringifyArray(value?: string[]): string | null {
   return JSON.stringify(value);
 }
 
+/**
+ * Generuje i zapisuje prompt do weryfikacji person
+ */
+async function generateAndSavePrompt(companyCriteriaId: number): Promise<string | null> {
+  try {
+    // Pobierz PersonaCriteria
+    const personaCriteria = await getPersonaCriteriaById(companyCriteriaId);
+    if (!personaCriteria) {
+      return null;
+    }
+
+    // Pobierz Brief
+    const brief = await getPersonaBrief(companyCriteriaId);
+    if (!brief || !brief.summary) {
+      // Jeśli nie ma briefu, nie generuj promptu
+      return null;
+    }
+
+    // Przygotuj brief context
+    const briefContext = {
+      summary: brief.summary,
+      decisionGuidelines: brief.decisionGuidelines || [],
+      targetProfiles: brief.targetProfiles || [],
+      avoidProfiles: brief.avoidProfiles || [],
+      additionalNotes: brief.additionalNotes || null,
+      aiRole: brief.aiRole || null,
+      positiveThreshold: brief.positiveThreshold || 0.5,
+    };
+
+    // Wygeneruj pełny prompt
+    const promptText = getFullPromptText(personaCriteria, briefContext);
+
+    // Zapisz prompt do bazy
+    await db.personaBrief.update({
+      where: { companyCriteriaId },
+      data: {
+        generatedPrompt: promptText,
+      } as any,
+    });
+
+    return promptText;
+  } catch (error) {
+    console.error("[personaBriefService] Błąd generowania promptu:", error);
+    return null;
+  }
+}
+
 export async function upsertPersonaBrief(companyCriteriaId: number, payload: PersonaBriefPayload) {
   const aiRoleValue = payload.aiRole ? payload.aiRole.trim() : null;
   const aiRoleFinal = aiRoleValue && aiRoleValue.length > 0 ? aiRoleValue : null;
@@ -86,6 +137,7 @@ export async function upsertPersonaBrief(companyCriteriaId: number, payload: Per
       additionalNotes: payload.additionalNotes ?? null,
       aiRole: aiRoleFinal,
       positiveThreshold: positiveThreshold,
+      generatedPrompt: null, // Zostanie wygenerowany poniżej
     } as any,
     update: {
       summary: payload.summary ?? "",
@@ -95,6 +147,20 @@ export async function upsertPersonaBrief(companyCriteriaId: number, payload: Per
       additionalNotes: payload.additionalNotes ?? null,
       aiRole: aiRoleFinal,
       positiveThreshold: positiveThreshold,
+      // generatedPrompt zostanie zaktualizowany poniżej
     } as any,
   });
+
+  // Po zapisaniu briefu, wygeneruj i zapisz prompt
+  // Prompt jest generowany tylko jeśli brief ma summary (jest kompletny)
+  if (payload.summary && payload.summary.trim().length > 0) {
+    await generateAndSavePrompt(companyCriteriaId);
+  }
+}
+
+/**
+ * Regeneruje prompt dla danego PersonaCriteria (wywoływane przy zmianie PersonaCriteria)
+ */
+export async function regeneratePromptForPersonaCriteria(personaCriteriaId: number): Promise<void> {
+  await generateAndSavePrompt(personaCriteriaId);
 }

@@ -65,14 +65,20 @@ export async function fetchUnreadEmails(config?: ImapConfig): Promise<ParsedEmai
     const emails: ParsedEmail[] = [];
     let fetchCompleted = false;
 
-    // Użyj createdAt z config jeśli podane, w przeciwnym razie ostatnie 15 minut (zamiast 2 dni)
+    // Użyj createdAt z config jeśli podane, ale maksymalnie ostatnie 7 dni (zabezpieczenie przed pobieraniem starych maili)
     let sinceDate: Date;
     let filterByDate = false;
     
+    const maxDaysBack = 7; // Maksymalnie 7 dni wstecz (zabezpieczenie)
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() - maxDaysBack);
+    
     if (config?.createdAt) {
-      sinceDate = config.createdAt;
+      // Użyj daty utworzenia skrzynki, ale nie starszej niż 7 dni
+      const createdAtDate = new Date(config.createdAt);
+      sinceDate = createdAtDate > maxDate ? createdAtDate : maxDate;
       filterByDate = true; // Zapamiętaj że musimy filtrować po dacie i godzinie
-      console.log(`[IMAP] Używam daty utworzenia skrzynki: ${sinceDate.toISOString()}`);
+      console.log(`[IMAP] Używam daty utworzenia skrzynki: ${sinceDate.toISOString()} (maksymalnie ${maxDaysBack} dni wstecz)`);
     } else {
       sinceDate = new Date();
       sinceDate.setMinutes(sinceDate.getMinutes() - 15); // Ostatnie 15 minut
@@ -94,22 +100,25 @@ export async function fetchUnreadEmails(config?: ImapConfig): Promise<ParsedEmai
 
         console.log("[IMAP] Skrzynka otwarta, szukanie maili...");
         
-        // Szukaj WSZYSTKICH maili z ostatnich 2 dni (duplikaty są filtrowane przez messageId w procesorze)
-        imap.search([["SINCE", dateStr]], (err, results) => {
+        // Szukaj TYLKO nieprzeczytanych maili (UNSEEN) z ostatnich 7 dni
+        // UNSEEN oznacza, że mail nie był jeszcze przeczytany - po przetworzeniu będzie oznaczony jako SEEN
+        // To zapobiega pobieraniu starych maili, które już zostały przetworzone
+        imap.search([["UNSEEN"], ["SINCE", dateStr]], (err, results) => {
           if (err) {
             console.error("[IMAP] Błąd wyszukiwania maili:", err);
             imap.end();
             return reject(err);
           }
 
-          console.log(`[IMAP] Znaleziono ${results?.length || 0} nieodczytanych maili`);
+          console.log(`[IMAP] Znaleziono ${results?.length || 0} nieprzeczytanych maili (UNSEEN) z ostatnich ${maxDaysBack} dni`);
 
           if (!results || results.length === 0) {
             imap.end();
             return resolve([]);
           }
 
-          const fetch = imap.fetch(results, { bodies: "", markSeen: false }); // Nie oznaczaj - duplikaty są filtrowane przez messageId
+          // Oznacz maile jako SEEN po pobraniu - zapobiega pobieraniu ich ponownie przy następnym cron job
+          const fetch = imap.fetch(results, { bodies: "", markSeen: true });
           let processedCount = 0;
 
           fetch.on("message", (msg, seqno) => {

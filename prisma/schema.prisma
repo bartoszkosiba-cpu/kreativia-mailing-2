@@ -1239,9 +1239,10 @@ model CompanyPersonaCriteria {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  companyCriteria      CompanyVerificationCriteria? @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
-  personaBrief         PersonaBrief?
-  personaVerifications PersonaVerificationResult[]
+  companyCriteria        CompanyVerificationCriteria?    @relation(fields: [companyCriteriaId], references: [id], onDelete: Cascade)
+  personaBrief           PersonaBrief?
+  personaVerifications   PersonaVerificationResult[]
+  titleVerificationCache PersonaTitleVerificationCache[] // Cache decyzji dla stanowisk
 
   @@index([createdAt]) // Indeks dla szybkiego sortowania po dacie utworzenia
 }
@@ -1256,6 +1257,7 @@ model PersonaBrief {
   additionalNotes    String?
   aiRole             String? // Rola/perspektywa AI podczas weryfikacji (np. "ekspert od stoisk targowych", "analityk sprzedażowy B2B")
   positiveThreshold  Float    @default(0.5) // Próg procentowy (0.0-1.0) dla klasyfikacji pozytywnej. Score >= threshold = positive, score < threshold = negative
+  generatedPrompt    String? // Wygenerowany prompt do weryfikacji person przez AI (zapisany po wygenerowaniu briefu)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -1281,6 +1283,30 @@ model PersonaVerificationResult {
   @@unique([companyId, personaCriteriaId]) // Unikalność per firma + kryteria person
   @@index([verifiedAt])
   @@index([personaCriteriaId])
+}
+
+// Cache decyzji weryfikacji AI dla stanowisk - przyspiesza weryfikację dla powtarzających się stanowisk
+model PersonaTitleVerificationCache {
+  id                Int      @id @default(autoincrement())
+  personaCriteriaId Int // Dla jakich kryteriów person (selekcji)
+  titleNormalized   String // Znormalizowany tytuł stanowiska
+  titleEnglish      String  @default("") // Tytuł po angielsku (pusty string zamiast null dla unique constraint)
+  departments       String  @default("") // JSON array z działami (sorted) (pusty string zamiast null)
+  seniority         String  @default("") // Poziom seniority (pusty string zamiast null)
+  decision          String // "positive" | "negative" (conditional usunięte)
+  score             Float? // Score AI (0.0-1.0)
+  reason            String? // Uzasadnienie decyzji
+  verifiedAt        DateTime @default(now()) // Kiedy została podjęta decyzja
+  useCount          Int      @default(1) // Ile razy użyto tego cache (statystyka)
+  lastUsedAt        DateTime @default(now()) // Kiedy ostatnio użyto
+
+  personaCriteria CompanyPersonaCriteria @relation(fields: [personaCriteriaId], references: [id], onDelete: Cascade)
+
+  @@unique([personaCriteriaId, titleNormalized, titleEnglish, departments, seniority]) // Unikalność per kryteria + stanowisko
+  @@index([personaCriteriaId])
+  @@index([decision])
+  @@index([useCount])
+  @@index([lastUsedAt])
 }
 
 model IndustrySpecializationRule {
