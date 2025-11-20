@@ -99,6 +99,9 @@ export async function saveCachedTitleDecision(
     const titleEnglish = (key.titleEnglish || "").trim();
     const seniority = (key.seniority || "").trim();
 
+    // Upewnij się że score jest zawsze liczbą (użyj domyślnego jeśli null)
+    const scoreValue = typeof result.score === "number" ? result.score : (result.decision === "positive" ? 1.0 : 0.0);
+    
     const cacheData = {
       personaCriteriaId: key.personaCriteriaId,
       titleNormalized: key.titleNormalized.toLowerCase().trim(),
@@ -106,7 +109,7 @@ export async function saveCachedTitleDecision(
       departments: departmentsJson,
       seniority: seniority,
       decision: result.decision,
-      score: result.score || null,
+      score: scoreValue, // Zawsze liczba (nie null)
       reason: result.reason || null,
     };
     

@@ -410,9 +410,10 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
   const userPrompt = [
     "⚠️ KRYTYCZNE - ZAWSZE NAJPIERW:",
     "1. PRZETŁUMACZ tytuł stanowiska na język polski (lub angielski) jeśli jest w innym języku",
-    "2. ROZPOZNAJ synonimy (np. 'Head of Production' = 'Kierownik produkcji', 'Vice President' = 'Wiceprezes')",
-    "3. SPRAWDŹ kontekst biznesowy z briefu - to jest NAJWAŻNIEJSZE dla klasyfikacji",
-    "4. ZASTOSUJ reguły hardcoded (punkt 1-2) PRZED analizą na podstawie briefu",
+    "2. ROZPOZNAJ synonimy (np. 'Head of Production' = 'Kierownik produkcji', 'Vice President' = 'Wiceprezes', 'CAD' = 'projektowanie')",
+    "3. SPRAWDŹ reguły hardcoded (punkt 1-2) PRZED analizą - jeśli tytuł zawiera 'project manager', 'cad', 'kreślarz', 'kierownik [coś]' (nie finanse/HR/logistyka) → ZAWSZE pozytywne NIEZALEŻNIE od działu!",
+    "4. SPRAWDŹ kontekst biznesowy z briefu - to jest NAJWAŻNIEJSZE dla klasyfikacji (ale dopiero po sprawdzeniu reguł hardcoded)",
+    "5. ZASTOSUJ reguły hardcoded (punkt 1-2) PRZED analizą na podstawie briefu - mają najwyższy priorytet!",
     "",
     briefSection,
     "",
@@ -428,14 +429,18 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
     "1. STANOWISKA ZAWSZE POZYTYWNE (nie wymagają analizy - decyzja MUSI być 'positive' z score 1.0):",
     "   Te stanowiska mają bezpośredni wpływ na projektowanie, realizację, sprzedaż LUB mogą szerzyć wiedzę o produktach wewnątrz firmy:",
     "   - Project Manager (wszystkie wersje: Senior, Junior, International, Chief, etc.) - ZAWSZE rozpoznawaj 'project manager' w tytule",
-    "     → Zarządza projektami, ma wpływ na wybór produktów/usług, może rekomendować rozwiązania",
+    "     → ⚠️ KRYTYCZNE: Project Manager jest ZAWSZE pozytywny NIEZALEŻNIE od działu (finance, HR, IT, etc.) - zarządza projektami, ma wpływ na wybór produktów/usług, może rekomendować rozwiązania",
     "     → PRZYKŁADY: 'Project Manager', 'Senior Project Manager', 'Junior Project Manager', 'International Project Manager', 'Chief Project Manager', 'Kierownik Projektu', 'Starszy Kierownik Projektu'",
+    "     → PRZYKŁADY Z DZIAŁAMI (WSZYSTKIE POZYTYWNE): 'Senior Project Manager in Finance' (POZYTYWNE!), 'Project Manager - IT' (POZYTYWNE!), 'Project Manager HR' (POZYTYWNE!)",
     "   - CEO, Chief Executive Officer, Managing Director, General Manager, Owner, Founder, Vice President, VP",
     "     → Podejmuje decyzje strategiczne, może szerzyć wiedzę o produktach w całej firmie, ma wpływ na zakupy",
     "     → PRZYKŁADY: 'CEO', 'Chief Executive Officer', 'Managing Director', 'General Manager', 'Owner', 'Founder', 'Vice President', 'VP', 'Wiceprezes', 'Prezes', 'Właściciel'",
     "   - Designer, Grafik, Projektant (wszystkie wersje) - ZAWSZE rozpoznawaj 'designer', 'design', 'projektant', 'grafik' w tytule",
     "     → Projektuje rozwiązania, używa produktów w pracy, może rekomendować klientom",
     "     → PRZYKŁADY: 'Designer', 'Grafik', 'Projektant', 'Technical Designer', 'Creative Designer', 'Grafik komputerowy'",
+    "   - CAD, Kreślarz, Draftsman (wszystkie wersje) - ZAWSZE rozpoznawaj 'cad', 'kreślarz', 'draftsman', 'drafter' w tytule",
+    "     → CAD = Computer Aided Design = projektowanie! Kreślarz CAD projektuje rozwiązania, używa produktów w pracy",
+    "     → PRZYKŁADY: 'Kreślarz CAD', 'CAD Drafter', 'CAD Designer', 'Draftsman', 'Technical Drafter', 'CAD Operator'",
     "   - Sales Manager, Account Manager, Key Account Manager, Business Development Manager, New Business Manager",
     "     → Ma kontakt z klientami, może rekomendować produkty, wpływa na decyzje zakupowe",
     "     → PRZYKŁADY: 'Sales Manager', 'Account Manager', 'Key Account Manager', 'Business Development Manager', 'New Business Manager', 'Manager of Sales', 'Sprzedawca', 'Menedżer Sprzedaży'",
@@ -446,9 +451,11 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
     "     → UWAGA: 'Head of Finance', 'Head of HR', 'Head of IT' → sprawdź punkt 2 (negatywne) jeśli nie ma związku z biznesem",
     "   - Director, Managing Director, Executive Director - ZAWSZE pozytywne (kadra zarządzająca może szerzyć wiedzę)",
     "     → PRZYKŁADY: 'Director', 'Managing Director', 'Executive Director', 'Dyrektor', 'Dyrektor Zarządzający'",
-    "   - WAŻNE: Jeśli tytuł zawiera 'designer' LUB 'project manager' LUB 'sales' - automatycznie klasyfikuj jako pozytywne",
-    "     → WYJĄTEK: Jeśli tytuł zawiera TYLKO 'marketing' (bez 'designer', 'sales', 'project manager') → sprawdź punkt 2 (negatywne)",
+    "   - WAŻNE: Jeśli tytuł zawiera 'designer' LUB 'project manager' LUB 'sales' LUB 'cad' LUB 'kreślarz' LUB 'draftsman' - automatycznie klasyfikuj jako pozytywne",
+    "     → WYJĄTEK: Jeśli tytuł zawiera TYLKO 'marketing' (bez 'designer', 'sales', 'project manager', 'cad', 'kreślarz') → sprawdź punkt 2 (negatywne)",
     "   - WAŻNE: Stanowiska kierownicze/wykonawcze (CEO, Owner, Director, Manager, VP, Head of) mogą szerzyć wiedzę o produktach wewnątrz firmy - to czyni je pozytywnymi",
+    "     → 'Kierownik [coś]' (np. 'Kierownik Techniczny', 'Kierownik Produkcji', 'Kierownik Projektu') - ZAWSZE pozytywne jeśli NIE jest to 'Kierownik Finansowy', 'Kierownik HR', 'Kierownik Logistyki'",
+    "     → PRZYKŁADY: 'Kierownik Techniczny' (POZYTYWNE!), 'Kierownik Produkcji' (POZYTYWNE!), 'Kierownik Projektu' (POZYTYWNE!), 'Technical Manager' (POZYTYWNE!)",
     "     → Jeśli nie jesteś pewien czy stanowisko kierownicze jest pozytywne, zastosuj regułę: 'lepiej dodać niż przegapić' - klasyfikuj jako pozytywne",
     "",
     "2. STANOWISKA ZAWSZE NEGATYWNE (nie wymagają analizy - decyzja MUSI być 'negative' z score 0.0):",
@@ -491,9 +498,14 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
     "✅ POZYTYWNE (zawsze - punkt 1):",
     "- 'Project Manager' → positive (100%) - zarządza projektami, ma wpływ na wybór produktów/usług, może rekomendować rozwiązania",
     "- 'Senior Project Manager' → positive (100%) - wyższy poziom, większy wpływ (reguła hardcoded dla Project Manager)",
+    "- 'Senior Project Manager in Finance' → positive (100%) - ⚠️ NIEZALEŻNIE od działu! Project Manager jest ZAWSZE pozytywny",
     "- 'Junior Project Manager' → positive (100%) - nawet junior ma wpływ na projekty (seniority ignorowane dla 'zawsze pozytywnych')",
     "- 'Kierownik Projektu' → positive (100%) - to jest 'Project Manager' po polsku (rozpoznaj synonim)",
     "- 'Starszy Kierownik Projektu' → positive (100%) - to jest 'Senior Project Manager' po polsku (rozpoznaj synonim)",
+    "- 'Kierownik Techniczny' → positive (100%) - kierownik może szerzyć wiedzę o produktach wewnątrz firmy",
+    "- 'Technical Manager' → positive (100%) - kierownik może szerzyć wiedzę o produktach wewnątrz firmy",
+    "- 'Kreślarz CAD' → positive (100%) - CAD = projektowanie! Kreślarz CAD projektuje rozwiązania",
+    "- 'CAD Drafter' → positive (100%) - CAD = projektowanie! Drafter projektuje rozwiązania",
     "- 'CEO' → positive (100%) - decyduje o zakupach strategicznych, może szerzyć wiedzę o produktach w całej firmie",
     "- 'Vice President' / 'VP' → positive (100%) - kadra zarządzająca może szerzyć wiedzę o produktach wewnątrz firmy",
     "- 'Head of Production' → positive (100%) - to jest 'Kierownik produkcji' (rozpoznaj synonim angielski/polski)",
@@ -741,7 +753,7 @@ export async function verifyEmployeesWithAI(
     const positiveThreshold = brief?.positiveThreshold ?? 0.5;
     const isLowThreshold = positiveThreshold <= 0.5;
 
-    const briefSection = brief
+  const briefSection = brief
       ? `KONTEKST BIZNESOWY I BRIEF STRATEGICZNY:
 ${brief.summary ? `KONTEKST BIZNESOWY (produkt, odbiorcy, logika decyzyjna):
 ${brief.summary}` : "KONTEKST BIZNESOWY: (brak)"}
@@ -756,25 +768,25 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
       : "KONTEKST BIZNESOWY I BRIEF STRATEGICZNY: (brak - weryfikuj na podstawie reguł)";
 
     messages = [
-      {
-        role: "system" as const,
-        content: [
-          `Jesteś ${prompt.aiRole}.`,
+    {
+      role: "system" as const,
+      content: [
+        `Jesteś ${prompt.aiRole}.`,
         "Zwracasz odpowiedź wyłącznie w formacie JSON: {\"results\":[{\"matchKey\":\"...\",\"decision\":\"positive|negative\",\"score\":0.0-1.0,\"reason\":\"...\"}]}.",
         "Pole 'matchKey' MUSI być zapełnione dla każdego rekordu.",
         "Pole 'score' MUSI być liczbą z zakresu 0.0-1.0 dla KAŻDEJ decyzji (zarówno pozytywnej jak i negatywnej) - to jest wymagane.",
         "Pole 'reason' MUSI zawierać konkretne, biznesowe uzasadnienie – bez odniesień do poziomów typu junior/senior (chyba że w danych otrzymasz minimalny poziom seniority).",
-          "Jeśli otrzymasz sprzeczne reguły, priorytet mają zasady oznaczone jako MUSI/MUST w wiadomości użytkownika.",
-        ].join("\n"),
-      },
-      {
-        role: "user" as const,
-        content: [
-          briefSection,
-          "",
-          "ZASADY OGÓLNE:",
-          ...prompt.generalGuidelines.map((guideline) => `- ${guideline}`),
-          "",
+        "Jeśli otrzymasz sprzeczne reguły, priorytet mają zasady oznaczone jako MUSI/MUST w wiadomości użytkownika.",
+      ].join("\n"),
+    },
+    {
+      role: "user" as const,
+      content: [
+        briefSection,
+        "",
+        "ZASADY OGÓLNE:",
+        ...prompt.generalGuidelines.map((guideline) => `- ${guideline}`),
+        "",
           "REGUŁY KLASYFIKACJI (w kolejności priorytetu - sprawdzaj od góry do dołu):",
           "",
           "PRIORYTET 1: Reguły hardcoded (punkty 1-2) - mają najwyższy priorytet, sprawdzaj je najpierw",
@@ -851,20 +863,20 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
           "- 'Logistics Manager' → negative (0%) - nie ma wpływu na projektowanie/sprzedaż/decyzje zakupowe",
           "- 'Financial Director' → negative (0%) - nie ma wpływu na wybór produktów/usług",
           "- 'Marketing Manager' (czysty, bez sprzedaży) → negative (0%) - nie projektuje, nie sprzedaje (TYLKO jeśli nie ma 'sales', 'designer', 'project manager' w tytule)",
-          "",
-          "Pozytywne role (z konfiguracji):",
-          JSON.stringify(prompt.positiveDescriptions, null, 2),
-          "",
-          "Negatywne role (z konfiguracji):",
-          JSON.stringify(prompt.negativeDescriptions, null, 2),
-          "",
-          "Dane pracowników (id, matchKey, title, titleNormalized, titleEnglish, departments, semanticHint, flagi managesPeople/managesProcesses/isExecutive):",
-          JSON.stringify(employeesForAI, null, 2),
-          "",
-          "Odpowiedz wyłącznie JSON-em zgodnym ze specyfikacją.",
-        ].join("\n"),
-      },
-    ];
+        "",
+        "Pozytywne role (z konfiguracji):",
+        JSON.stringify(prompt.positiveDescriptions, null, 2),
+        "",
+        "Negatywne role (z konfiguracji):",
+        JSON.stringify(prompt.negativeDescriptions, null, 2),
+        "",
+        "Dane pracowników (id, matchKey, title, titleNormalized, titleEnglish, departments, semanticHint, flagi managesPeople/managesProcesses/isExecutive):",
+        JSON.stringify(employeesForAI, null, 2),
+        "",
+        "Odpowiedz wyłącznie JSON-em zgodnym ze specyfikacją.",
+      ].join("\n"),
+    },
+  ];
     
     logger.info("persona-criteria-ai", "Generuję prompt dynamicznie (brak zapisanego promptu)", {
       personaCriteriaId: personaCriteria.id,
@@ -1101,8 +1113,12 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
           // Użyj progu z briefu do konwersji score na decision przed zapisem do cache
           // Zawsze używamy progu do konwersji score na decision (nie ufamy decyzji AI)
           const positiveThreshold = brief?.positiveThreshold ?? 0.5; // Domyślnie 50%
+          
+          // Upewnij się że score jest zawsze liczbą (użyj domyślnego jeśli null)
+          const scoreForCache = typeof result.score === "number" ? result.score : (result.decision === "positive" ? 1.0 : 0.0);
+          
           const cacheDecision: "positive" | "negative" = 
-            typeof result.score === "number" && result.score >= positiveThreshold 
+            scoreForCache >= positiveThreshold 
               ? "positive" 
               : "negative";
           
@@ -1116,7 +1132,7 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
             },
             {
               decision: cacheDecision, // Użyj decyzji opartej na progu
-              score: result.score,
+              score: scoreForCache, // Zawsze liczba (nie null)
               reason: result.reason,
             }
           ).catch((error) => {
