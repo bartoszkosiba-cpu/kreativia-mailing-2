@@ -396,12 +396,24 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
     `Jesteś ${prompt.aiRole}.`,
         "Zwracasz odpowiedź wyłącznie w formacie JSON: {\"results\":[{\"matchKey\":\"...\",\"decision\":\"positive|negative\",\"score\":0.0-1.0,\"reason\":\"...\"}]}.",
         "Pole 'matchKey' MUSI być zapełnione dla każdego rekordu.",
-        "Pole 'score' MUSI być liczbą z zakresu 0.0-1.0 dla KAŻDEJ decyzji (zarówno pozytywnej jak i negatywnej) - to jest wymagane.",
+        "Pole 'score' MUSI być liczbą z zakresu 0.0-1.0 dla KAŻDEJ decyzji (zarówno pozytywnej jak i negatywnej) - to jest wymagane. NIGDY nie zwracaj null lub undefined dla score.",
         "Pole 'reason' MUSI zawierać konkretne, biznesowe uzasadnienie – bez odniesień do poziomów typu junior/senior (chyba że w danych otrzymasz minimalny poziom seniority).",
     "Jeśli otrzymasz sprzeczne reguły, priorytet mają zasady oznaczone jako MUSI/MUST w wiadomości użytkownika.",
+    "",
+    "WAŻNE - TŁUMACZENIE STANOWISK:",
+    "- Przed analizą stanowiska, PRZETŁUMACZ tytuł na język polski (lub angielski jeśli to pomoże w rozpoznaniu)",
+    "- Rozpoznawaj synonimy: 'Head of Production' = 'Kierownik produkcji', 'Vice President' = 'Wiceprezes', 'Senior Project Manager' = 'Starszy Kierownik Projektu'",
+    "- Nie analizuj tytułów literalnie - najpierw zrozum ich znaczenie w kontekście biznesowym",
+    "- Jeśli tytuł jest w języku obcym (niemiecki, francuski, etc.), przetłumacz go przed analizą",
   ].join("\n");
 
   const userPrompt = [
+    "⚠️ KRYTYCZNE - ZAWSZE NAJPIERW:",
+    "1. PRZETŁUMACZ tytuł stanowiska na język polski (lub angielski) jeśli jest w innym języku",
+    "2. ROZPOZNAJ synonimy (np. 'Head of Production' = 'Kierownik produkcji', 'Vice President' = 'Wiceprezes')",
+    "3. SPRAWDŹ kontekst biznesowy z briefu - to jest NAJWAŻNIEJSZE dla klasyfikacji",
+    "4. ZASTOSUJ reguły hardcoded (punkt 1-2) PRZED analizą na podstawie briefu",
+    "",
     briefSection,
     "",
     "ZASADY OGÓLNE:",
@@ -417,17 +429,27 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
     "   Te stanowiska mają bezpośredni wpływ na projektowanie, realizację, sprzedaż LUB mogą szerzyć wiedzę o produktach wewnątrz firmy:",
     "   - Project Manager (wszystkie wersje: Senior, Junior, International, Chief, etc.) - ZAWSZE rozpoznawaj 'project manager' w tytule",
     "     → Zarządza projektami, ma wpływ na wybór produktów/usług, może rekomendować rozwiązania",
-    "   - CEO, Chief Executive Officer, Managing Director, General Manager, Owner, Founder",
+    "     → PRZYKŁADY: 'Project Manager', 'Senior Project Manager', 'Junior Project Manager', 'International Project Manager', 'Chief Project Manager', 'Kierownik Projektu', 'Starszy Kierownik Projektu'",
+    "   - CEO, Chief Executive Officer, Managing Director, General Manager, Owner, Founder, Vice President, VP",
     "     → Podejmuje decyzje strategiczne, może szerzyć wiedzę o produktach w całej firmie, ma wpływ na zakupy",
+    "     → PRZYKŁADY: 'CEO', 'Chief Executive Officer', 'Managing Director', 'General Manager', 'Owner', 'Founder', 'Vice President', 'VP', 'Wiceprezes', 'Prezes', 'Właściciel'",
     "   - Designer, Grafik, Projektant (wszystkie wersje) - ZAWSZE rozpoznawaj 'designer', 'design', 'projektant', 'grafik' w tytule",
     "     → Projektuje rozwiązania, używa produktów w pracy, może rekomendować klientom",
+    "     → PRZYKŁADY: 'Designer', 'Grafik', 'Projektant', 'Technical Designer', 'Creative Designer', 'Grafik komputerowy'",
     "   - Sales Manager, Account Manager, Key Account Manager, Business Development Manager, New Business Manager",
     "     → Ma kontakt z klientami, może rekomendować produkty, wpływa na decyzje zakupowe",
+    "     → PRZYKŁADY: 'Sales Manager', 'Account Manager', 'Key Account Manager', 'Business Development Manager', 'New Business Manager', 'Manager of Sales', 'Sprzedawca', 'Menedżer Sprzedaży'",
     "   - Wszystkie stanowiska zawierające 'sales', 'sprzedaż', 'business development', 'new business' w tytule",
     "     → Związane ze sprzedażą i rozwojem biznesu, mogą szerzyć wiedzę o produktach",
+    "   - Head of [Department] - ZAWSZE pozytywne jeśli department jest związany z projektowaniem, produkcją, sprzedażą lub biznesem",
+    "     → PRZYKŁADY: 'Head of Production' = 'Kierownik produkcji' (POZYTYWNE), 'Head of Sales' (POZYTYWNE), 'Head of Design' (POZYTYWNE)",
+    "     → UWAGA: 'Head of Finance', 'Head of HR', 'Head of IT' → sprawdź punkt 2 (negatywne) jeśli nie ma związku z biznesem",
+    "   - Director, Managing Director, Executive Director - ZAWSZE pozytywne (kadra zarządzająca może szerzyć wiedzę)",
+    "     → PRZYKŁADY: 'Director', 'Managing Director', 'Executive Director', 'Dyrektor', 'Dyrektor Zarządzający'",
     "   - WAŻNE: Jeśli tytuł zawiera 'designer' LUB 'project manager' LUB 'sales' - automatycznie klasyfikuj jako pozytywne",
     "     → WYJĄTEK: Jeśli tytuł zawiera TYLKO 'marketing' (bez 'designer', 'sales', 'project manager') → sprawdź punkt 2 (negatywne)",
-    "   - WAŻNE: Stanowiska kierownicze/wykonawcze (CEO, Owner, Director, Manager) mogą szerzyć wiedzę o produktach wewnątrz firmy - to czyni je pozytywnymi",
+    "   - WAŻNE: Stanowiska kierownicze/wykonawcze (CEO, Owner, Director, Manager, VP, Head of) mogą szerzyć wiedzę o produktach wewnątrz firmy - to czyni je pozytywnymi",
+    "     → Jeśli nie jesteś pewien czy stanowisko kierownicze jest pozytywne, zastosuj regułę: 'lepiej dodać niż przegapić' - klasyfikuj jako pozytywne",
     "",
     "2. STANOWISKA ZAWSZE NEGATYWNE (nie wymagają analizy - decyzja MUSI być 'negative' z score 0.0):",
     "   Te stanowiska NIE mają wpływu na projektowanie, realizację, sprzedaż ANI nie mogą szerzyć wiedzy o produktach:",
@@ -468,9 +490,15 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
     "PRZYKŁADY KLASYFIKACJI (uniwersalne - dostosuj do briefu):",
     "✅ POZYTYWNE (zawsze - punkt 1):",
     "- 'Project Manager' → positive (100%) - zarządza projektami, ma wpływ na wybór produktów/usług, może rekomendować rozwiązania",
+    "- 'Senior Project Manager' → positive (100%) - wyższy poziom, większy wpływ (reguła hardcoded dla Project Manager)",
     "- 'Junior Project Manager' → positive (100%) - nawet junior ma wpływ na projekty (seniority ignorowane dla 'zawsze pozytywnych')",
-    "- 'Senior Project Manager' → positive (100%) - wyższy poziom, większy wpływ",
+    "- 'Kierownik Projektu' → positive (100%) - to jest 'Project Manager' po polsku (rozpoznaj synonim)",
+    "- 'Starszy Kierownik Projektu' → positive (100%) - to jest 'Senior Project Manager' po polsku (rozpoznaj synonim)",
     "- 'CEO' → positive (100%) - decyduje o zakupach strategicznych, może szerzyć wiedzę o produktach w całej firmie",
+    "- 'Vice President' / 'VP' → positive (100%) - kadra zarządzająca może szerzyć wiedzę o produktach wewnątrz firmy",
+    "- 'Head of Production' → positive (100%) - to jest 'Kierownik produkcji' (rozpoznaj synonim angielski/polski)",
+    "- 'Head of Sales' → positive (100%) - kadra zarządzająca sprzedażą, może szerzyć wiedzę",
+    "- 'Director' → positive (100%) - kadra zarządzająca może szerzyć wiedzę o produktach wewnątrz firmy",
     "- 'Designer' → positive (100%) - projektuje rozwiązania, używa produktów w pracy",
     "- 'Technical Designer' → positive (100%) - ma 'designer' w tytule (reguła hardcoded)",
     "- 'Creative Department Manager | Designer' → positive (100%) - ma 'designer' w tytule (reguła hardcoded)",
@@ -1003,10 +1031,22 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
         const decision: PersonaDecision = ["positive", "negative"].includes(rawDecision)
           ? (rawDecision as PersonaDecision)
           : "negative";
-        // Zachowaj score jeśli AI go zwróciło, w przeciwnym razie null (nie ustawiaj 0)
-        const score = typeof item.score === "number" && !isNaN(item.score) 
-          ? Math.max(0, Math.min(1, item.score)) 
-          : null;
+        // Walidacja score - jeśli brak, użyj domyślnego na podstawie decyzji
+        let score: number | null = null;
+        if (typeof item.score === "number" && !isNaN(item.score)) {
+          score = Math.max(0, Math.min(1, item.score));
+        } else {
+          // Jeśli brak score, użyj domyślnego na podstawie decyzji
+          // Loguj to jako problem, ale nie przerywaj procesu
+          logger.warn("persona-criteria-ai", "Brak score w odpowiedzi AI - używam domyślnego", {
+            personaCriteriaId: personaCriteria.id,
+            matchKey,
+            decision,
+            itemScore: item.score,
+          });
+          // Domyślny score: 1.0 dla positive, 0.0 dla negative
+          score = decision === "positive" ? 1.0 : 0.0;
+        }
         return {
           id: item.id,
           matchKey,
@@ -1015,6 +1055,16 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
           reason: item.reason || "",
         };
     });
+    
+    // Sprawdź czy wszystkie wyniki mają score
+    const resultsWithoutScore = results.filter(r => r.score === null);
+    if (resultsWithoutScore.length > 0) {
+      logger.error("persona-criteria-ai", "Niektóre wyniki nie mają score po walidacji", {
+        personaCriteriaId: personaCriteria.id,
+        resultsWithoutScoreCount: resultsWithoutScore.length,
+        totalResults: results.length,
+      });
+    }
 
     // Zapisz wyniki do cache (tylko te, które były weryfikowane przez AI)
     // Mapuj wyniki z powrotem do employeesToVerify, aby zapisać cache

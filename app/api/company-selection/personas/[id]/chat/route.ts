@@ -662,6 +662,14 @@ Uwaga: W targetProfiles i avoidProfiles MUSISZ uwzględnić WSZYSTKIE stanowiska
           aiRole: briefParsed.aiRole || null,
         });
         logger.info("persona-brief-generate", "Wygenerowano brief strategiczny z rozmowy", { personaId });
+        
+        // Upewnij się że prompt został wygenerowany i zapisany
+        try {
+          await regeneratePromptForPersonaCriteria(personaId);
+          logger.info("persona-brief-generate", "Wygenerowano i zapisano prompt po zapisaniu briefu", { personaId });
+        } catch (promptError) {
+          logger.error("persona-brief-generate", "Błąd generowania promptu po zapisaniu briefu", { personaId }, promptError as Error);
+        }
       }
     } catch (briefError) {
       // Nie przerywamy procesu jeśli generowanie briefu się nie powiodło

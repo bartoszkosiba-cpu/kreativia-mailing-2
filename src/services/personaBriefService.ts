@@ -80,6 +80,7 @@ async function generateAndSavePrompt(companyCriteriaId: number): Promise<string 
     // Pobierz PersonaCriteria
     const personaCriteria = await getPersonaCriteriaById(companyCriteriaId);
     if (!personaCriteria) {
+      console.error(`[personaBriefService] Nie znaleziono PersonaCriteria dla ID: ${companyCriteriaId}`);
       return null;
     }
 
@@ -87,6 +88,7 @@ async function generateAndSavePrompt(companyCriteriaId: number): Promise<string 
     const brief = await getPersonaBrief(companyCriteriaId);
     if (!brief || !brief.summary) {
       // Jeśli nie ma briefu, nie generuj promptu
+      console.warn(`[personaBriefService] Brak briefu lub summary dla ID: ${companyCriteriaId}`);
       return null;
     }
 
@@ -103,18 +105,33 @@ async function generateAndSavePrompt(companyCriteriaId: number): Promise<string 
 
     // Wygeneruj pełny prompt
     const promptText = getFullPromptText(personaCriteria, briefContext);
+    
+    if (!promptText || promptText.trim().length === 0) {
+      console.error(`[personaBriefService] Wygenerowany prompt jest pusty dla ID: ${companyCriteriaId}`);
+      return null;
+    }
 
     // Zapisz prompt do bazy
-    await db.personaBrief.update({
+    const updated = await db.personaBrief.update({
       where: { companyCriteriaId },
       data: {
         generatedPrompt: promptText,
       } as any,
     });
 
+    console.log(`[personaBriefService] ✅ Zapisano prompt dla ID: ${companyCriteriaId}, długość: ${promptText.length} znaków`);
+    
+    // Weryfikacja że prompt został zapisany
+    if (!updated.generatedPrompt) {
+      console.error(`[personaBriefService] ❌ Prompt nie został zapisany dla ID: ${companyCriteriaId}`);
+      return null;
+    }
+
     return promptText;
   } catch (error) {
-    console.error("[personaBriefService] Błąd generowania promptu:", error);
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error(`[personaBriefService] ❌ Błąd generowania promptu dla ID: ${companyCriteriaId}:`, err.message);
+    console.error(`[personaBriefService] Stack trace:`, err.stack);
     return null;
   }
 }
