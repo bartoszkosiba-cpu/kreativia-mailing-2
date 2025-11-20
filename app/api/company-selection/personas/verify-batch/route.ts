@@ -21,7 +21,8 @@ function buildEmployeeKey(person: any) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { companyIds, progressId, personaCriteriaId, forceRefresh, model = "gpt-4o-mini" } = body;
+    const { companyIds, progressId, personaCriteriaId, forceRefresh, model: modelParam = "gpt-4o-mini" } = body;
+    const model = modelParam; // Upewnij się że model jest zdefiniowane w całym zakresie
 
     if (!Array.isArray(companyIds) || companyIds.length === 0) {
       return NextResponse.json(
