@@ -73,7 +73,7 @@ export async function PUT(req: NextRequest) {
     });
 
     // Uruchom przetwarzanie w tle (nie czekaj na zakończenie)
-    processVerificationBatch(companyIds, progressId, personaCriteria, Boolean(forceRefresh)).catch((error) => {
+    processVerificationBatch(companyIds, progressId, personaCriteria, Boolean(forceRefresh), model).catch((error) => {
       logger.error("persona-verify-batch", "Błąd przetwarzania batch", { progressId }, error);
       updateProgress(progressId, {
         status: 'error',
