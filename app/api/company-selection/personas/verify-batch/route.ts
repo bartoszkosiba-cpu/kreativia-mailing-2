@@ -100,7 +100,8 @@ async function processVerificationBatch(
   companyIds: number[],
   progressId: string,
   personaCriteria: any,
-  forceRefresh: boolean = false // Jeśli true, wyłącza cache i wymusza ponowną weryfikację przez AI
+  forceRefresh: boolean = false, // Jeśli true, wyłącza cache i wymusza ponowną weryfikację przez AI
+  model: string = "gpt-4o-mini" // Model AI do użycia
 ) {
   let verified = 0;
   let withPersonas = 0;
