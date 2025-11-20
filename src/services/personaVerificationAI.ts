@@ -837,7 +837,7 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
           "",
           "   PRZYKŁADY DLA POZOSTAŁYCH STANOWISK (uniwersalne, dostosuj do briefu):",
           "   - 'Business Development Specialist' → positive (70-80%) - związany z biznesem, może wpływać na decyzje zakupowe",
-          "   - 'Operations Manager' → negative (20-30%) - zarządza operacjami, ale zwykle nie projektowaniem/sprzedażą (chyba że brief wskazuje inaczej)",
+          "   - 'Operations Manager' → positive (55-65%) - stanowisko kierownicze może szerzyć wiedzę wewnątrz firmy, ma wpływ na decyzje operacyjne (reguła: Manager = pozytywny)",
           "   - 'Coordinator' → positive (60-70%) jeśli związany z projektami/biznesem, negative (20-30%) jeśli logistyka/magazyn",
           "   - 'Manager' (bez kontekstu) → positive (55-65%) - może szerzyć wiedzę wewnątrz firmy, ma wpływ na decyzje",
           "   - 'Specialist' (bez kontekstu) → negative (30-40%) - zbyt ogólne, brak wpływu na decyzje (chyba że brief wskazuje inaczej)",
