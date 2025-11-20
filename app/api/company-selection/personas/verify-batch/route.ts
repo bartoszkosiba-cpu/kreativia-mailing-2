@@ -21,7 +21,7 @@ function buildEmployeeKey(person: any) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { companyIds, progressId, personaCriteriaId, forceRefresh } = body;
+    const { companyIds, progressId, personaCriteriaId, forceRefresh, model = "gpt-4o-mini" } = body;
 
     if (!Array.isArray(companyIds) || companyIds.length === 0) {
       return NextResponse.json(
@@ -263,7 +263,7 @@ async function processVerificationBatch(
         employeesForAI, 
         personaBrief || undefined,
         !forceRefresh, // useCache = !forceRefresh (jeśli forceRefresh, wyłącz cache)
-        "gpt-4o-mini" // Domyślnie gpt-4o-mini (można później dodać wybór modelu w UI weryfikacji)
+        (model === "gpt-4o" || model === "gpt-4o-mini") ? model : "gpt-4o-mini" // Użyj wybranego modelu lub domyślnego
       );
       const aiDuration = Date.now() - aiStartTime;
       logger.info("persona-verify-batch", `Weryfikacja AI dla firmy ${companyId} (${company.name}) zakończona w ${aiDuration}ms`, {

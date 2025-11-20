@@ -218,6 +218,7 @@ export default function PersonaVerifyPage() {
   }, [selectionId]);
 
   const [selectedPersonaCriteriaId, setSelectedPersonaCriteriaId] = useState<string>("");
+  const [verificationModel, setVerificationModel] = useState<"gpt-4o-mini" | "gpt-4o">("gpt-4o-mini");
   const [showCacheModal, setShowCacheModal] = useState(false);
   const [cacheModalData, setCacheModalData] = useState<Array<{
     id: number;
@@ -573,8 +574,18 @@ export default function PersonaVerifyPage() {
   useEffect(() => {
     if (selectedPersonaCriteriaId) {
       loadCacheCount(selectedPersonaCriteriaId);
+      // Pobierz zapisany model z localStorage dla tego kryterium
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem(`persona-verification-model-${selectedPersonaCriteriaId}`);
+        if (saved === "gpt-4o" || saved === "gpt-4o-mini") {
+          setVerificationModel(saved);
+        } else {
+          setVerificationModel("gpt-4o-mini"); // Domyślnie
+        }
+      }
     } else {
       setCacheCount({ positive: 0, negative: 0, total: 0 });
+      setVerificationModel("gpt-4o-mini"); // Reset do domyślnego
     }
   }, [selectedPersonaCriteriaId, loadCacheCount]);
 
@@ -1463,6 +1474,7 @@ export default function PersonaVerifyPage() {
           progressId: newProgressId,
           personaCriteriaId: criteriaIdNum,
           forceRefresh: forceRefreshCache, // Jeśli true, wyłącza cache i wymusza ponowną weryfikację (przydatne do wypełnienia cache)
+          model: verificationModel, // Model AI do użycia
         }),
       });
 
@@ -1626,27 +1638,28 @@ export default function PersonaVerifyPage() {
         {personaCriteriaLoading ? (
           <div style={{ color: "#6B7280" }}>Ładowanie kryteriów...</div>
         ) : (
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
-            <select
-              value={selectedPersonaCriteriaId}
-              onChange={(e) => handlePersonaCriteriaChange(e.target.value)}
-              style={{
-                width: "100%",
-                maxWidth: "500px",
-                padding: "0.5rem 0.75rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #D1D5DB",
-                fontSize: "0.95rem",
-              }}
-            >
-              <option value="">-- Wybierz kryteria --</option>
-              {personaCriteriaList.map((persona) => (
-                <option key={persona.id} value={String(persona.id)}>
-                  {persona.name}
-                </option>
-              ))}
-            </select>
-            {selectedPersonaCriteriaId && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+              <select
+                value={selectedPersonaCriteriaId}
+                onChange={(e) => handlePersonaCriteriaChange(e.target.value)}
+                style={{
+                  width: "100%",
+                  maxWidth: "500px",
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #D1D5DB",
+                  fontSize: "0.95rem",
+                }}
+              >
+                <option value="">-- Wybierz kryteria --</option>
+                {personaCriteriaList.map((persona) => (
+                  <option key={persona.id} value={String(persona.id)}>
+                    {persona.name}
+                  </option>
+                ))}
+              </select>
+              {selectedPersonaCriteriaId && (
               <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
                 <button
                   onClick={async () => {
