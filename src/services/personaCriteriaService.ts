@@ -163,6 +163,15 @@ export async function upsertPersonaCriteria(
         },
       });
 
+  // Po zapisaniu konfiguracji person, zregeneruj prompt (konfiguracja jest częścią promptu)
+  try {
+    const { regeneratePromptForPersonaCriteria } = await import("./personaBriefService");
+    await regeneratePromptForPersonaCriteria(record.id);
+  } catch (error) {
+    // Nie przerywaj jeśli regeneracja promptu się nie powiedzie (może nie być briefu)
+    console.warn(`[personaCriteriaService] Nie udało się zregenerować promptu dla ID: ${record.id}`, error);
+  }
+
   return {
     id: record.id,
     companyCriteriaId: record.companyCriteriaId,

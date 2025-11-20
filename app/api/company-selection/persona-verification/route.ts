@@ -6,8 +6,6 @@ import { getPersonaCriteria } from "@/services/personaCriteriaService";
 import { getPersonaBrief } from "@/services/personaBriefService";
 import {
   verifyEmployeesWithAI,
-  classifyPersonByRules,
-  type PersonaRuleClassification,
 } from "@/services/personaVerificationAI";
 import { analyseJobTitle } from "@/utils/jobTitleHelpers";
 import { logger } from "@/services/logger";
@@ -131,27 +129,11 @@ async function computeVerification(
     };
   });
 
-  const ruleClassifications = new Map<string, PersonaRuleClassification>();
-  const employeesForAI: typeof employeeInputs[number]["input"][] = [];
+  // Wszystkie persony idą przez AI - brief jest priorytetem, reguły są tylko informacją dla AI (PRIORYTET 2)
+  const employeesForAI = employeeInputs.map(({ input }) => input);
 
-  for (const { matchKey, input } of employeeInputs) {
-    const ruleResult = classifyPersonByRules(input, personaCriteria);
-    if (ruleResult) {
-      const keyLower = matchKey.toLowerCase();
-      ruleClassifications.set(keyLower, ruleResult);
-      if (input.id) {
-        ruleClassifications.set(String(input.id).toLowerCase(), ruleResult);
-      }
-    } else {
-      employeesForAI.push(input);
-    }
-  }
-
-  let aiResults: Awaited<ReturnType<typeof verifyEmployeesWithAI>>["results"] = [];
-  if (employeesForAI.length > 0) {
-    const aiResponse = await verifyEmployeesWithAI(personaCriteria, employeesForAI, personaBrief);
-    aiResults = aiResponse.results;
-  }
+  const aiResponse = await verifyEmployeesWithAI(personaCriteria, employeesForAI, personaBrief);
+  const aiResults = aiResponse.results;
 
   const classificationMap = new Map<string, { decision: string; reason: string; score?: number }>();
   for (const result of aiResults) {
@@ -183,31 +165,19 @@ async function computeVerification(
     const key = matchKey;
     const lookupKey = input.id ? String(input.id).toLowerCase() : key;
 
-    const ruleInfo = ruleClassifications.get(lookupKey) || ruleClassifications.get(key);
     const aiInfo = classificationMap.get(lookupKey) || classificationMap.get(key);
 
+    // Wszystko idzie przez AI - brief jest priorytetem
     let decision: string = "negative"; // Domyślnie negative - jeśli nie ma pewności, nie dodajemy do pozytywnych
     let score: number | null = null;
-    let reason = "Brak dopasowania reguł ani dodatkowych informacji.";
+    let reason = "AI nie dostarczyło klasyfikacji dla tego stanowiska.";
     let personaMatchOverridden = false;
-    let source: string | undefined;
+    let source: string | undefined = "ai";
 
-    if (ruleInfo) {
-      decision = ruleInfo.decision === "conditional" ? "negative" : ruleInfo.decision; // Konwertuj conditional na negative
-      score = ruleInfo.decision === "positive" ? 1 : ruleInfo.decision === "negative" ? 0 : null;
-      reason = ruleInfo.reason;
-      personaMatchOverridden = true;
-      source = ruleInfo.source;
-    } else if (aiInfo) {
+    if (aiInfo) {
       decision = aiInfo.decision === "conditional" ? "negative" : (aiInfo.decision ?? "negative"); // Konwertuj conditional na negative
       score = typeof aiInfo.score === "number" ? aiInfo.score : null;
       reason = aiInfo.reason && aiInfo.reason.trim().length > 0 ? aiInfo.reason : "AI nie podał szczegółowego uzasadnienia.";
-      source = "ai";
-    } else {
-      decision = "negative";
-      score = null;
-      reason = "AI nie dostarczyło klasyfikacji dla tego stanowiska.";
-      source = "ai";
     }
 
     const scoreText = score !== null ? `Ocena: ${(score * 100).toFixed(0)}%` : null;

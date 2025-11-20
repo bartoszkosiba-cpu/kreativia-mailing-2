@@ -136,7 +136,7 @@ export default function PersonasPage() {
   const [personas, setPersonas] = useState<PersonaCriteria | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"view" | "chat" | "edit" | "cache" | "prompt" | "test">("view");
+  const [activeTab, setActiveTab] = useState<"view" | "chat" | "cache" | "prompt" | "test">("view");
   const [verificationModel, setVerificationModel] = useState<"gpt-4o-mini" | "gpt-4o">("gpt-4o-mini");
   const [testTitle, setTestTitle] = useState("");
   const [testResult, setTestResult] = useState<any>(null);
@@ -166,6 +166,7 @@ export default function PersonasPage() {
   const [sending, setSending] = useState(false);
   const [shouldGenerate, setShouldGenerate] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
@@ -174,6 +175,7 @@ export default function PersonasPage() {
   const [personaBrief, setPersonaBrief] = useState<PersonaBriefDto | null>(null);
   const [briefForm, setBriefForm] = useState<PersonaBriefFormState>(EMPTY_BRIEF_FORM);
   const chatContainerRef = useRef<HTMLDivElement | null>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [tempName, setTempName] = useState("");
 
@@ -246,6 +248,55 @@ export default function PersonasPage() {
       }
     }
   }, [activeTab, personaId]);
+
+  // Sprawdź, czy nazwa jest wymagana (przed useEffect, który tego używa)
+  const shouldShowNamePrompt = useMemo(() => {
+    return showNamePrompt || (personas && (!personas.name || personas.name.trim() === "" || personas.name === "Nowe persony weryfikacji"));
+  }, [showNamePrompt, personas]);
+
+  // Automatycznie rozpocznij rozmowę gdy przełączamy na zakładkę chat i historia jest pusta
+  useEffect(() => {
+    if (activeTab === "chat" && personaId && !shouldShowNamePrompt && personas && chatMessages.length === 0 && !sending) {
+      const startConversation = async () => {
+        try {
+          setSending(true);
+          const response = await fetch(`/api/company-selection/personas/${personaId}/chat`, {
+            method: "GET",
+          });
+          const data = await response.json();
+          if (data.success && data.response) {
+            const aiMessage: ChatMessage = { role: "assistant", content: data.response };
+            setChatMessages([aiMessage]);
+            if (data.data) {
+              const persona: PersonaCriteria = {
+                id: data.data.id,
+                companyCriteriaId: data.data.companyCriteriaId,
+                name: data.data.name,
+                description: data.data.description ?? "",
+                language: data.data.language ?? "pl",
+                positiveRoles: data.data.positiveRoles ?? [],
+                negativeRoles: data.data.negativeRoles ?? [],
+                conditionalRules: data.data.conditionalRules ?? [],
+                chatHistory: data.chatHistory ?? [],
+                lastUserMessage: data.data.lastUserMessage ?? undefined,
+                lastAIResponse: data.data.lastAIResponse ?? undefined,
+                createdAt: data.data.createdAt,
+                updatedAt: data.data.updatedAt,
+              };
+              setPersonas(persona);
+              setFormState(transformPersonaToForm(persona));
+            }
+          }
+        } catch (err) {
+          console.error("[Personas Chat] Błąd rozpoczynania rozmowy", err);
+          setChatError("Błąd rozpoczynania rozmowy. Spróbuj odświeżyć stronę.");
+        } finally {
+          setSending(false);
+        }
+      };
+      startConversation();
+    }
+  }, [activeTab, personaId, shouldShowNamePrompt, personas, chatMessages.length, sending]);
 
   const handleTestTitle = async () => {
     if (!testTitle.trim() || !personaId || testing) return;
@@ -532,7 +583,12 @@ export default function PersonasPage() {
     const userMessage: ChatMessage = { role: "user", content: messageInput.trim() };
     setChatMessages((prev) => [...prev, userMessage]);
     setMessageInput("");
+    // Reset wysokości textarea
+    if (messageInputRef.current) {
+      messageInputRef.current.style.height = "auto";
+    }
     setSending(true);
+    setChatError(null);
 
     try {
       const response = await fetch(`/api/company-selection/personas/${personaId}/chat`, {
@@ -543,7 +599,7 @@ export default function PersonasPage() {
 
       const data = await response.json();
       if (!data.success) {
-        alert(data.error || "Nie udało się wysłać wiadomości");
+        setChatError(data.error || "Nie udało się wysłać wiadomości");
         setChatMessages((prev) => prev.slice(0, -1));
         return;
       }
@@ -574,7 +630,7 @@ export default function PersonasPage() {
       }
     } catch (err) {
       console.error("[Personas Chat] Błąd", err);
-      alert("Błąd połączenia z agentem");
+      setChatError("Błąd połączenia z agentem. Sprawdź połączenie internetowe i spróbuj ponownie.");
       setChatMessages((prev) => prev.slice(0, -1));
     } finally {
       setSending(false);
@@ -585,6 +641,7 @@ export default function PersonasPage() {
     if (!personaId) return;
 
     setGenerating(true);
+    setChatError(null);
     try {
       const response = await fetch(`/api/company-selection/personas/${personaId}/chat`, {
         method: "PUT",
@@ -592,7 +649,7 @@ export default function PersonasPage() {
       const data = await response.json();
 
       if (!data.success) {
-        alert(data.error || "Nie udało się wygenerować person");
+        setChatError(data.error || "Nie udało się wygenerować person. Spróbuj ponownie.");
         return;
       }
 
@@ -616,6 +673,7 @@ export default function PersonasPage() {
       setFormState(transformPersonaToForm(persona));
       setChatMessages(persona.chatHistory ?? []);
       setShouldGenerate(false);
+      setChatError(null);
       
       // Odśwież brief po wygenerowaniu
       await loadPersonas(personaId);
@@ -623,10 +681,10 @@ export default function PersonasPage() {
       // Automatycznie przełącz na zakładkę Podgląd
       setActiveTab("view");
       
-      alert("Persony zostały wygenerowane i zapisane. Brief strategiczny został automatycznie uzupełniony.");
+      // Sukces - użytkownik zobaczy zaktualizowane dane w interfejsie
     } catch (err) {
       console.error("[Personas Generate] Błąd", err);
-      alert("Błąd generowania person");
+      setChatError("Błąd generowania person. Spróbuj ponownie lub skontaktuj się z administratorem.");
     } finally {
       setGenerating(false);
     }
@@ -863,7 +921,7 @@ export default function PersonasPage() {
   };
 
   const viewContent = useMemo(() => {
-    if (!personas) {
+    if (!personas || !personaId) {
       return (
         <div
           style={{
@@ -988,7 +1046,20 @@ export default function PersonasPage() {
             border: "1px solid #E5E7EB",
           }}
         >
-          <h3 style={{ fontSize: "1.25rem", marginBottom: "1rem", color: "#1F2937" }}>Brief strategiczny</h3>
+          <div style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "1.25rem", marginBottom: "0.5rem", color: "#1F2937" }}>Brief strategiczny</h3>
+            <div style={{ 
+              padding: "0.75rem", 
+              backgroundColor: "#EFF6FF", 
+              border: "1px solid #3B82F6", 
+              borderRadius: "0.5rem",
+              fontSize: "0.9rem",
+              color: "#1E40AF"
+            }}>
+              <strong>🎯 PRIORYTET 1:</strong> Brief strategiczny jest <strong>głównym źródłem kontekstu biznesowego</strong> dla AI podczas weryfikacji person. 
+              Wszystkie decyzje AI są oparte na kontekście biznesowym z tego briefu.
+            </div>
+          </div>
           {hasBriefContent ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem", color: "#4B5563" }}>
               {aiRoleText && (
@@ -1087,7 +1158,7 @@ export default function PersonasPage() {
                 // Automatyczny zapis przy każdej zmianie (z debounce)
                 if (updatedBrief && updatedBrief.positiveThreshold !== undefined) {
                   try {
-                    const response = await fetch(`/api/company-selection/personas/${params.id}/persona-brief`, {
+                    const response = await fetch(`/api/company-selection/personas/${personaId}/persona-brief`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
@@ -1142,9 +1213,10 @@ export default function PersonasPage() {
               border: "1px solid #E5E7EB",
             }}
           >
-            <h3 style={{ fontSize: "1.25rem", marginBottom: "0.75rem", color: "#1D4ED8" }}>Aktualne reguły AI (szybkie dopasowania)</h3>
+            <h3 style={{ fontSize: "1.25rem", marginBottom: "0.75rem", color: "#1D4ED8" }}>Konfiguracja person (informacja pomocnicza dla AI)</h3>
             <p style={{ color: "#6B7280", fontSize: "0.9rem", marginBottom: "1rem" }}>
-              Poniższe stanowiska system kwalifikuje automatycznie – zanim poprosi o decyzję model AI. Lista uaktualnia się po zapisaniu zmian w konfiguracji person.
+              Poniższe role są przekazywane do AI jako <strong>informacja pomocnicza</strong>. AI wykorzystuje je jako wskazówkę podczas weryfikacji, 
+              ale <strong>priorytet ma zawsze brief strategiczny</strong> (PRIORYTET 1). Lista uaktualnia się po zapisaniu zmian w konfiguracji person.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1.5rem" }}>
               <div>
@@ -1214,7 +1286,11 @@ export default function PersonasPage() {
         </div>
       </div>
     );
-  }, [personas, personaBrief]);
+  }, [personas, personaBrief, personaId]);
+
+  // Sprawdź, czy persona ma wygenerowane persony
+  const hasPersonas = personas && ((personas.positiveRoles && personas.positiveRoles.length > 0) || 
+                                    (personas.negativeRoles && personas.negativeRoles.length > 0));
 
   if (loading) {
     return (
@@ -1233,13 +1309,6 @@ export default function PersonasPage() {
     );
   }
 
-  // Sprawdź, czy persona ma wygenerowane persony
-  const hasPersonas = personas && ((personas.positiveRoles && personas.positiveRoles.length > 0) || 
-                                    (personas.negativeRoles && personas.negativeRoles.length > 0));
-  
-  // Sprawdź, czy nazwa jest wymagana
-  const shouldShowNamePrompt = showNamePrompt || (personas && (!personas.name || personas.name.trim() === "" || personas.name === "Nowe persony weryfikacji"));
-
   return (
     <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}>
       <div style={{ marginBottom: "2rem" }}>
@@ -1256,6 +1325,9 @@ export default function PersonasPage() {
         </Link>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", marginTop: "1rem" }}>
           <div>
+            <div style={{ fontSize: "0.875rem", color: "#6B7280", marginBottom: "0.25rem", fontWeight: 500 }}>
+              Kryteria weryfikacji person:
+            </div>
             <h1 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
               {personas?.name || "Persony sprzedażowe (Agenda AI)"}
             </h1>
@@ -1287,35 +1359,35 @@ export default function PersonasPage() {
                 onClick={handleDuplicate}
                 disabled={duplicating}
                 style={{
-                  padding: "0.75rem 2rem",
+                  padding: "0.5rem 1.25rem",
                   backgroundColor: duplicating ? "#9CA3AF" : "#3B82F6",
                   color: "white",
                   border: "none",
                   borderRadius: "0.5rem",
                   cursor: duplicating ? "not-allowed" : "pointer",
-                  fontSize: "1rem",
+                  fontSize: "0.875rem",
                   fontWeight: "500",
                 }}
-                title="Utwórz kopię tej persony"
+                title="Utwórz kopię tych kryteriów"
               >
-                {duplicating ? "Powielanie..." : "Powiel"}
+                {duplicating ? "Powielanie..." : "Powiel kryteria"}
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
                 style={{
-                  padding: "0.75rem 2rem",
+                  padding: "0.5rem 1.25rem",
                   backgroundColor: deleting ? "#9CA3AF" : "#EF4444",
                   color: "white",
                   border: "none",
                   borderRadius: "0.5rem",
                   cursor: deleting ? "not-allowed" : "pointer",
-                  fontSize: "1rem",
+                  fontSize: "0.875rem",
                   fontWeight: "500",
                 }}
-                title="Usuń personę"
+                title="Usuń kryteria"
               >
-                {deleting ? "Usuwanie..." : "Usuń personę"}
+                {deleting ? "Usuwanie..." : "Usuń kryteria"}
               </button>
             </div>
           )}
@@ -1334,10 +1406,10 @@ export default function PersonasPage() {
           [
             { key: "view", label: "Podgląd", disabled: !hasPersonas },
             { key: "chat", label: "Czat o personach", disabled: false },
-            { key: "edit", label: "Edycja ręczna", disabled: !hasPersonas },
-            { key: "cache", label: "Zapisane decyzje", disabled: false },
+            // Usunięto "Edycja ręczna" - wszystko przez chat
             { key: "prompt", label: "Prompt do analizy", disabled: false },
             { key: "test", label: "Testowanie", disabled: false },
+            { key: "cache", label: "Zapisane decyzje", disabled: false },
           ] as const
         ).map((tab) => (
           <button
@@ -1472,9 +1544,9 @@ export default function PersonasPage() {
               gap: "1rem",
             }}
           >
-            {chatMessages.length === 0 ? (
+            {chatMessages.length === 0 && !sending ? (
               <div style={{ textAlign: "center", color: "#6B7280", padding: "2rem" }}>
-                <p style={{ marginBottom: "1rem" }}>Rozpocznij rozmowę, np.: "Potrzebuję osób decyzyjnych ds. budowy stoisk targowych"</p>
+                <p style={{ marginBottom: "1rem" }}>Rozpoczynam rozmowę...</p>
               </div>
             ) : (
               chatMessages.map((msg, idx) => (
@@ -1507,6 +1579,37 @@ export default function PersonasPage() {
                 >
                   Agent pisze...
                 </div>
+              </div>
+            )}
+
+            {chatError && (
+              <div
+                style={{
+                  padding: "1rem",
+                  backgroundColor: "#FEE2E2",
+                  border: "1px solid #FCA5A5",
+                  borderRadius: "0.5rem",
+                  color: "#991B1B",
+                  marginTop: "1rem",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>Błąd</div>
+                <div style={{ fontSize: "0.875rem" }}>{chatError}</div>
+                <button
+                  onClick={() => setChatError(null)}
+                  style={{
+                    marginTop: "0.5rem",
+                    padding: "0.25rem 0.75rem",
+                    backgroundColor: "#DC2626",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "0.25rem",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  Zamknij
+                </button>
               </div>
             )}
 
@@ -1552,27 +1655,40 @@ export default function PersonasPage() {
               borderTop: "1px solid #E5E7EB",
               display: "flex",
               gap: "0.5rem",
+              alignItems: "flex-end",
               borderRadius: "0 0 0.5rem 0.5rem",
             }}
           >
-            <input
-              type="text"
+            <textarea
+              ref={messageInputRef}
               value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
+              onChange={(e) => {
+                setMessageInput(e.target.value);
+                // Automatyczne dopasowanie wysokości
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   sendMessage();
                 }
               }}
-              placeholder="Wpisz wiadomość..."
+              placeholder="Wpisz wiadomość... (Shift+Enter dla nowej linii, Enter aby wysłać)"
               disabled={sending}
+              rows={1}
               style={{
                 flex: 1,
                 padding: "0.75rem",
                 border: "1px solid #D1D5DB",
                 borderRadius: "0.5rem",
                 fontSize: "1rem",
+                fontFamily: "inherit",
+                resize: "none",
+                minHeight: "44px",
+                maxHeight: "150px",
+                overflowY: "auto",
+                lineHeight: "1.5",
               }}
             />
             <button
@@ -1585,6 +1701,8 @@ export default function PersonasPage() {
                 border: "none",
                 borderRadius: "0.5rem",
                 cursor: sending || !messageInput.trim() ? "not-allowed" : "pointer",
+                height: "fit-content",
+                whiteSpace: "nowrap",
               }}
             >
               Wyślij
@@ -1595,499 +1713,7 @@ export default function PersonasPage() {
         </div>
       )}
 
-      {activeTab === "edit" && formState && (
-        <div
-          style={{
-            padding: "2rem",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "1.5rem",
-          }}
-        >
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1.5rem" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <label style={{ fontWeight: 600 }}>Nazwa konfiguracji</label>
-              <input
-                type="text"
-                value={formState.name}
-                onChange={(e) => setFormState((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-                style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem" }}
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <label style={{ fontWeight: 600 }}>Język komunikacji</label>
-              <input
-                type="text"
-                value={formState.language}
-                onChange={(e) => setFormState((prev) => (prev ? { ...prev, language: e.target.value } : prev))}
-                style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem" }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <label style={{ fontWeight: 600 }}>Opis</label>
-            <textarea
-              value={formState.description}
-              onChange={(e) => setFormState((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
-              rows={3}
-              style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem" }}
-            />
-          </div>
-
-          <section style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div>
-              <h3 style={{ fontSize: "1.25rem" }}>Brief strategiczny</h3>
-              <p style={{ color: "#6B7280", marginTop: "0.35rem", fontSize: "0.9rem" }}>
-                Ten brief jest przekazywany agentowi AI podczas każdej weryfikacji person. Zapisz kluczowe wskazówki, przykładowe stanowiska
-                oraz informacje, których AI ma unikać.
-              </p>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <label style={{ fontWeight: 600 }}>
-                Rola AI podczas weryfikacji
-                <span style={{ fontSize: "0.85rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
-                  (np. "ekspert od stoisk targowych", "analityk sprzedażowy B2B")
-                </span>
-              </label>
-              <input
-                type="text"
-                value={briefForm.aiRole}
-                onChange={(e) => setBriefForm((prev) => ({ ...prev, aiRole: e.target.value }))}
-                placeholder="W jakiej roli ma się wcielić AI podczas weryfikacji person?"
-                style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem" }}
-              />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <label style={{ fontWeight: 600 }}>Podsumowanie</label>
-                <textarea
-                  value={briefForm.summary}
-                  onChange={(e) => setBriefForm((prev) => ({ ...prev, summary: e.target.value }))}
-                  rows={4}
-                  placeholder="Najważniejsze cele i wnioski dla prospectingu"
-                  style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem" }}
-                />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <label style={{ fontWeight: 600 }}>Dodatkowe notatki</label>
-                <textarea
-                  value={briefForm.additionalNotes}
-                  onChange={(e) => setBriefForm((prev) => ({ ...prev, additionalNotes: e.target.value }))}
-                  rows={4}
-                  placeholder="Dodatkowe informacje dla handlowców lub agenta"
-                  style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem" }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <label style={{ fontWeight: 600 }}>Wskazówki decyzyjne (jedna na linię)</label>
-                <textarea
-                  value={briefForm.decisionGuidelines}
-                  onChange={(e) => setBriefForm((prev) => ({ ...prev, decisionGuidelines: e.target.value }))}
-                  rows={5}
-                  placeholder={"Np. 1) stanowiska z P&L, 2) osoby z wpływem na produkcję, 3) dyrektorzy zakupów"}
-                  style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem", fontSize: "0.9rem" }}
-                />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <label style={{ fontWeight: 600 }}>Przykładowe persony pozytywne (jedna na linię)</label>
-                <textarea
-                  value={briefForm.targetProfiles}
-                  onChange={(e) => setBriefForm((prev) => ({ ...prev, targetProfiles: e.target.value }))}
-                  rows={5}
-                  placeholder={"Np. Dyrektor ds. Rozwoju, COO, Head of Operations"}
-                  style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem", fontSize: "0.9rem" }}
-                />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <label style={{ fontWeight: 600 }}>Persony do unikania (jedna na linię)</label>
-                <textarea
-                  value={briefForm.avoidProfiles}
-                  onChange={(e) => setBriefForm((prev) => ({ ...prev, avoidProfiles: e.target.value }))}
-                  rows={5}
-                  placeholder={"Np. Asystenci, Specjaliści administracyjni, praktykanci"}
-                  style={{ padding: "0.75rem", border: "1px solid #D1D5DB", borderRadius: "0.5rem", fontSize: "0.9rem" }}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-              <h3 style={{ fontSize: "1.25rem" }}>Pozytywne persony</h3>
-              <button
-                onClick={() => addRole("positiveRoles")}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#3B82F6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "0.5rem",
-                  cursor: "pointer",
-                }}
-              >
-                Dodaj rolę
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {formState.positiveRoles.length === 0 && (
-                <div style={{ color: "#6B7280" }}>Brak dodanych pozytywnych person.</div>
-              )}
-
-              {formState.positiveRoles.map((role, index) => (
-                <div
-                  key={`positive-${index}`}
-                  style={{
-                    padding: "1.25rem",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: "0.5rem",
-                    backgroundColor: "#F8FAFC",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <strong>Rola #{index + 1}</strong>
-                    <button
-                      onClick={() => removeRole("positiveRoles", index)}
-                      style={{
-                        padding: "0.35rem 0.75rem",
-                        backgroundColor: "#EF4444",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "0.35rem",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Usuń
-                    </button>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Label</label>
-                      <input
-                        type="text"
-                        value={role.label}
-                        onChange={(e) => handleRoleChange("positiveRoles", index, "label", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Match type</label>
-                      <select
-                        value={role.matchType}
-                        onChange={(e) => handleRoleChange("positiveRoles", index, "matchType", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      >
-                        {MATCH_TYPES.map((type) => (
-                          <option key={type} value={type}>{type}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Min. seniority</label>
-                      <select
-                        value={role.minSeniority}
-                        onChange={(e) => handleRoleChange("positiveRoles", index, "minSeniority", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      >
-                        <option value="">—</option>
-                        {SENIORITY_OPTIONS.map((item) => (
-                          <option key={item} value={item}>{item}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Pewność (0-1)</label>
-                      <input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="1"
-                        value={role.confidence}
-                        onChange={(e) => handleRoleChange("positiveRoles", index, "confidence", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.75rem" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Słowa kluczowe (oddziel przecinkami)</label>
-                      <input
-                        type="text"
-                        value={role.keywords}
-                        onChange={(e) => handleRoleChange("positiveRoles", index, "keywords", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Działy (oddziel przecinkami)</label>
-                      <input
-                        type="text"
-                        value={role.departments}
-                        onChange={(e) => handleRoleChange("positiveRoles", index, "departments", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-              <h3 style={{ fontSize: "1.25rem" }}>Negatywne persony</h3>
-              <button
-                onClick={() => addRole("negativeRoles")}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#3B82F6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "0.5rem",
-                  cursor: "pointer",
-                }}
-              >
-                Dodaj rolę
-              </button>
-            </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {formState.negativeRoles.length === 0 && (
-              <div style={{ color: "#6B7280" }}>Brak dodanych negatywnych person.</div>
-            )}
-
-            {formState.negativeRoles.map((role, index) => (
-              <div
-                key={`negative-${index}`}
-                style={{
-                  padding: "1.25rem",
-                  border: "1px solid #E5E7EB",
-                  borderRadius: "0.5rem",
-                  backgroundColor: "#FEF2F2",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.75rem",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <strong>Rola #{index + 1}</strong>
-                  <button
-                    onClick={() => removeRole("negativeRoles", index)}
-                    style={{
-                      padding: "0.35rem 0.75rem",
-                      backgroundColor: "#EF4444",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "0.35rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Usuń
-                  </button>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <label>Label</label>
-                    <input
-                      type="text"
-                      value={role.label}
-                      onChange={(e) => handleRoleChange("negativeRoles", index, "label", e.target.value)}
-                      style={{ padding: "0.6rem", border: "1px solid #FECACA", borderRadius: "0.5rem" }}
-                    />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <label>Match type</label>
-                    <select
-                      value={role.matchType}
-                      onChange={(e) => handleRoleChange("negativeRoles", index, "matchType", e.target.value)}
-                      style={{ padding: "0.6rem", border: "1px solid #FECACA", borderRadius: "0.5rem" }}
-                    >
-                      {MATCH_TYPES.map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <label>Pewność (0-1)</label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      min="0"
-                      max="1"
-                      value={role.confidence}
-                      onChange={(e) => handleRoleChange("negativeRoles", index, "confidence", e.target.value)}
-                      style={{ padding: "0.6rem", border: "1px solid #FECACA", borderRadius: "0.5rem" }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.75rem" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <label>Słowa kluczowe</label>
-                    <input
-                      type="text"
-                      value={role.keywords}
-                      onChange={(e) => handleRoleChange("negativeRoles", index, "keywords", e.target.value)}
-                      style={{ padding: "0.6rem", border: "1px solid #FECACA", borderRadius: "0.5rem" }}
-                    />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <label>Działy</label>
-                    <input
-                      type="text"
-                      value={role.departments}
-                      onChange={(e) => handleRoleChange("negativeRoles", index, "departments", e.target.value)}
-                      style={{ padding: "0.6rem", border: "1px solid #FECACA", borderRadius: "0.5rem" }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          </section>
-
-          <section>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-              <h3 style={{ fontSize: "1.25rem" }}>Reguły warunkowe</h3>
-              <button
-                onClick={addRule}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#3B82F6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "0.5rem",
-                  cursor: "pointer",
-                }}
-              >
-                Dodaj regułę
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {formState.conditionalRules.length === 0 && (
-                <div style={{ color: "#6B7280" }}>Brak zdefiniowanych reguł.</div>
-              )}
-
-              {formState.conditionalRules.map((rule, index) => (
-                <div
-                  key={`rule-${index}`}
-                  style={{
-                    padding: "1.25rem",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: "0.5rem",
-                    backgroundColor: "#F9FAFB",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <strong>Reguła #{index + 1}</strong>
-                    <button
-                      onClick={() => removeRule(index)}
-                      style={{
-                        padding: "0.35rem 0.75rem",
-                        backgroundColor: "#EF4444",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "0.35rem",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Usuń
-                    </button>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Typ reguły</label>
-                      <select
-                        value={rule.rule}
-                        onChange={(e) => handleRuleChange(index, "rule", e.target.value as "include" | "exclude")}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      >
-                        <option value="include">Uwzględnij (include)</option>
-                        <option value="exclude">Wyklucz (exclude)</option>
-                      </select>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Wszystkie słowa (whenAll)</label>
-                      <input
-                        type="text"
-                        value={rule.whenAll}
-                        onChange={(e) => handleRuleChange(index, "whenAll", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Dowolne słowa (whenAny)</label>
-                      <input
-                        type="text"
-                        value={rule.whenAny}
-                        onChange={(e) => handleRuleChange(index, "whenAny", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label>Wyjątki (unless)</label>
-                      <input
-                        type="text"
-                        value={rule.unless}
-                        onChange={(e) => handleRuleChange(index, "unless", e.target.value)}
-                        style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <label>Notatka</label>
-                    <textarea
-                      value={rule.notes}
-                      onChange={(e) => handleRuleChange(index, "notes", e.target.value)}
-                      rows={2}
-                      style={{ padding: "0.6rem", border: "1px solid #CBD5F5", borderRadius: "0.5rem" }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
-            <button
-              onClick={savePersonas}
-              disabled={saving}
-              style={{
-                padding: "0.75rem 1.5rem",
-                backgroundColor: saving ? "#9CA3AF" : "#10B981",
-                color: "white",
-                border: "none",
-                borderRadius: "0.5rem",
-                cursor: saving ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-              }}
-            >
-              {saving ? "Zapisywanie..." : "Zapisz persony"}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Usunięto zakładkę "Edycja ręczna" - wszystko przez chat */}
 
       {activeTab === "cache" && (
         <div
@@ -2399,7 +2025,9 @@ export default function PersonasPage() {
               Prompt do analizy person przez AI
             </h2>
             <p style={{ fontSize: "0.95rem", color: "#6B7280", marginBottom: "1rem" }}>
-              Poniżej znajduje się dokładny prompt, który jest używany przez AI do weryfikacji person. Prompt zawiera brief strategiczny, reguły klasyfikacji oraz przykłady.
+              Poniżej znajduje się dokładny prompt, który jest używany przez AI do weryfikacji person. 
+              Prompt opiera się na <strong>briefie strategicznym jako głównym źródle kontekstu biznesowego</strong> (PRIORYTET 1), 
+              następnie na konfiguracji person (PRIORYTET 2) oraz analizie ogólnej (PRIORYTET 3).
             </p>
             <div style={{ 
               display: "flex", 

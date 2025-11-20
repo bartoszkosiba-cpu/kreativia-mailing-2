@@ -84,13 +84,19 @@ async function generateAndSavePrompt(companyCriteriaId: number): Promise<string 
       return null;
     }
 
-    // Pobierz Brief
-    const brief = await getPersonaBrief(companyCriteriaId);
-    if (!brief || !brief.summary) {
-      // Jeśli nie ma briefu, nie generuj promptu
-      console.warn(`[personaBriefService] Brak briefu lub summary dla ID: ${companyCriteriaId}`);
+    // Sprawdź czy brief istnieje w bazie
+    const briefRecord = await db.personaBrief.findUnique({
+      where: { companyCriteriaId },
+    });
+
+    if (!briefRecord) {
+      // Brief nie istnieje - nie można zapisać promptu (brief powstaje dopiero po rozmowie z chatem lub ręcznej edycji)
+      console.warn(`[personaBriefService] Brief nie istnieje dla ID: ${companyCriteriaId} - nie można zapisać promptu`);
       return null;
     }
+
+    // Pobierz Brief
+    const brief = await getPersonaBrief(companyCriteriaId);
 
     // Przygotuj brief context
     const briefContext = {
@@ -111,7 +117,7 @@ async function generateAndSavePrompt(companyCriteriaId: number): Promise<string 
       return null;
     }
 
-    // Zapisz prompt do bazy
+    // Zapisz prompt do bazy (brief już istnieje)
     const updated = await db.personaBrief.update({
       where: { companyCriteriaId },
       data: {
@@ -168,11 +174,9 @@ export async function upsertPersonaBrief(companyCriteriaId: number, payload: Per
     } as any,
   });
 
-  // Po zapisaniu briefu, wygeneruj i zapisz prompt
-  // Prompt jest generowany tylko jeśli brief ma summary (jest kompletny)
-  if (payload.summary && payload.summary.trim().length > 0) {
-    await generateAndSavePrompt(companyCriteriaId);
-  }
+  // Po zapisaniu briefu, zawsze wygeneruj i zapisz prompt (nawet jeśli brief jest pusty)
+  // Prompt musi być zawsze dostępny do wyświetlenia w UI
+  await generateAndSavePrompt(companyCriteriaId);
 }
 
 /**
