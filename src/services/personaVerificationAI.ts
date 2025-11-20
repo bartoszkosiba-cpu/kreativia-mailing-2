@@ -477,6 +477,7 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
     "      - Czy osoba może użyć produktu/usługi w swojej pracy?",
     "      - Czy ma wpływ na decyzję zakupową?",
     "      - Czy może szerzyć wiedzę o produktach wewnątrz firmy? (WAŻNE: to czyni stanowisko pozytywnym)",
+    "      - ⚠️ NIE WYMYŚLAJ informacji o działach - używaj TYLKO danych z pola 'departments' w danych pracownika. Jeśli w danych NIE MA informacji o dziale - NIE PISZ o dziale w uzasadnieniu!",
     "   d) KONTEKST BIZNESOWY: W B2B stanowiska związane z biznesem (New Business, Business Development, Business Manager) mogą mieć wpływ na decyzje zakupowe - rozważ pozytywną klasyfikację",
     "   e) Jeśli nie jesteś pewien, ale istnieje jakakolwiek szansa na wpływ biznesowy → użyj score bliskiego progowi i rozważ 'positive' (lepiej dodać niż przegapić)",
     `   f) PRÓG KLASYFIKACJI: ${(positiveThreshold * 100).toFixed(0)}% - jeśli score ≥ ${(positiveThreshold * 100).toFixed(0)}%, decyzja będzie pozytywna`,
