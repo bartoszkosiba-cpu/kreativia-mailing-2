@@ -258,12 +258,13 @@ async function processVerificationBatch(
       });
       
       const aiStartTime = Date.now();
+      const selectedModel = (model === "gpt-4o" || model === "gpt-4o-mini") ? model : "gpt-4o-mini";
       const aiResponse = await verifyEmployeesWithAI(
         personaCriteria, 
         employeesForAI, 
         personaBrief || undefined,
         !forceRefresh, // useCache = !forceRefresh (jeśli forceRefresh, wyłącz cache)
-        (model === "gpt-4o" || model === "gpt-4o-mini") ? model : "gpt-4o-mini" // Użyj wybranego modelu lub domyślnego
+        selectedModel // Użyj wybranego modelu lub domyślnego
       );
       const aiDuration = Date.now() - aiStartTime;
       logger.info("persona-verify-batch", `Weryfikacja AI dla firmy ${companyId} (${company.name}) zakończona w ${aiDuration}ms`, {
