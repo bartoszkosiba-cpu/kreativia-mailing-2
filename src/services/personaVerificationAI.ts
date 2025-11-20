@@ -458,6 +458,7 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
     "   - WAŻNE: Stanowiska kierownicze/wykonawcze (CEO, Owner, Director, Manager, VP, Head of) mogą szerzyć wiedzę o produktach wewnątrz firmy - to czyni je pozytywnymi",
     "     → 'Kierownik [coś]' (np. 'Kierownik Techniczny', 'Kierownik Produkcji', 'Kierownik Projektu') - ZAWSZE pozytywne jeśli NIE jest to 'Kierownik Finansowy', 'Kierownik HR', 'Kierownik Logistyki'",
     "     → PRZYKŁADY: 'Kierownik Techniczny' (POZYTYWNE!), 'Kierownik Produkcji' (POZYTYWNE!), 'Kierownik Projektu' (POZYTYWNE!), 'Technical Manager' (POZYTYWNE!)",
+    "     → 'Operations Manager', 'International Operations Manager', 'Regional Operations Manager' - POZYTYWNE (55-65%) - stanowiska kierownicze mogą szerzyć wiedzę wewnątrz firmy, mają wpływ na decyzje operacyjne",
     "     → Jeśli nie jesteś pewien czy stanowisko kierownicze jest pozytywne, zastosuj regułę: 'lepiej dodać niż przegapić' - klasyfikuj jako pozytywne",
     "",
     "2. STANOWISKA ZAWSZE NEGATYWNE (nie wymagają analizy - decyzja MUSI być 'negative' z score 0.0):",
