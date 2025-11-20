@@ -611,7 +611,8 @@ export async function verifyEmployeesWithAI(
   employees: PersonaVerificationAIInputPerson[],
   brief?: PersonaBriefContext,
   useCache: boolean = true, // Opcja wyłączenia cache (domyślnie włączona)
-  model: "gpt-4o-mini" | "gpt-4o" = "gpt-4o-mini" // Model AI do użycia
+  model: "gpt-4o-mini" | "gpt-4o" = "gpt-4o-mini", // Model AI do użycia
+  saveToCache: boolean = true // Opcja wyłączenia zapisu do cache (domyślnie włączona)
 ): Promise<PersonaVerificationAIResponse> {
   if (!employees.length) {
     return { results: [] };
@@ -1083,20 +1084,32 @@ ${brief.additionalNotes ? `Dodatkowe notatki: ${brief.additionalNotes}` : ""}`
       });
     }
 
-    // Zapisz wyniki do cache (tylko te, które były weryfikowane przez AI)
+    // Zapisz wyniki do cache (tylko te, które były weryfikowane przez AI) - tylko jeśli saveToCache = true
     // Mapuj wyniki z powrotem do employeesToVerify, aby zapisać cache
-    logger.info("persona-criteria-ai", "Rozpoczynam zapis cache", {
-      personaCriteriaId: personaCriteria.id,
-      resultsCount: results.length,
-      employeesToVerifyCount: employeesToVerify.length,
-    });
-    
     const cachePromises: Promise<void>[] = [];
+    
+    if (!saveToCache) {
+      logger.info("persona-criteria-ai", "Pomijam zapis cache (saveToCache = false)", {
+        personaCriteriaId: personaCriteria.id,
+        resultsCount: results.length,
+      });
+    } else {
+      logger.info("persona-criteria-ai", "Rozpoczynam zapis cache", {
+        personaCriteriaId: personaCriteria.id,
+        resultsCount: results.length,
+        employeesToVerifyCount: employeesToVerify.length,
+      });
+    }
     let matchedCount = 0;
     let skippedNoEmployee = 0;
     let skippedNoTitle = 0;
     
     for (const result of results) {
+      // Pomiń zapis do cache jeśli saveToCache = false
+      if (!saveToCache) {
+        continue;
+      }
+      
       const employee = employeesToVerify.find((emp) => {
         const empMatchKey = emp.matchKey || (emp.id ? String(emp.id) : undefined);
         const resultMatchKey = result.matchKey || result.id;

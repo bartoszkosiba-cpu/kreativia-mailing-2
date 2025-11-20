@@ -65,13 +65,14 @@ export async function POST(
       semanticHint: null,
     };
 
-    // Weryfikuj przez AI (bez cache dla testów)
+    // Weryfikuj przez AI (bez cache dla testów - nie czytamy z cache i nie zapisujemy do cache)
     const aiResponse = await verifyEmployeesWithAI(
       personaCriteria,
       [testEmployee],
       personaBrief || undefined,
-      false, // useCache = false dla testów
-      model as "gpt-4o-mini" | "gpt-4o" // Użyj wybranego modelu
+      false, // useCache = false dla testów (nie czytamy z cache)
+      model as "gpt-4o-mini" | "gpt-4o", // Użyj wybranego modelu
+      false // saveToCache = false dla testów (nie zapisujemy do cache)
     );
 
     if (!aiResponse.results || aiResponse.results.length === 0) {
