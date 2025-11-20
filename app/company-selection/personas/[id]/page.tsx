@@ -2496,6 +2496,119 @@ export default function PersonasPage() {
           )}
         </div>
       )}
+
+      {activeTab === "test" && (
+        <div
+          style={{
+            padding: "2rem",
+            backgroundColor: "white",
+            borderRadius: "0.5rem",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          }}
+        >
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem" }}>
+              Testowanie klasyfikacji stanowisk
+            </h2>
+            <p style={{ fontSize: "0.95rem", color: "#6B7280" }}>
+              Wpisz nazwę stanowiska, aby zobaczyć jak AI je zakwalifikuje na podstawie aktualnych kryteriów.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: "1.5rem" }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, color: "#374151" }}>
+              Nazwa stanowiska:
+            </label>
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <input
+                type="text"
+                value={testTitle}
+                onChange={(e) => setTestTitle(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && testTitle.trim() && !testing) {
+                    handleTestTitle();
+                  }
+                }}
+                placeholder="np. Senior Project Manager"
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #D1D5DB",
+                  fontSize: "0.95rem",
+                }}
+                disabled={testing}
+              />
+              <button
+                onClick={handleTestTitle}
+                disabled={!testTitle.trim() || testing}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  borderRadius: "0.5rem",
+                  border: "none",
+                  backgroundColor: (!testTitle.trim() || testing) ? "#D1D5DB" : "#3B82F6",
+                  color: "white",
+                  cursor: (!testTitle.trim() || testing) ? "not-allowed" : "pointer",
+                  fontWeight: 500,
+                  fontSize: "0.95rem",
+                }}
+              >
+                {testing ? "Sprawdzanie..." : "Sprawdź"}
+              </button>
+            </div>
+          </div>
+
+          {testResult && (
+            <div
+              style={{
+                padding: "1.5rem",
+                backgroundColor: "#F9FAFB",
+                borderRadius: "0.5rem",
+                border: "1px solid #E5E7EB",
+              }}
+            >
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#111827", marginBottom: "1rem" }}>
+                Wynik klasyfikacji:
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div>
+                  <span style={{ fontWeight: 500, color: "#374151" }}>Stanowisko: </span>
+                  <span style={{ color: "#6B7280" }}>{testResult.title || testTitle}</span>
+                </div>
+                <div>
+                  <span style={{ fontWeight: 500, color: "#374151" }}>Decyzja: </span>
+                  <span
+                    style={{
+                      padding: "0.25rem 0.75rem",
+                      borderRadius: "0.375rem",
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      backgroundColor: testResult.decision === "positive" ? "#D1FAE5" : "#FEE2E2",
+                      color: testResult.decision === "positive" ? "#065F46" : "#991B1B",
+                    }}
+                  >
+                    {testResult.decision === "positive" ? "Pozytywna" : "Negatywna"}
+                  </span>
+                </div>
+                {testResult.score !== null && testResult.score !== undefined && (
+                  <div>
+                    <span style={{ fontWeight: 500, color: "#374151" }}>Score: </span>
+                    <span style={{ color: "#6B7280" }}>{(testResult.score * 100).toFixed(0)}%</span>
+                  </div>
+                )}
+                {testResult.reason && (
+                  <div>
+                    <span style={{ fontWeight: 500, color: "#374151" }}>Uzasadnienie: </span>
+                    <p style={{ color: "#6B7280", marginTop: "0.25rem", lineHeight: 1.6 }}>
+                      {testResult.reason}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
