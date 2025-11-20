@@ -137,13 +137,7 @@ export default function PersonasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"view" | "chat" | "edit" | "cache" | "prompt" | "test">("view");
-  const [verificationModel, setVerificationModel] = useState<"gpt-4o-mini" | "gpt-4o">(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(`persona-verification-model-${personaId}`);
-      return (saved === "gpt-4o" || saved === "gpt-4o-mini") ? saved : "gpt-4o-mini";
-    }
-    return "gpt-4o-mini";
-  });
+  const [verificationModel, setVerificationModel] = useState<"gpt-4o-mini" | "gpt-4o">("gpt-4o-mini");
   const [testTitle, setTestTitle] = useState("");
   const [testResult, setTestResult] = useState<any>(null);
   const [testing, setTesting] = useState(false);
