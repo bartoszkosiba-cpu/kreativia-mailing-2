@@ -203,9 +203,11 @@ async function processApolloBatch(companyIds: number[], progressId: string) {
         });
       }
 
-      // Zwiększ licznik dla wszystkich pomyślnie pobranych firm (nawet jeśli wynik to 0 person)
-      // apolloFetchedAt jest zapisywane niezależnie od wyniku, więc pobranie się odbyło
-      withPersonas++;
+      // Zwiększ licznik tylko dla firm, które faktycznie mają persony (people.length > 0)
+      // apolloFetchedAt jest zapisywane niezależnie od wyniku, ale "withPersonas" liczy tylko firmy z personami
+      if (apolloResult.people && apolloResult.people.length > 0) {
+        withPersonas++;
+      }
 
       // Aktualizuj postęp co 5 firm lub na końcu
       if ((i + 1) % 5 === 0 || i === companyIds.length - 1) {

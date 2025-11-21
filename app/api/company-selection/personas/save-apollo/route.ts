@@ -37,14 +37,17 @@ export async function POST(req: NextRequest) {
       verifiedByAI: false, // Oznaczenie, że to tylko pobranie z Apollo, bez weryfikacji AI
     });
 
-    // Sprawdź, czy istnieje już weryfikacja z AI
-    const existing = await db.personaVerificationResult.findUnique({
-      where: { companyId },
+    // Sprawdź, czy istnieje już weryfikacja z AI (szukamy rekordu z personaCriteriaId !== null)
+    const existingWithAI = await db.personaVerificationResult.findFirst({
+      where: {
+        companyId,
+        personaCriteriaId: { not: null },
+      },
     });
 
     // Jeśli istnieje weryfikacja z AI, nie nadpisuj jej - tylko zaktualizuj metadane Apollo
-    if (existing && existing.personaCriteriaId !== null) {
-      const existingMetadata = existing.metadata ? JSON.parse(existing.metadata) : {};
+    if (existingWithAI && existingWithAI.personaCriteriaId !== null) {
+      const existingMetadata = existingWithAI.metadata ? JSON.parse(existingWithAI.metadata) : {};
       const updatedMetadata = {
         ...existingMetadata,
         apolloFetchedAt: new Date().toISOString(),
@@ -55,7 +58,12 @@ export async function POST(req: NextRequest) {
       };
 
       const saved = await db.personaVerificationResult.update({
-        where: { companyId },
+        where: {
+          companyId_personaCriteriaId: {
+            companyId,
+            personaCriteriaId: existingWithAI.personaCriteriaId,
+          },
+        },
         data: {
           metadata: JSON.stringify(updatedMetadata),
         },
@@ -75,29 +83,43 @@ export async function POST(req: NextRequest) {
     }
 
     // Jeśli nie ma weryfikacji AI, zapisz persony z Apollo
-    const saved = await db.personaVerificationResult.upsert({
-      where: { companyId },
-      create: {
+    // Sprawdź czy istnieje rekord z personaCriteriaId === null
+    const existingWithoutAI = await db.personaVerificationResult.findFirst({
+      where: {
         companyId,
-        personaCriteriaId: null, // Brak weryfikacji AI
-        verifiedAt: new Date(),
-        positiveCount: 0,
-        negativeCount: 0,
-        unknownCount: apolloResult.people?.length || 0, // Wszystkie jako unknown, bo nie było weryfikacji
-        employees: employeesJson,
-        metadata: metadataJson,
-      },
-      update: {
-        // Aktualizuj tylko jeśli nie było weryfikacji AI (personaCriteriaId === null)
         personaCriteriaId: null,
-        verifiedAt: new Date(),
-        positiveCount: 0,
-        negativeCount: 0,
-        unknownCount: apolloResult.people?.length || 0,
-        employees: employeesJson,
-        metadata: metadataJson,
       },
     });
+
+    const saved = existingWithoutAI
+      ? await db.personaVerificationResult.update({
+          where: {
+            companyId_personaCriteriaId: {
+              companyId,
+              personaCriteriaId: null,
+            },
+          },
+          data: {
+            verifiedAt: new Date(),
+            positiveCount: 0,
+            negativeCount: 0,
+            unknownCount: apolloResult.people?.length || 0,
+            employees: employeesJson,
+            metadata: metadataJson,
+          },
+        })
+      : await db.personaVerificationResult.create({
+          data: {
+            companyId,
+            personaCriteriaId: null, // Brak weryfikacji AI
+            verifiedAt: new Date(),
+            positiveCount: 0,
+            negativeCount: 0,
+            unknownCount: apolloResult.people?.length || 0, // Wszystkie jako unknown, bo nie było weryfikacji
+            employees: employeesJson,
+            metadata: metadataJson,
+          },
+        });
 
     logger.info("persona-apollo-save", `Zapisano persony z Apollo dla firmy ${companyId}`, { companyId, count: apolloResult.people?.length || 0 });
 

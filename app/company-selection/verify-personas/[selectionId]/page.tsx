@@ -4,14 +4,14 @@ import { useEffect, useMemo, useState, useCallback, type CSSProperties, memo } f
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
-const PAGE_SIZE = 50;
+// PAGE_SIZE jest teraz w state z domyślną wartością 25
 
 const STATUS_OPTIONS = [
-  { value: "ALL", label: "Wszystkie" },
-  { value: "NO_FETCHED", label: "Bez pobranych person" },
-  { value: "NO_VERIFIED", label: "Bez weryfikowanych person" },
-  { value: "FETCHED", label: "Pobrane persony" },
-  { value: "VERIFIED", label: "Zweryfikowane persony" },
+  { value: "ALL", label: "Wszystkie firmy" },
+  { value: "NO_FETCHED", label: "Firmy bez pobranych person" },
+  { value: "NO_VERIFIED", label: "Firmy bez weryfikowanych person" },
+  { value: "FETCHED", label: "Firmy z pobranymi personami" },
+  { value: "VERIFIED", label: "Firmy ze zweryfikowanymi personami" },
 ];
 
 interface PersonaVerificationProgress {
@@ -28,7 +28,8 @@ interface PersonaVerificationProgress {
 
 interface PersonaStats {
   total: number;
-  withPersonas: number;
+  withPersonas: number; // Firmy z faktycznymi personami (totalCount > 0)
+  fetched: number; // Firmy z pobraniem z Apollo (apolloFetchedAt istnieje, niezależnie od totalCount)
   verified: number;
   noPersonas: number;
 }
@@ -243,6 +244,7 @@ export default function PersonaVerifyPage() {
   const [savedLeadsPage, setSavedLeadsPage] = useState(1);
   const [savedLeadsTotal, setSavedLeadsTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(25); // Domyślnie 25 wierszy na stronę
   const [total, setTotal] = useState(0);
   const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
   const [allQualifiedCompanyIds, setAllQualifiedCompanyIds] = useState<number[]>([]); // Wszystkie ID firm QUALIFIED z www
@@ -348,6 +350,7 @@ export default function PersonaVerifyPage() {
   const [fetchAndSaveProgress, setFetchAndSaveProgress] = useState<PersonaVerificationProgress | null>(null);
   const [stats, setStats] = useState<PersonaStats>({
     total: 0,
+    fetched: 0,
     withPersonas: 0,
     verified: 0,
     noPersonas: 0,
@@ -356,14 +359,17 @@ export default function PersonaVerifyPage() {
   const [personaCriteriaLoading, setPersonaCriteriaLoading] = useState(false);
 
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    [total]
+    () => Math.max(1, Math.ceil(total / pageSize)),
+    [total, pageSize]
   );
+
+  // Resetuj do strony 1 gdy zmienia się pageSize
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
 
   // Komponent paginacji z numerami stron (jak na stronie classify)
   const PaginationControls = ({ position }: { position: "top" | "bottom" }) => {
-    if (totalPages <= 1) return null;
-
     const getPageNumbers = () => {
       const pages: (number | string)[] = [];
       const maxVisible = 7;
@@ -408,78 +414,108 @@ export default function PersonaVerifyPage() {
 
     return (
       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-          disabled={page === 1 || loading}
-          style={{
-            padding: "0.45rem 0.75rem",
-            borderRadius: "0.5rem",
-            border: "1px solid #D1D5DB",
-            backgroundColor: page === 1 || loading ? "#F3F4F6" : "white",
-            color: "#374151",
-            cursor: page === 1 || loading ? "not-allowed" : "pointer",
-            fontSize: "0.85rem",
-            fontWeight: 500,
-          }}
-        >
-          ←
-        </button>
-
-        {pageNumbers.map((pageNum, index) => {
-          if (pageNum === "...") {
-            return (
-              <span key={`ellipsis-${index}`} style={{ padding: "0 0.5rem", color: "#6B7280", fontSize: "0.85rem" }}>
-                ...
-              </span>
-            );
-          }
-
-          const pageNumber = pageNum as number;
-          const isActive = pageNumber === page;
-
-          return (
+        {/* Przyciski paginacji - ukryte jeśli tylko 1 strona */}
+        {totalPages > 1 && (
+          <>
             <button
-              key={pageNumber}
               type="button"
-              onClick={() => setPage(pageNumber)}
-              disabled={loading}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page === 1 || loading}
               style={{
-                padding: "0.45rem 0.75rem",
-                borderRadius: "0.5rem",
-                border: "1px solid",
-                borderColor: isActive ? "#2563EB" : "#D1D5DB",
-                backgroundColor: isActive ? "#2563EB" : "white",
-                color: isActive ? "white" : "#374151",
-                cursor: loading ? "not-allowed" : "pointer",
-                fontSize: "0.85rem",
-                fontWeight: isActive ? 600 : 500,
-                minWidth: "2.5rem",
-                textAlign: "center",
+                padding: "0.35rem 0.6rem",
+                borderRadius: "0.375rem",
+                border: "1px solid #D1D5DB",
+                backgroundColor: page === 1 || loading ? "#F3F4F6" : "white",
+                color: "#374151",
+                cursor: page === 1 || loading ? "not-allowed" : "pointer",
+                fontSize: "0.75rem",
+                fontWeight: 500,
               }}
             >
-              {pageNumber}
+              ←
             </button>
-          );
-        })}
 
-        <button
-          type="button"
-          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-          disabled={page >= totalPages || loading}
-          style={{
-            padding: "0.45rem 0.75rem",
-            borderRadius: "0.5rem",
-            border: "1px solid #D1D5DB",
-            backgroundColor: page >= totalPages || loading ? "#F3F4F6" : "white",
-            color: "#374151",
-            cursor: page >= totalPages || loading ? "not-allowed" : "pointer",
-            fontSize: "0.85rem",
-            fontWeight: 500,
-          }}
-        >
-          →
-        </button>
+            {pageNumbers.map((pageNum, index) => {
+              if (pageNum === "...") {
+                return (
+                  <span key={`ellipsis-${index}`} style={{ padding: "0 0.4rem", color: "#6B7280", fontSize: "0.75rem" }}>
+                    ...
+                  </span>
+                );
+              }
+
+              const pageNumber = pageNum as number;
+              const isActive = pageNumber === page;
+
+              return (
+                <button
+                  key={pageNumber}
+                  type="button"
+                  onClick={() => setPage(pageNumber)}
+                  disabled={loading}
+                  style={{
+                    padding: "0.35rem 0.6rem",
+                    borderRadius: "0.375rem",
+                    border: "1px solid",
+                    borderColor: isActive ? "#2563EB" : "#D1D5DB",
+                    backgroundColor: isActive ? "#2563EB" : "white",
+                    color: isActive ? "white" : "#374151",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    fontSize: "0.75rem",
+                    fontWeight: isActive ? 600 : 500,
+                    minWidth: "2rem",
+                    textAlign: "center",
+                  }}
+                >
+                  {pageNumber}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages || loading}
+              style={{
+                padding: "0.35rem 0.6rem",
+                borderRadius: "0.375rem",
+                border: "1px solid #D1D5DB",
+                backgroundColor: page >= totalPages || loading ? "#F3F4F6" : "white",
+                color: "#374151",
+                cursor: page >= totalPages || loading ? "not-allowed" : "pointer",
+                fontSize: "0.75rem",
+                fontWeight: 500,
+              }}
+            >
+              →
+            </button>
+          </>
+        )}
+        
+        {/* Selektor liczby wierszy na stronę - zawsze widoczny */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginLeft: totalPages > 1 ? "0.5rem" : "0", paddingLeft: totalPages > 1 ? "0.5rem" : "0", borderLeft: totalPages > 1 ? "1px solid #E5E7EB" : "none" }}>
+          <span style={{ fontSize: "0.85rem", color: "#6B7280" }}>Na stronę:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            disabled={loading}
+            style={{
+              padding: "0.45rem 0.75rem",
+              borderRadius: "0.5rem",
+              border: "1px solid #D1D5DB",
+              backgroundColor: loading ? "#F3F4F6" : "white",
+              color: "#374151",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+            }}
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
       </div>
     );
   };
@@ -646,9 +682,17 @@ export default function PersonaVerifyPage() {
       if (selectedStatus === "ALL") {
         const statsData: PersonaStats = {
           total: filtered.length,
-          // withPersonas = firmy gdzie było pobranie (apolloFetchedAt istnieje), niezależnie od wyniku
+          // fetched = firmy gdzie było pobranie (apolloFetchedAt istnieje), niezależnie od wyniku
+          fetched: filtered.filter((c: Company) => 
+            c.personaVerification?.apolloFetchedAt !== undefined && 
+            c.personaVerification?.apolloFetchedAt !== null
+          ).length,
+          // withPersonas = firmy gdzie było pobranie (apolloFetchedAt istnieje) I faktycznie mają persony (totalCount > 0)
           withPersonas: filtered.filter((c: Company) => 
-            c.personaVerification?.apolloFetchedAt !== undefined && c.personaVerification?.apolloFetchedAt !== null
+            c.personaVerification?.apolloFetchedAt !== undefined && 
+            c.personaVerification?.apolloFetchedAt !== null &&
+            c.personaVerification?.totalCount !== undefined &&
+            c.personaVerification?.totalCount > 0
           ).length,
           verified: filtered.filter((c: Company) => c.personaVerification?.personaCriteriaId !== null).length,
           // noPersonas = firmy gdzie NIE było pobrania (brak apolloFetchedAt), NIE liczymy firm gdzie pobranie było ale wynik = 0
@@ -668,14 +712,14 @@ export default function PersonaVerifyPage() {
   // Paginuj przefiltrowane firmy
   useEffect(() => {
     if (filteredAllCompanies.length > 0) {
-      const startIndex = (page - 1) * PAGE_SIZE;
-      const endIndex = startIndex + PAGE_SIZE;
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
       const paginated = filteredAllCompanies.slice(startIndex, endIndex);
       setCompanies(paginated);
     } else {
       setCompanies([]);
     }
-  }, [filteredAllCompanies, page]);
+  }, [filteredAllCompanies, page, pageSize]);
 
       // Opóźnij pokazanie modala o jeden frame, aby tabela najpierw się wyrenderowała
       useEffect(() => {
@@ -1093,9 +1137,17 @@ export default function PersonaVerifyPage() {
         
         const statsData: PersonaStats = {
           total: companiesForStats.length,
-          // withPersonas = firmy gdzie było pobranie (apolloFetchedAt istnieje), niezależnie od wyniku
+          // fetched = firmy gdzie było pobranie (apolloFetchedAt istnieje), niezależnie od wyniku
+          fetched: companiesForStats.filter((c: Company) => 
+            c.personaVerification?.apolloFetchedAt !== undefined && 
+            c.personaVerification?.apolloFetchedAt !== null
+          ).length,
+          // withPersonas = firmy gdzie było pobranie (apolloFetchedAt istnieje) I faktycznie mają persony (totalCount > 0)
           withPersonas: companiesForStats.filter((c: Company) => 
-            c.personaVerification?.apolloFetchedAt !== undefined && c.personaVerification?.apolloFetchedAt !== null
+            c.personaVerification?.apolloFetchedAt !== undefined && 
+            c.personaVerification?.apolloFetchedAt !== null &&
+            c.personaVerification?.totalCount !== undefined &&
+            c.personaVerification?.totalCount > 0
           ).length,
           verified: companiesForStats.filter((c: Company) => c.personaVerification?.personaCriteriaId !== null).length,
           // noPersonas = firmy gdzie NIE było pobrania (brak apolloFetchedAt), NIE liczymy firm gdzie pobranie było ale wynik = 0
@@ -1108,6 +1160,7 @@ export default function PersonaVerifyPage() {
       } else {
         setStats({
           total: allCompaniesForStats.length,
+          fetched: 0,
           withPersonas: 0,
           verified: 0,
           noPersonas: allCompaniesForStats.length,
@@ -1152,6 +1205,7 @@ export default function PersonaVerifyPage() {
       setCompanies([]);
       setStats({
         total: 0,
+        fetched: 0,
         withPersonas: 0,
         verified: 0,
         noPersonas: 0,
@@ -2998,83 +3052,98 @@ export default function PersonaVerifyPage() {
                             <td style={{ padding: "0.75rem" }}>{person.name || "—"}</td>
                             <td style={{ padding: "0.75rem", color: "#6B7280" }}>{person.title || "—"}</td>
                             <td style={{ padding: "0.75rem" }}>
-                              {person.email ? (
-                                // Jeśli jest email, pokazujemy go
-                                <span style={{ color: "#047857", fontWeight: 500 }}>{person.email}</span>
-                              ) : person.emailUnlocked ? (
-                                // Email dostępny (odblokowany)
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                  <div style={{
-                                    width: "20px",
-                                    height: "20px",
-                                    borderRadius: "50%",
-                                    backgroundColor: "#10B981",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    flexShrink: 0,
-                                  }}>
-                                    <span style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>✓</span>
-                                  </div>
-                                  <span style={{ color: "#047857", fontSize: "0.875rem" }}>Dostępny</span>
-                                </div>
-                              ) : person.emailStatus === "verified" || person.emailStatus === "guessed" ? (
-                                // Email dostępny (wymaga kredytów)
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                  <div style={{
-                                    width: "20px",
-                                    height: "20px",
-                                    borderRadius: "50%",
-                                    backgroundColor: "#10B981",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    flexShrink: 0,
-                                  }}>
-                                    <span style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>✓</span>
-                                  </div>
-                                  <span style={{ color: "#047857", fontSize: "0.875rem" }}>Dostępny</span>
-                                </div>
-                              ) : person.emailStatus === "unverified" || person.emailStatus === "extrapolated" ? (
-                                // Email dostępny - niezweryfikowany (unverified lub extrapolated)
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                  <div style={{
-                                    width: "20px",
-                                    height: "20px",
-                                    borderRadius: "50%",
-                                    backgroundColor: "#10B981",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    flexShrink: 0,
-                                  }}>
-                                    <span style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>✓</span>
-                                  </div>
-                                  <span style={{ color: "#047857", fontSize: "0.875rem" }}>Dostępny - niezweryfikowany</span>
-                                </div>
-                              ) : person.emailStatus === "unavailable" ? (
-                                // Email niedostępny
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                  <div style={{
-                                    width: "20px",
-                                    height: "20px",
-                                    borderRadius: "50%",
-                                    backgroundColor: "#EF4444",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    flexShrink: 0,
-                                  }}>
-                                    <span style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>✕</span>
-                                  </div>
-                                  <span style={{ color: "#DC2626", fontSize: "0.875rem" }}>Niedostępny</span>
-                                </div>
-                              ) : person.emailStatus === "unknown" ? (
-                                // Status unknown - traktujemy jako brak informacji
-                                <span style={{ color: "#6B7280" }}>—</span>
-                              ) : (
-                                <span style={{ color: "#6B7280" }}>—</span>
-                              )}
+                              {(() => {
+                                const email = person.email;
+                                const emailStatus = (person.emailStatus || person.email_status || person.contact_email_status)?.toLowerCase();
+                                const emailUnlocked = person.emailUnlocked;
+                                
+                                // Jeśli email jest już odkryty - wyświetl go
+                                if (email && email !== "email_not_unlocked@domain.com" && emailUnlocked) {
+                                  const statusColor = emailStatus === "verified" ? "#10B981" : emailStatus === "guessed" ? "#F59E0B" : emailStatus === "unverified" ? "#F59E0B" : "#10B981";
+                                  const statusLabel = emailStatus === "verified" ? "Zweryfikowany" : emailStatus === "guessed" ? "Prawdopodobny" : emailStatus === "unverified" ? "Niezweryfikowany" : "Odkryty";
+                                  
+                                  return (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                                      <span style={{ color: "#047857", fontWeight: 500 }}>{email}</span>
+                                      <span 
+                                        style={{ 
+                                          fontSize: "0.75rem", 
+                                          color: statusColor,
+                                          fontWeight: 500,
+                                        }}
+                                        title={`Status: ${statusLabel} (${emailStatus || "brak statusu"})`}
+                                      >
+                                        ✓ Odkryty
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                
+                                // Sprawdź status emaila (darmowe, bez kredytów)
+                                const isAvailable = emailStatus === "verified" || emailStatus === "guessed" || emailStatus === "unverified" || emailStatus === "extrapolated";
+                                const isUnavailable = emailStatus === "unavailable";
+                                
+                                if (isAvailable) {
+                                  // Email dostępny - różne kolory dla różnych statusów
+                                  const statusColor = emailStatus === "verified" ? "#10B981" : emailStatus === "guessed" ? "#F59E0B" : "#F59E0B"; // verified = zielony, guessed/unverified = żółty
+                                  const statusLabel = emailStatus === "verified" ? "Zweryfikowany - wysoka pewność poprawności" : 
+                                                    emailStatus === "guessed" ? "Prawdopodobny - średnia pewność poprawności" : 
+                                                    "Niezweryfikowany - niska pewność poprawności";
+                                  
+                                  return (
+                                    <div 
+                                      style={{ 
+                                        display: "flex", 
+                                        alignItems: "center", 
+                                        gap: "0.5rem",
+                                        cursor: "help",
+                                      }}
+                                      title={statusLabel}
+                                    >
+                                      <div style={{
+                                        width: "12px",
+                                        height: "12px",
+                                        borderRadius: "50%",
+                                        backgroundColor: statusColor,
+                                        flexShrink: 0,
+                                      }} />
+                                      <span style={{ color: statusColor, fontSize: "0.875rem", fontWeight: 500 }}>Dostępny</span>
+                                    </div>
+                                  );
+                                } else if (isUnavailable) {
+                                  // Email niedostępny
+                                  return (
+                                    <div 
+                                      style={{ 
+                                        display: "flex", 
+                                        alignItems: "center", 
+                                        gap: "0.5rem",
+                                        cursor: "help",
+                                      }}
+                                      title="Apollo nie ma tego emaila - nie można odkryć"
+                                    >
+                                      <div style={{
+                                        width: "12px",
+                                        height: "12px",
+                                        borderRadius: "50%",
+                                        backgroundColor: "#EF4444",
+                                        flexShrink: 0,
+                                      }} />
+                                      <span style={{ color: "#DC2626", fontSize: "0.875rem", fontWeight: 500 }}>Niedostępny</span>
+                                    </div>
+                                  );
+                                } else {
+                                  // Brak informacji o statusie
+                                  return (
+                                    <span 
+                                      style={{ color: "#6B7280" }}
+                                      title="Brak informacji o statusie emaila"
+                                    >
+                                      —
+                                    </span>
+                                  );
+                                }
+                              })()}
                             </td>
                           </tr>
                         ))}
@@ -3247,83 +3316,98 @@ export default function PersonaVerifyPage() {
                               <td style={{ padding: "0.75rem" }}>{employee.name || "—"}</td>
                               <td style={{ padding: "0.75rem", color: "#6B7280" }}>{employee.title || "—"}</td>
                               <td style={{ padding: "0.75rem" }}>
-                                {employee.email ? (
-                                  // Jeśli jest email, pokazujemy go
-                                  <span style={{ color: "#047857", fontWeight: 500 }}>{employee.email}</span>
-                                ) : employee.emailUnlocked ? (
-                                  // Email dostępny (odblokowany)
-                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                    <div style={{
-                                      width: "20px",
-                                      height: "20px",
-                                      borderRadius: "50%",
-                                      backgroundColor: "#10B981",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      flexShrink: 0,
-                                    }}>
-                                      <span style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>✓</span>
-                                    </div>
-                                    <span style={{ color: "#047857", fontSize: "0.875rem" }}>Dostępny</span>
-                                  </div>
-                                ) : employee.emailStatus === "verified" || employee.emailStatus === "guessed" ? (
-                                  // Email dostępny (wymaga kredytów)
-                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                    <div style={{
-                                      width: "20px",
-                                      height: "20px",
-                                      borderRadius: "50%",
-                                      backgroundColor: "#10B981",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      flexShrink: 0,
-                                    }}>
-                                      <span style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>✓</span>
-                                    </div>
-                                    <span style={{ color: "#047857", fontSize: "0.875rem" }}>Dostępny</span>
-                                  </div>
-                                ) : employee.emailStatus === "unverified" || employee.emailStatus === "extrapolated" ? (
-                                  // Email dostępny - niezweryfikowany (unverified lub extrapolated)
-                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                    <div style={{
-                                      width: "20px",
-                                      height: "20px",
-                                      borderRadius: "50%",
-                                      backgroundColor: "#10B981",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      flexShrink: 0,
-                                    }}>
-                                      <span style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>✓</span>
-                                    </div>
-                                    <span style={{ color: "#047857", fontSize: "0.875rem" }}>Dostępny - niezweryfikowany</span>
-                                  </div>
-                                ) : employee.emailStatus === "unavailable" ? (
-                                  // Email niedostępny
-                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                    <div style={{
-                                      width: "20px",
-                                      height: "20px",
-                                      borderRadius: "50%",
-                                      backgroundColor: "#EF4444",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      flexShrink: 0,
-                                    }}>
-                                      <span style={{ color: "white", fontSize: "12px", fontWeight: "bold" }}>✕</span>
-                                    </div>
-                                    <span style={{ color: "#DC2626", fontSize: "0.875rem" }}>Niedostępny</span>
-                                  </div>
-                                ) : employee.emailStatus === "unknown" ? (
-                                  // Status unknown - traktujemy jako brak informacji
-                                  <span style={{ color: "#6B7280" }}>—</span>
-                                ) : (
-                                  <span style={{ color: "#6B7280" }}>—</span>
-                                )}
+                                {(() => {
+                                  const email = employee.email;
+                                  const emailStatus = (employee.emailStatus || employee.email_status || employee.contact_email_status)?.toLowerCase();
+                                  const emailUnlocked = employee.emailUnlocked;
+                                  
+                                  // Jeśli email jest już odkryty - wyświetl go
+                                  if (email && email !== "email_not_unlocked@domain.com" && emailUnlocked) {
+                                    const statusColor = emailStatus === "verified" ? "#10B981" : emailStatus === "guessed" ? "#F59E0B" : emailStatus === "unverified" ? "#F59E0B" : "#10B981";
+                                    const statusLabel = emailStatus === "verified" ? "Zweryfikowany" : emailStatus === "guessed" ? "Prawdopodobny" : emailStatus === "unverified" ? "Niezweryfikowany" : "Odkryty";
+                                    
+                                    return (
+                                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                                        <span style={{ color: "#047857", fontWeight: 500 }}>{email}</span>
+                                        <span 
+                                          style={{ 
+                                            fontSize: "0.75rem", 
+                                            color: statusColor,
+                                            fontWeight: 500,
+                                          }}
+                                          title={`Status: ${statusLabel} (${emailStatus || "brak statusu"})`}
+                                        >
+                                          ✓ Odkryty
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  // Sprawdź status emaila (darmowe, bez kredytów)
+                                  const isAvailable = emailStatus === "verified" || emailStatus === "guessed" || emailStatus === "unverified" || emailStatus === "extrapolated";
+                                  const isUnavailable = emailStatus === "unavailable";
+                                  
+                                  if (isAvailable) {
+                                    // Email dostępny - różne kolory dla różnych statusów
+                                    const statusColor = emailStatus === "verified" ? "#10B981" : emailStatus === "guessed" ? "#F59E0B" : "#F59E0B"; // verified = zielony, guessed/unverified = żółty
+                                    const statusLabel = emailStatus === "verified" ? "Zweryfikowany - wysoka pewność poprawności" : 
+                                                      emailStatus === "guessed" ? "Prawdopodobny - średnia pewność poprawności" : 
+                                                      "Niezweryfikowany - niska pewność poprawności";
+                                    
+                                    return (
+                                      <div 
+                                        style={{ 
+                                          display: "flex", 
+                                          alignItems: "center", 
+                                          gap: "0.5rem",
+                                          cursor: "help",
+                                        }}
+                                        title={statusLabel}
+                                      >
+                                        <div style={{
+                                          width: "12px",
+                                          height: "12px",
+                                          borderRadius: "50%",
+                                          backgroundColor: statusColor,
+                                          flexShrink: 0,
+                                        }} />
+                                        <span style={{ color: statusColor, fontSize: "0.875rem", fontWeight: 500 }}>Dostępny</span>
+                                      </div>
+                                    );
+                                  } else if (isUnavailable) {
+                                    // Email niedostępny
+                                    return (
+                                      <div 
+                                        style={{ 
+                                          display: "flex", 
+                                          alignItems: "center", 
+                                          gap: "0.5rem",
+                                          cursor: "help",
+                                        }}
+                                        title="Apollo nie ma tego emaila - nie można odkryć"
+                                      >
+                                        <div style={{
+                                          width: "12px",
+                                          height: "12px",
+                                          borderRadius: "50%",
+                                          backgroundColor: "#EF4444",
+                                          flexShrink: 0,
+                                        }} />
+                                        <span style={{ color: "#DC2626", fontSize: "0.875rem", fontWeight: 500 }}>Niedostępny</span>
+                                      </div>
+                                    );
+                                  } else {
+                                    // Brak informacji o statusie
+                                    return (
+                                      <span 
+                                        style={{ color: "#6B7280" }}
+                                        title="Brak informacji o statusie emaila"
+                                      >
+                                        —
+                                      </span>
+                                    );
+                                  }
+                                })()}
                               </td>
                               <td style={{ padding: "0.75rem" }}>
                                 <span
@@ -4340,7 +4424,7 @@ function PersonaStatsOverview({
   const cards = [
     {
       status: "ALL",
-      label: "Wszystkie",
+      label: "Wszystkie firmy",
       value: stats.total,
       bg: "#E5E7EB",
       border: "#D1D5DB",
@@ -4348,7 +4432,7 @@ function PersonaStatsOverview({
     },
     {
       status: "NO_FETCHED",
-      label: "Bez pobranych person",
+      label: "Firmy bez pobranych person",
       value: stats.noPersonas,
       bg: "#FEE2E2",
       border: "#FECACA",
@@ -4356,7 +4440,7 @@ function PersonaStatsOverview({
     },
     {
       status: "NO_VERIFIED",
-      label: "Bez weryfikowanych person",
+      label: "Firmy bez weryfikowanych person",
       value: stats.total - stats.verified,
       bg: "#FEF3C7",
       border: "#FDE68A",
@@ -4364,15 +4448,15 @@ function PersonaStatsOverview({
     },
     {
       status: "FETCHED",
-      label: "Pobrane persony",
-      value: stats.withPersonas,
+      label: "Firmy z pobranymi personami",
+      value: stats.fetched > 0 ? `${stats.fetched}/${stats.withPersonas}` : stats.withPersonas,
       bg: "#DBEAFE",
       border: "#BFDBFE",
       textColor: "#1D4ED8",
     },
     {
       status: "VERIFIED",
-      label: "Zweryfikowane persony",
+      label: "Firmy ze zweryfikowanymi personami",
       value: stats.verified,
       bg: "#D1FAE5",
       border: "#A7F3D0",

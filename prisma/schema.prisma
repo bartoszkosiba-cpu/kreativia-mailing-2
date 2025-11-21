@@ -1389,3 +1389,19 @@ model IndustryMappingSuggestion {
   @@index([industry])
   @@index([status])
 }
+
+// Śledzenie użycia kredytów Apollo
+model ApolloCreditsUsage {
+  id            Int      @id @default(autoincrement())
+  operation     String // np. "enrich_person", "search_people"
+  endpoint      String // np. "/v1/people/search", "/v1/mixed_people/search"
+  creditsUsed   Int
+  estimatedCost Float    @default(0.0) // Koszt w USD
+  metadata      String? // JSON z dodatkowymi danymi (np. personId, organizationId)
+  responseHeaders String? // JSON z nagłówkami odpowiedzi Apollo
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([operation])
+  @@index([endpoint])
+}

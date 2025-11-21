@@ -4,6 +4,7 @@
  */
 
 import { logger } from "./logger";
+import { trackApolloCredits, calculateCreditsUsed } from "./apolloCreditsTracker";
 
 const APOLLO_API_KEY = process.env.APOLLO_API_KEY;
 const APOLLO_API_BASE_URL = "https://api.apollo.io/v1";
@@ -363,6 +364,7 @@ export interface ApolloSearchOrganizationsResponse {
 }
 
 export interface ApolloSearchPeopleResponse {
+  creditsUsed?: number; // Liczba kredytów zużytych w tym wywołaniu
   people: ApolloPerson[];
   pagination: {
     page: number;
@@ -558,13 +560,68 @@ export async function searchPeopleFromOrganization(
       throw new Error(`Apollo API error: ${response.status} - ${errorText}`);
     }
 
+    // Sprawdź nagłówki odpowiedzi dla informacji o kredytach
+    const creditsUsedHeader = response.headers.get("X-Apollo-Credits-Used") || 
+                              response.headers.get("x-apollo-credits-used") ||
+                              response.headers.get("X-Credits-Used") ||
+                              response.headers.get("x-credits-used");
+    const creditsUsed = creditsUsedHeader ? parseInt(creditsUsedHeader, 10) : null;
+
     const data = await response.json();
     const rawPeople: ApolloPerson[] = data.people || [];
     const filteredPeople = filterPeopleByCriteria(rawPeople, criteria);
 
+    // Jeśli nie ma informacji w nagłówkach, oblicz na podstawie logiki
+    let finalCreditsUsed = creditsUsed;
+    if (finalCreditsUsed === null || isNaN(finalCreditsUsed)) {
+      // WAŻNE: /people/search kosztuje 1 kredyt za każde wywołanie (za firmę),
+      // niezależnie od liczby stron wyników czy revealEmails.
+      // To jest inne niż /mixed_people/search (1 kredyt za stronę).
+      finalCreditsUsed = calculateCreditsUsed({
+        endpoint: "/people/search",
+        options: {
+          revealEmails: options?.revealEmails || false,
+          perPage: options?.perPage,
+          page: options?.page,
+        },
+        responseData: {
+          pagination: data.pagination,
+          people: filteredPeople,
+        },
+      });
+    }
+
+    // Zapisz użycie kredytów do bazy
+    if (finalCreditsUsed > 0) {
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
+      await trackApolloCredits({
+        operation: `searchPeopleFromOrganization (${organizationId || organizationName || domain})`,
+        endpoint: "/people/search",
+        creditsUsed: finalCreditsUsed,
+        metadata: {
+          organizationId,
+          organizationName,
+          domain,
+          revealEmails: options?.revealEmails || false,
+          perPage: options?.perPage,
+          page: options?.page,
+          peopleFound: filteredPeople.length,
+          totalEntries: data.pagination?.total_entries || 0,
+        },
+        responseHeaders,
+      }).catch((error) => {
+        // Nie przerywaj działania jeśli zapis kredytów się nie powiódł
+        logger.error("apollo", "Błąd zapisu kredytów Apollo", null, error);
+      });
+    }
+
     logger.info(
       "apollo",
-      `Znaleziono ${filteredPeople.length} pracowników (z ${data.pagination?.total_entries || 0} wyników)`
+      `Znaleziono ${filteredPeople.length} pracowników (z ${data.pagination?.total_entries || 0} wyników)${finalCreditsUsed > 0 ? ` | Zużyto ${finalCreditsUsed} kredytów` : ""}`
     );
 
     return {
@@ -574,6 +631,7 @@ export async function searchPeopleFromOrganization(
         ...data.pagination,
         total_entries: filteredPeople.length,
       },
+      creditsUsed: finalCreditsUsed, // Dodaj informację o kredytach do odpowiedzi
     };
   };
 

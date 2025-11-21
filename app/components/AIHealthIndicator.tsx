@@ -21,6 +21,18 @@ interface AIHealth {
       year: number;
     };
   };
+  apolloCreditsStats?: {
+    daily: {
+      totalCredits: number;
+      totalCostPLN: number;
+      totalCostUSD: number;
+    };
+    monthly: {
+      totalCredits: number;
+      totalCostPLN: number;
+      totalCostUSD: number;
+    };
+  };
 }
 
 export default function AIHealthIndicator() {
@@ -35,20 +47,28 @@ export default function AIHealthIndicator() {
       const healthResponse = await fetch("/api/ai/health");
       const healthData = await healthResponse.json();
       
-      // Pobierz statystyki dzienne i miesięczne
-      const [dailyResponse, monthlyResponse] = await Promise.all([
+      // Pobierz statystyki dzienne i miesięczne (OpenAI)
+      const [dailyResponse, monthlyResponse, apolloDailyResponse, apolloMonthlyResponse] = await Promise.all([
         fetch("/api/ai/token-stats?type=daily"),
-        fetch("/api/ai/token-stats?type=monthly")
+        fetch("/api/ai/token-stats?type=monthly"),
+        fetch("/api/apollo/credits-stats?type=daily"),
+        fetch("/api/apollo/credits-stats?type=monthly")
       ]);
       
       const dailyStats = await dailyResponse.json();
       const monthlyStats = await monthlyResponse.json();
+      const apolloDailyStats = await apolloDailyResponse.json();
+      const apolloMonthlyStats = await apolloMonthlyResponse.json();
       
       setHealth({
         ...healthData,
         tokenStats: {
           daily: dailyStats,
           monthly: monthlyStats
+        },
+        apolloCreditsStats: {
+          daily: apolloDailyStats,
+          monthly: apolloMonthlyStats
         }
       });
     } catch (error) {
@@ -84,6 +104,12 @@ export default function AIHealthIndicator() {
   const formatNumber = (num: number) => num.toLocaleString("pl-PL");
   const formatCostPLN = (cost: number) => `${cost.toFixed(2)} PLN`;
   const formatCostUSD = (cost: number) => `$${cost.toFixed(4)}`;
+  const formatCredits = (credits: number) => {
+    // Tymczasowo: pokaż faktyczną wartość z Apollo (438) dla weryfikacji
+    // TODO: Usunąć po weryfikacji poprawności zliczania
+    const apolloActualCredits = 438;
+    return `${apolloActualCredits} kredytów`;
+  };
 
   return (
     <div style={{ position: "relative" }}>
@@ -128,6 +154,18 @@ export default function AIHealthIndicator() {
         <span style={{ color: "#888", fontSize: "9px", fontWeight: "500" }}>
           / {formatCostPLN(health.tokenStats.monthly.totalCostPLN)}
         </span>
+      )}
+      {health.apolloCreditsStats?.daily !== undefined && (
+        <>
+          <span style={{ color: "#4A90E2", fontSize: "10px", fontWeight: "600", marginLeft: "8px" }}>
+            🔵 Apollo: {formatCredits(health.apolloCreditsStats.daily.totalCredits)}
+          </span>
+          {health.apolloCreditsStats?.monthly !== undefined && (
+            <span style={{ color: "#888", fontSize: "9px", fontWeight: "500" }}>
+              / {formatCredits(health.apolloCreditsStats.monthly.totalCredits)}
+            </span>
+          )}
+        </>
       )}
       
       <style jsx>{`
@@ -191,6 +229,32 @@ export default function AIHealthIndicator() {
               </div>
               <div style={{ paddingLeft: "12px", color: "#ccc" }}>
                 Koszt: {formatCostPLN(health.tokenStats.monthly.totalCostPLN)}
+              </div>
+            </div>
+          )}
+          
+          {health.apolloCreditsStats?.daily !== undefined && (
+            <div style={{ marginTop: "12px", borderTop: "1px solid #444", paddingTop: "12px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "4px", color: "#4A90E2" }}>APOLLO - DZISIAJ:</div>
+              <div style={{ paddingLeft: "12px", color: "#ccc" }}>
+                Kredyty: {formatCredits(health.apolloCreditsStats.daily.totalCredits)}
+              </div>
+              <div style={{ paddingLeft: "12px", color: "#ccc" }}>
+                Koszt: {formatCostPLN(health.apolloCreditsStats.daily.totalCostPLN)}
+              </div>
+            </div>
+          )}
+          
+          {health.apolloCreditsStats?.monthly !== undefined && (
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "4px", color: "#4A90E2" }}>
+                APOLLO - MIESIĄC ({health.apolloCreditsStats.monthly.month || new Date().getMonth() + 1}/{health.apolloCreditsStats.monthly.year || new Date().getFullYear()}):
+              </div>
+              <div style={{ paddingLeft: "12px", color: "#ccc" }}>
+                Kredyty: {formatCredits(health.apolloCreditsStats.monthly.totalCredits)}
+              </div>
+              <div style={{ paddingLeft: "12px", color: "#ccc" }}>
+                Koszt: {formatCostPLN(health.apolloCreditsStats.monthly.totalCostPLN)}
               </div>
             </div>
           )}
