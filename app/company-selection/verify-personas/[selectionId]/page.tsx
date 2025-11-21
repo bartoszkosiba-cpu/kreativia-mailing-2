@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, type CSSProperties, memo } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 
 const PAGE_SIZE = 50;
 
@@ -176,6 +176,15 @@ interface PersonaVerificationResult {
 
 export default function PersonaVerifyPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // Pobierz aktywną kartę z query params (domyślnie "verification")
+  const activeTab = useMemo(() => {
+    const tab = searchParams.get("tab");
+    return tab === "leads" ? "leads" : "verification";
+  }, [searchParams]);
+  
   const selectionId = useMemo(() => {
     const raw = params?.selectionId;
     if (!raw) return null;
@@ -199,6 +208,40 @@ export default function PersonaVerifyPage() {
   const [savingApolloEmployees, setSavingApolloEmployees] = useState(false);
   const [apolloFetchedAt, setApolloFetchedAt] = useState<string | null>(null);
   const [savingApolloBatch, setSavingApolloBatch] = useState(false);
+  const [fetchingAndSaving, setFetchingAndSaving] = useState(false);
+  const [revealEmailsOnFetch, setRevealEmailsOnFetch] = useState(false);
+  const [fetchAndSaveReport, setFetchAndSaveReport] = useState<{
+    summary: {
+      totalCompanies: number;
+      successCount: number;
+      errorCount: number;
+      totalEmployees: number;
+      totalCreated?: number;
+      totalUpdated?: number;
+      totalEmployeesWithEmail: number;
+      totalEmployeesWithoutEmail: number;
+      totalCreditsUsed: number;
+    };
+    results: Array<{
+      companyId: number;
+      companyName: string;
+      success: boolean;
+      employeesCount: number;
+      createdCount?: number;
+      updatedCount?: number;
+      employeesWithEmail: number;
+      employeesWithoutEmail: number;
+      creditsUsed?: number;
+      error?: string;
+    }>;
+  } | null>(null);
+  const [showFetchAndSaveModal, setShowFetchAndSaveModal] = useState(false);
+  const [fetchAndSaveModalShown, setFetchAndSaveModalShown] = useState(false); // Flaga, że modal już został pokazany
+  const [showSavedLeadsModal, setShowSavedLeadsModal] = useState(false);
+  const [savedLeads, setSavedLeads] = useState<any[]>([]);
+  const [savedLeadsLoading, setSavedLeadsLoading] = useState(false);
+  const [savedLeadsPage, setSavedLeadsPage] = useState(1);
+  const [savedLeadsTotal, setSavedLeadsTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
@@ -301,6 +344,8 @@ export default function PersonaVerifyPage() {
   const [hideZeroEmails, setHideZeroEmails] = useState<boolean>(false);
   const [progressId, setProgressId] = useState<string | null>(null);
   const [progress, setProgress] = useState<PersonaVerificationProgress | null>(null);
+  const [fetchAndSaveProgressId, setFetchAndSaveProgressId] = useState<string | null>(null);
+  const [fetchAndSaveProgress, setFetchAndSaveProgress] = useState<PersonaVerificationProgress | null>(null);
   const [stats, setStats] = useState<PersonaStats>({
     total: 0,
     withPersonas: 0,
@@ -653,6 +698,107 @@ export default function PersonaVerifyPage() {
           // To zapobiega miganiu tabeli przy otwieraniu/zamykaniu okna
         }
       }, [detailCompany]);
+
+  // Polling postępu fetch-and-save
+  useEffect(() => {
+    if (!fetchAndSaveProgressId) {
+      return;
+    }
+
+    const shouldPoll = fetchAndSaveProgress?.status === "processing";
+    if (!shouldPoll) {
+      return;
+    }
+
+    let currentInterval = 1000;
+    let intervalId: NodeJS.Timeout | null = null;
+
+    const pollFetchAndSaveProgress = async () => {
+      try {
+        const response = await fetch(`/api/company-selection/personas/verify/progress?progressId=${fetchAndSaveProgressId}`);
+        if (!response.ok) {
+          console.error("[Fetch and Save] Błąd pobierania postępu:", response.status);
+          return;
+        }
+
+        const data = await response.json();
+        if (data.success && data.progress) {
+          const total = data.progress.total || 0;
+          const newInterval = total > 50 ? 2000 : total > 20 ? 1500 : 1000;
+          
+          if (newInterval !== currentInterval && intervalId) {
+            clearInterval(intervalId);
+            currentInterval = newInterval;
+            intervalId = setInterval(pollFetchAndSaveProgress, currentInterval);
+          } else if (!intervalId) {
+            currentInterval = newInterval;
+            intervalId = setInterval(pollFetchAndSaveProgress, currentInterval);
+          }
+
+          setFetchAndSaveProgress({
+            total: data.progress.total,
+            processed: data.progress.processed,
+            percentage: data.progress.percentage,
+            withPersonas: data.progress.qualified || 0,
+            verified: 0,
+            errors: data.progress.errors || 0,
+            status: data.progress.status,
+            currentCompanyName: data.progress.currentCompanyName,
+            estimatedTimeRemaining: data.progress.estimatedTimeRemaining,
+          });
+
+          if (data.progress.status === "completed" || data.progress.status === "error") {
+            if (intervalId) {
+              clearInterval(intervalId);
+              intervalId = null;
+            }
+            setFetchingAndSaving(false);
+            const finalProgressId = fetchAndSaveProgressId;
+            setFetchAndSaveProgressId(null);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            try {
+              await loadCompanies();
+              // Pobierz finalny raport z endpointu fetch-and-save
+              // (możemy też użyć danych z progress, ale lepiej pobrać pełny raport)
+              // Na razie używamy danych z progress - w przyszłości możemy dodać endpoint do pobrania raportu
+            } catch (error) {
+              console.error("[Fetch and Save] Błąd przeładowania danych po zakończeniu:", error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[Fetch and Save] Błąd pollingu postępu:", error);
+      }
+    };
+
+    pollFetchAndSaveProgress();
+    intervalId = setInterval(pollFetchAndSaveProgress, currentInterval);
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [fetchAndSaveProgressId, fetchAndSaveProgress]);
+
+  // Pokaż modal z raportem po zakończeniu fetch-and-save (tylko raz)
+  useEffect(() => {
+    if (fetchAndSaveProgress?.status === "completed" && fetchAndSaveReport && !showFetchAndSaveModal && !fetchAndSaveModalShown) {
+      // Krótkie opóźnienie, aby użytkownik zobaczył status "completed"
+      const timer = setTimeout(() => {
+        setShowFetchAndSaveModal(true);
+        setFetchAndSaveModalShown(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [fetchAndSaveProgress?.status, fetchAndSaveReport, showFetchAndSaveModal, fetchAndSaveModalShown]);
+  
+  // Resetuj flagę, gdy rozpoczyna się nowy proces
+  useEffect(() => {
+    if (fetchAndSaveProgress?.status === "processing" && fetchAndSaveModalShown) {
+      setFetchAndSaveModalShown(false);
+    }
+  }, [fetchAndSaveProgress?.status, fetchAndSaveModalShown]);
 
   // Polling postępu weryfikacji person
   useEffect(() => {
@@ -1380,6 +1526,51 @@ export default function PersonaVerifyPage() {
     }
   };
 
+  const handleFetchAndSave = async () => {
+    if (selectedCompanies.length === 0) {
+      alert("Wybierz przynajmniej jedną firmę do pobrania i zapisania do bazy.");
+      return;
+    }
+
+    const confirmMessage = revealEmailsOnFetch
+      ? `Czy na pewno chcesz pobrać i zapisać do bazy danych persony z Apollo dla ${selectedCompanies.length} firm?\n\n⚠️ UWAGA: To pobierze emaile (zużywa kredyty Apollo - 1 kredyt za email).\n\nTo pobierze:\n- Pracowników z dostępnymi emailami (ZUŻYWA kredyty)\n- Pracowników bez emaili (bez kredytów)`
+      : `Czy na pewno chcesz pobrać i zapisać do bazy danych persony z Apollo dla ${selectedCompanies.length} firm?\n\nTo pobierze:\n- Pracowników z dostępnymi emailami (bez kredytów - tylko status)\n- Pracowników bez emaili (bez kredytów)`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setFetchingAndSaving(true);
+      
+      const response = await fetch("/api/company-selection/personas/fetch-and-save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyIds: selectedCompanies,
+          selectionId: selectionId ? Number(selectionId) : undefined,
+          personaCriteriaId: selectedPersonaCriteriaId ? Number(selectedPersonaCriteriaId) : undefined,
+          revealEmails: revealEmailsOnFetch,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setFetchAndSaveReport(data);
+        setShowFetchAndSaveModal(true);
+        // Przeładuj dane firm
+        await loadCompanies();
+      } else {
+        alert(`Błąd: ${data.error || "Nie udało się pobrać i zapisać danych"}`);
+      }
+    } catch (error) {
+      console.error("[Fetch and Save] Błąd:", error);
+      alert("Błąd połączenia z serwerem: " + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setFetchingAndSaving(false);
+    }
+  };
+
   const handleVerifySelected = async () => {
     if (selectedCompanies.length === 0) {
       alert("Wybierz przynajmniej jedną firmę do weryfikacji person.");
@@ -1622,6 +1813,49 @@ export default function PersonaVerifyPage() {
         </p>
       </div>
 
+      {/* Podkarty */}
+      <div style={{ marginBottom: "1.5rem", borderBottom: "2px solid #E5E7EB" }}>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            onClick={() => router.push(`/company-selection/verify-personas/${selectionId}?tab=verification`)}
+            style={{
+              padding: "0.75rem 1.5rem",
+              backgroundColor: activeTab === "verification" ? "#3B82F6" : "transparent",
+              color: activeTab === "verification" ? "white" : "#6B7280",
+              border: "none",
+              borderBottom: activeTab === "verification" ? "2px solid #3B82F6" : "2px solid transparent",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              cursor: "pointer",
+              fontWeight: activeTab === "verification" ? 600 : 500,
+              fontSize: "0.95rem",
+              marginBottom: "-2px",
+            }}
+          >
+            Weryfikacja person
+          </button>
+          <button
+            onClick={() => router.push(`/company-selection/verify-personas/${selectionId}?tab=leads`)}
+            style={{
+              padding: "0.75rem 1.5rem",
+              backgroundColor: activeTab === "leads" ? "#3B82F6" : "transparent",
+              color: activeTab === "leads" ? "white" : "#6B7280",
+              border: "none",
+              borderBottom: activeTab === "leads" ? "2px solid #3B82F6" : "2px solid transparent",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              cursor: "pointer",
+              fontWeight: activeTab === "leads" ? 600 : 500,
+              fontSize: "0.95rem",
+              marginBottom: "-2px",
+            }}
+          >
+            Baza pobranych leadów
+          </button>
+        </div>
+      </div>
+
+      {/* Karta: Weryfikacja person */}
+      {activeTab === "verification" && (
+        <>
       {/* Wybór kryteriów person */}
       <div
         style={{
@@ -1660,69 +1894,266 @@ export default function PersonaVerifyPage() {
                 ))}
               </select>
               {selectedPersonaCriteriaId && (
-              <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flex: 1, justifyContent: "space-between" }}>
+                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                  <button
+                    onClick={async () => {
+                      setShowCacheModal(true);
+                      setLoadingCacheModal(true);
+                      try {
+                        const response = await fetch(`/api/company-selection/personas/${selectedPersonaCriteriaId}/verification-cache`);
+                        if (response.ok) {
+                          const data = await response.json();
+                          if (data.success && data.data) {
+                            setCacheModalData(data.data.map((item: any) => ({
+                              ...item,
+                              verifiedAt: item.verifiedAt ? new Date(item.verifiedAt).toISOString() : "",
+                              lastUsedAt: item.lastUsedAt ? new Date(item.lastUsedAt).toISOString() : "",
+                            })));
+                            // Ustaw domyślną kartę na podstawie dostępnych danych
+                            const positiveCount = data.data.filter((item: any) => item.decision === "positive").length;
+                            const negativeCount = data.data.filter((item: any) => item.decision === "negative").length;
+                            if (positiveCount > 0) {
+                              setCacheModalTab("positive");
+                            } else if (negativeCount > 0) {
+                              setCacheModalTab("negative");
+                            }
+                            setCacheModalPage({ positive: 1, negative: 1 });
+                            // Zaktualizuj cache count
+                            setCacheCount({ positive: positiveCount, negative: negativeCount, total: data.data.length });
+                          }
+                        }
+                      } catch (error) {
+                        console.error("Błąd ładowania cache:", error);
+                      } finally {
+                        setLoadingCacheModal(false);
+                      }
+                    }}
+                    disabled={cacheCount.total === 0}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      backgroundColor: cacheCount.total === 0 ? "#D1D5DB" : "#3B82F6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "0.5rem",
+                      cursor: cacheCount.total === 0 ? "not-allowed" : "pointer",
+                      fontSize: "0.9rem",
+                      whiteSpace: "nowrap",
+                      opacity: cacheCount.total === 0 ? 0.6 : 1,
+                    }}
+                  >
+                    Znalezione stanowiska
+                  </button>
+                  {loadingCacheCount ? (
+                    <span style={{ fontSize: "0.85rem", color: "#6B7280" }}>Ładowanie...</span>
+                  ) : cacheCount.total > 0 ? (
+                    <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", fontSize: "0.85rem", color: "#6B7280" }}>
+                      <span>
+                        <span style={{ color: "#065F46", fontWeight: 600 }}>{cacheCount.positive}</span> pozytywnych
+                      </span>
+                      <span>•</span>
+                      <span>
+                        <span style={{ color: "#991B1B", fontWeight: 600 }}>{cacheCount.negative}</span> negatywnych
+                      </span>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: "0.85rem", color: "#9CA3AF" }}>Brak zapisanych stanowisk</span>
+                  )}
+                </div>
+                {fetchAndSaveReport && (
+                  <button
+                    onClick={() => setShowFetchAndSaveModal(true)}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      borderRadius: "0.5rem",
+                      backgroundColor: "#8B5CF6",
+                      color: "white",
+                      border: "none",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                      whiteSpace: "nowrap",
+                    }}
+                    title="Pokaż ostatni raport pobierania i zapisywania"
+                  >
+                    Pokaż raport
+                  </button>
+                )}
                 <button
                   onClick={async () => {
-                    setShowCacheModal(true);
-                    setLoadingCacheModal(true);
+                    if (!selectedPersonaCriteriaId) {
+                      alert("Wybierz kryteria weryfikacji person");
+                      return;
+                    }
+                    setShowSavedLeadsModal(true);
+                    setSavedLeadsLoading(true);
+                    setSavedLeadsPage(1); // Resetuj do pierwszej strony
                     try {
-                      const response = await fetch(`/api/company-selection/personas/${selectedPersonaCriteriaId}/verification-cache`);
-                      if (response.ok) {
-                        const data = await response.json();
-                        if (data.success && data.data) {
-                          setCacheModalData(data.data.map((item: any) => ({
-                            ...item,
-                            verifiedAt: item.verifiedAt ? new Date(item.verifiedAt).toISOString() : "",
-                            lastUsedAt: item.lastUsedAt ? new Date(item.lastUsedAt).toISOString() : "",
-                          })));
-                          // Ustaw domyślną kartę na podstawie dostępnych danych
-                          const positiveCount = data.data.filter((item: any) => item.decision === "positive").length;
-                          const negativeCount = data.data.filter((item: any) => item.decision === "negative").length;
-                          if (positiveCount > 0) {
-                            setCacheModalTab("positive");
-                          } else if (negativeCount > 0) {
-                            setCacheModalTab("negative");
-                          }
-                          setCacheModalPage({ positive: 1, negative: 1 });
-                          // Zaktualizuj cache count
-                          setCacheCount({ positive: positiveCount, negative: negativeCount, total: data.data.length });
-                        }
+                      const params = new URLSearchParams();
+                      if (selectionId) params.append("selectionId", String(selectionId));
+                      if (selectedPersonaCriteriaId) params.append("personaCriteriaId", selectedPersonaCriteriaId);
+                      params.append("page", "1");
+                      params.append("perPage", "50");
+                      
+                      const response = await fetch(`/api/company-selection/personas/saved-leads?${params.toString()}`);
+                      const data = await response.json();
+                      if (data.success) {
+                        setSavedLeads(data.leads);
+                        setSavedLeadsTotal(data.pagination.total);
+                        setSavedLeadsPage(1);
+                      } else {
+                        alert("Błąd pobierania zapisanych leadów: " + (data.error || "nieznany błąd"));
                       }
                     } catch (error) {
-                      console.error("Błąd ładowania cache:", error);
+                      alert("Błąd połączenia: " + (error instanceof Error ? error.message : String(error)));
                     } finally {
-                      setLoadingCacheModal(false);
+                      setSavedLeadsLoading(false);
                     }
                   }}
-                  disabled={cacheCount.total === 0}
                   style={{
                     padding: "0.5rem 1rem",
-                    backgroundColor: cacheCount.total === 0 ? "#D1D5DB" : "#3B82F6",
+                    borderRadius: "0.5rem",
+                    backgroundColor: "#059669",
                     color: "white",
                     border: "none",
-                    borderRadius: "0.5rem",
-                    cursor: cacheCount.total === 0 ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    cursor: "pointer",
                     fontSize: "0.9rem",
                     whiteSpace: "nowrap",
-                    opacity: cacheCount.total === 0 ? 0.6 : 1,
                   }}
+                  title="Zobacz zapisane leady w bazie danych"
                 >
-                  Znalezione stanowiska
+                  Zobacz zapisane leady
                 </button>
-                {loadingCacheCount ? (
-                  <span style={{ fontSize: "0.85rem", color: "#6B7280" }}>Ładowanie...</span>
-                ) : cacheCount.total > 0 ? (
-                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", fontSize: "0.85rem", color: "#6B7280" }}>
-                    <span>
-                      <span style={{ color: "#065F46", fontWeight: 600 }}>{cacheCount.positive}</span> pozytywnych
-                    </span>
-                    <span>•</span>
-                    <span>
-                      <span style={{ color: "#991B1B", fontWeight: 600 }}>{cacheCount.negative}</span> negatywnych
-                    </span>
+                {cacheCount.positive > 0 && (
+                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                    <button
+                      onClick={async () => {
+                        if (!selectedPersonaCriteriaId) return;
+                        
+                        // Pobierz wszystkie firmy z pozytywnymi personami dla tych kryteriów
+                        const companiesWithPositive = allCompanies.filter((c: Company) => {
+                          const verification = c.personaVerification;
+                          return verification && 
+                                 verification.personaCriteriaId === Number(selectedPersonaCriteriaId) &&
+                                 verification.positiveCount > 0;
+                        });
+
+                      if (companiesWithPositive.length === 0) {
+                        alert("Brak firm z pozytywnymi leadami do zapisania.");
+                        return;
+                      }
+
+                      // TEST: Ogranicz do pierwszych 10 firm
+                      const companiesToProcess = companiesWithPositive.slice(0, 10);
+                      const totalCount = companiesWithPositive.length;
+
+                      const confirmMessage = revealEmailsOnFetch
+                          ? `Czy na pewno chcesz pobrać i zapisać do bazy danych pozytywne leady (osoby z emailami) dla ${companiesToProcess.length} firm (z ${totalCount} dostępnych)?\n\n⚠️ UWAGA: To pobierze emaile z Apollo (zużywa kredyty Apollo - 1 kredyt za email).\n\nZostaną zapisane TYLKO leady z dostępnymi emailami.\n\n[TEST: Przetwarzamy tylko pierwsze 10 firm]`
+                          : `Czy na pewno chcesz pobrać i zapisać do bazy danych pozytywne leady (osoby z emailami) dla ${companiesToProcess.length} firm (z ${totalCount} dostępnych)?\n\nTo pobierze tylko leady z dostępnymi emailami (bez zużywania kredytów Apollo - tylko te, które już mają email w Apollo).\n\n[TEST: Przetwarzamy tylko pierwsze 10 firm]`;
+
+                      if (!confirm(confirmMessage)) {
+                        return;
+                      }
+
+                      try {
+                        setFetchingAndSaving(true);
+                        
+                        const companyIds = companiesToProcess.map((c: Company) => c.id);
+
+                        // Utwórz postęp
+                        const progressResponse = await fetch("/api/company-selection/personas/verify/progress", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ total: companyIds.length }),
+                        });
+
+                        const progressData = await progressResponse.json();
+                        if (!progressResponse.ok || !progressData.success || !progressData.progressId) {
+                          alert(`Nie udało się utworzyć postępu: ${progressData.error || "brak szczegółów"}`);
+                          setFetchingAndSaving(false);
+                          return;
+                        }
+
+                        const newProgressId = progressData.progressId as string;
+                        setFetchAndSaveProgressId(newProgressId);
+                        setFetchAndSaveProgress({
+                          total: companyIds.length,
+                          processed: 0,
+                          percentage: 0,
+                          withPersonas: 0,
+                          verified: 0,
+                          errors: 0,
+                          status: "processing",
+                        });
+
+                        // Uruchom pobieranie w tle
+                        const response = await fetch("/api/company-selection/personas/fetch-and-save", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            companyIds,
+                            selectionId: selectionId ? Number(selectionId) : undefined,
+                            personaCriteriaId: selectedPersonaCriteriaId ? Number(selectedPersonaCriteriaId) : undefined,
+                            revealEmails: revealEmailsOnFetch,
+                            positiveEmployeesOnly: true,
+                            progressId: newProgressId,
+                          }),
+                        });
+
+                        const data = await response.json();
+                        if (data.success) {
+                          // Postęp będzie aktualizowany przez polling
+                          // Ustaw raport, który będzie pokazany po zakończeniu
+                          if (data.summary && data.results) {
+                            setFetchAndSaveReport({
+                              summary: data.summary,
+                              results: data.results,
+                            });
+                          }
+                        } else {
+                          setFetchingAndSaving(false);
+                          setFetchAndSaveProgressId(null);
+                          setFetchAndSaveProgress(null);
+                          alert(`Błąd: ${data.error || "Nie udało się pobrać i zapisać danych"}`);
+                        }
+                      } catch (error) {
+                        console.error("[Fetch and Save] Błąd:", error);
+                        setFetchingAndSaving(false);
+                        setFetchAndSaveProgressId(null);
+                        setFetchAndSaveProgress(null);
+                        alert("Błąd połączenia z serwerem: " + (error instanceof Error ? error.message : String(error)));
+                      }
+                    }}
+                    disabled={fetchingAndSaving || cacheCount.positive === 0}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      borderRadius: "0.5rem",
+                      backgroundColor: fetchingAndSaving || cacheCount.positive === 0 ? "#9CA3AF" : "#8B5CF6",
+                      color: "white",
+                      border: "none",
+                      fontWeight: 600,
+                      cursor: fetchingAndSaving || cacheCount.positive === 0 ? "not-allowed" : "pointer",
+                      fontSize: "0.9rem",
+                      whiteSpace: "nowrap",
+                    }}
+                      title={cacheCount.positive === 0 ? "Brak pozytywnych leadów do zapisania" : "Pobiera i zapisuje do bazy danych tylko pozytywne leady (osoby z emailami) dla wszystkich firm z pozytywnymi personami"}
+                    >
+                      {fetchingAndSaving ? "Zapisywanie..." : `Pobierz i zapisz leady (${cacheCount.positive})`}
+                    </button>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={revealEmailsOnFetch}
+                        onChange={(e) => setRevealEmailsOnFetch(e.target.checked)}
+                        disabled={fetchingAndSaving}
+                        style={{ cursor: "pointer" }}
+                      />
+                      <span style={{ color: "#6B7280" }}>
+                        Pobierz emaile (zużywa kredyty Apollo)
+                      </span>
+                    </label>
                   </div>
-                ) : (
-                  <span style={{ fontSize: "0.85rem", color: "#9CA3AF" }}>Brak zapisanych stanowisk</span>
                 )}
               </div>
             )}
@@ -1950,7 +2381,37 @@ export default function PersonaVerifyPage() {
         </div>
       </div>
 
-      {/* Pasek postępu */}
+      {/* Pasek postępu fetch-and-save */}
+      {fetchAndSaveProgress && (
+        <div
+          style={{
+            marginBottom: "1.5rem",
+            padding: "1.25rem",
+            borderRadius: "0.75rem",
+            backgroundColor: fetchAndSaveProgress.status === "completed" ? "#D1FAE5" : fetchAndSaveProgress.status === "error" ? "#FEE2E2" : "#EEF2FF",
+            border: `1px solid ${fetchAndSaveProgress.status === "completed" ? "#A7F3D0" : fetchAndSaveProgress.status === "error" ? "#FECACA" : "#C7D2FE"}`,
+            color: fetchAndSaveProgress.status === "completed" ? "#047857" : fetchAndSaveProgress.status === "error" ? "#B91C1C" : "#1E3A8A",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: "0.75rem" }}>
+            Postęp pobierania i zapisywania ({fetchAndSaveProgress.processed}/{fetchAndSaveProgress.total}) – {fetchAndSaveProgress.percentage}%
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", fontSize: "0.875rem" }}>
+            <span>Zapisane firmy: {fetchAndSaveProgress.withPersonas}</span>
+            <span>Błędy: {fetchAndSaveProgress.errors}</span>
+            {fetchAndSaveProgress.currentCompanyName && (
+              <span>Aktualnie: {fetchAndSaveProgress.currentCompanyName}</span>
+            )}
+            {typeof fetchAndSaveProgress.estimatedTimeRemaining === "number" && (
+              <span>
+                ETA: ~{Math.max(0, Math.round(fetchAndSaveProgress.estimatedTimeRemaining / 1000))}s
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Pasek postępu weryfikacji */}
       {progress && (
         <div
           style={{
@@ -2725,6 +3186,7 @@ export default function PersonaVerifyPage() {
                     padding: "1rem",
                     backgroundColor: "#F9FAFB",
                     borderRadius: "0.5rem",
+                    marginBottom: "1rem",
                   }}
                 >
                   <div>
@@ -3192,6 +3654,676 @@ export default function PersonaVerifyPage() {
           </div>
         </div>
       )}
+
+      {/* Modal z raportem pobierania i zapisywania */}
+      {showFetchAndSaveModal && fetchAndSaveReport && (
+        <div style={detailModalStyle} onClick={() => setShowFetchAndSaveModal(false)}>
+          <div style={detailCardStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827" }}>
+                Raport pobierania i zapisywania
+              </h2>
+              <button
+                onClick={() => setShowFetchAndSaveModal(false)}
+                style={{
+                  padding: "0.5rem",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "1.5rem",
+                  color: "#6B7280",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Podsumowanie */}
+            <div
+              style={{
+                backgroundColor: "#F9FAFB",
+                borderRadius: "0.5rem",
+                padding: "1.5rem",
+                marginBottom: "1.5rem",
+                border: "1px solid #E5E7EB",
+              }}
+            >
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "1rem", color: "#111827" }}>
+                Podsumowanie
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" }}>
+                <div>
+                  <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Firmy przetworzone</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827" }}>
+                    {fetchAndSaveReport.summary.successCount} / {fetchAndSaveReport.summary.totalCompanies}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Błędy</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 600, color: fetchAndSaveReport.summary.errorCount > 0 ? "#DC2626" : "#059669" }}>
+                    {fetchAndSaveReport.summary.errorCount}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Rekordy zapisane</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827" }}>
+                    {fetchAndSaveReport.summary.totalEmployees}
+                  </div>
+                  {(fetchAndSaveReport.summary.totalCreated !== undefined || fetchAndSaveReport.summary.totalUpdated !== undefined) && (
+                    <div style={{ fontSize: "0.75rem", color: "#6B7280", marginTop: "0.25rem" }}>
+                      {fetchAndSaveReport.summary.totalCreated !== undefined && fetchAndSaveReport.summary.totalCreated > 0 && (
+                        <span style={{ color: "#059669" }}>Nowe: {fetchAndSaveReport.summary.totalCreated}</span>
+                      )}
+                      {fetchAndSaveReport.summary.totalCreated !== undefined && fetchAndSaveReport.summary.totalCreated > 0 && 
+                       fetchAndSaveReport.summary.totalUpdated !== undefined && fetchAndSaveReport.summary.totalUpdated > 0 && (
+                        <span> • </span>
+                      )}
+                      {fetchAndSaveReport.summary.totalUpdated !== undefined && fetchAndSaveReport.summary.totalUpdated > 0 && (
+                        <span style={{ color: "#3B82F6" }}>Zaktualizowane: {fetchAndSaveReport.summary.totalUpdated}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Z dostępnym e-mailem</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#059669" }}>
+                    {fetchAndSaveReport.summary.totalEmployeesWithEmail}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Bez e-maila</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#6B7280" }}>
+                    {fetchAndSaveReport.summary.totalEmployeesWithoutEmail}
+                  </div>
+                </div>
+                {fetchAndSaveReport.summary.totalCreditsUsed > 0 && (
+                  <div>
+                    <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Kredyty Apollo</div>
+                    <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#DC2626" }}>
+                      {fetchAndSaveReport.summary.totalCreditsUsed}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Szczegóły per firma */}
+            <div>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "1rem", color: "#111827" }}>
+                Szczegóły per firma
+              </h3>
+              <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                {fetchAndSaveReport.results.map((result) => (
+                  <div
+                    key={result.companyId}
+                    style={{
+                      padding: "1rem",
+                      backgroundColor: result.success ? "#F0FDF4" : "#FEF2F2",
+                      borderRadius: "0.5rem",
+                      border: result.success ? "1px solid #D1FAE5" : "1px solid #FEE2E2",
+                      marginBottom: "0.75rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: "#111827", marginBottom: "0.25rem" }}>
+                          {result.companyName}
+                        </div>
+                        {result.error && (
+                          <div style={{ fontSize: "0.85rem", color: "#DC2626", marginTop: "0.25rem" }}>
+                            Błąd: {result.error}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: result.success ? "#059669" : "#DC2626", fontWeight: 500 }}>
+                        {result.success ? "✓ Sukces" : "✗ Błąd"}
+                      </div>
+                    </div>
+                    {result.success && (
+                      <div style={{ display: "flex", gap: "1rem", fontSize: "0.85rem", color: "#6B7280", flexWrap: "wrap" }}>
+                        <span>Zapisano: {result.employeesCount}</span>
+                        {result.createdCount !== undefined && result.createdCount > 0 && (
+                          <span style={{ color: "#059669" }}>Nowe: {result.createdCount}</span>
+                        )}
+                        {result.updatedCount !== undefined && result.updatedCount > 0 && (
+                          <span style={{ color: "#3B82F6" }}>Zaktualizowane: {result.updatedCount}</span>
+                        )}
+                        <span>Z emailami: {result.employeesWithEmail}</span>
+                        <span>Bez emaili: {result.employeesWithoutEmail}</span>
+                        {result.creditsUsed && result.creditsUsed > 0 && (
+                          <span style={{ color: "#DC2626" }}>Kredyty: {result.creditsUsed}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1.5rem" }}>
+              <button
+                onClick={async () => {
+                  try {
+                    const params = new URLSearchParams();
+                    if (selectionId) params.append("selectionId", String(selectionId));
+                    if (selectedPersonaCriteriaId) params.append("personaCriteriaId", selectedPersonaCriteriaId);
+                    params.append("companyIds", selectedCompanies.join(","));
+                    
+                    const url = `/api/company-selection/personas/export-csv?${params.toString()}`;
+                    window.open(url, "_blank");
+                  } catch (error) {
+                    alert("Błąd eksportu CSV: " + (error instanceof Error ? error.message : String(error)));
+                  }
+                }}
+                style={{
+                  padding: "0.5rem 1.5rem",
+                  backgroundColor: "#059669",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "0.5rem",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                Eksportuj do CSV
+              </button>
+              <button
+                onClick={() => setShowFetchAndSaveModal(false)}
+                style={{
+                  padding: "0.5rem 1.5rem",
+                  backgroundColor: "#6B7280",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "0.5rem",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                Zamknij
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* Karta: Baza pobranych leadów */}
+      {activeTab === "leads" && (
+        <LeadsDatabaseTab 
+          selectionId={selectionId || null}
+          selectedPersonaCriteriaId={selectedPersonaCriteriaId}
+        />
+      )}
+
+      {/* Modal z zapisanymi leadami */}
+      {showSavedLeadsModal && (
+        <div style={detailModalStyle} onClick={() => setShowSavedLeadsModal(false)}>
+          <div style={detailCardStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827" }}>
+                Zapisane leady w bazie danych
+              </h2>
+              <button
+                onClick={() => setShowSavedLeadsModal(false)}
+                style={{
+                  padding: "0.5rem",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "1.5rem",
+                  color: "#6B7280",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {savedLeadsLoading ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>
+                Ładowanie leadów...
+              </div>
+            ) : savedLeads.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>
+                Brak zapisanych leadów w bazie danych.
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: "1rem", fontSize: "0.875rem", color: "#6B7280" }}>
+                  Znaleziono {savedLeadsTotal} leadów
+                </div>
+                <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead style={{ position: "sticky", top: 0, backgroundColor: "white", zIndex: 10 }}>
+                      <tr style={{ borderBottom: "2px solid #E5E7EB" }}>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Imię i nazwisko</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Stanowisko</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Email</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Firma</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Decyzja AI</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Data pobrania</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {savedLeads.map((lead) => (
+                        <tr key={lead.id} style={{ borderBottom: "1px solid #E5E7EB" }}>
+                          <td style={{ padding: "0.75rem" }}>
+                            {lead.firstName || lead.lastName 
+                              ? `${lead.firstName || ""} ${lead.lastName || ""}`.trim() 
+                              : "—"}
+                          </td>
+                          <td style={{ padding: "0.75rem", color: "#6B7280" }}>{lead.title || "—"}</td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <span style={{ color: "#047857", fontWeight: 500 }}>{lead.email || "—"}</span>
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>{lead.company?.name || "—"}</td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {lead.decision === "positive" ? (
+                              <span style={{ padding: "0.25rem 0.5rem", borderRadius: "0.25rem", backgroundColor: "#D1FAE5", color: "#065F46", fontSize: "0.875rem", fontWeight: 500 }}>
+                                Pozytywne
+                              </span>
+                            ) : lead.decision === "negative" ? (
+                              <span style={{ padding: "0.25rem 0.5rem", borderRadius: "0.25rem", backgroundColor: "#FEE2E2", color: "#991B1B", fontSize: "0.875rem", fontWeight: 500 }}>
+                                Negatywne
+                              </span>
+                            ) : (
+                              <span style={{ color: "#6B7280" }}>—</span>
+                            )}
+                          </td>
+                          <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#6B7280" }}>
+                            {lead.apolloFetchedAt 
+                              ? new Date(lead.apolloFetchedAt).toLocaleString("pl-PL")
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1.5rem" }}>
+                  <div style={{ fontSize: "0.875rem", color: "#6B7280" }}>
+                    Strona {savedLeadsPage} z {Math.ceil(savedLeadsTotal / 50)}
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      onClick={async () => {
+                        if (savedLeadsPage > 1) {
+                          const newPage = savedLeadsPage - 1;
+                          setSavedLeadsPage(newPage);
+                          setSavedLeadsLoading(true);
+                          try {
+                            const params = new URLSearchParams();
+                            if (selectionId) params.append("selectionId", String(selectionId));
+                            if (selectedPersonaCriteriaId) params.append("personaCriteriaId", selectedPersonaCriteriaId);
+                            params.append("page", String(newPage));
+                            params.append("perPage", "50");
+                            
+                            const response = await fetch(`/api/company-selection/personas/saved-leads?${params.toString()}`);
+                            const data = await response.json();
+                            if (data.success) {
+                              setSavedLeads(data.leads);
+                              setSavedLeadsTotal(data.pagination.total);
+                            }
+                          } catch (error) {
+                            alert("Błąd pobierania leadów: " + (error instanceof Error ? error.message : String(error)));
+                          } finally {
+                            setSavedLeadsLoading(false);
+                          }
+                        }
+                      }}
+                      disabled={savedLeadsPage === 1}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        backgroundColor: savedLeadsPage === 1 ? "#F3F4F6" : "#059669",
+                        color: savedLeadsPage === 1 ? "#9CA3AF" : "white",
+                        border: "none",
+                        borderRadius: "0.5rem",
+                        cursor: savedLeadsPage === 1 ? "not-allowed" : "pointer",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Poprzednia
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const maxPage = Math.ceil(savedLeadsTotal / 50);
+                        if (savedLeadsPage < maxPage) {
+                          const newPage = savedLeadsPage + 1;
+                          setSavedLeadsPage(newPage);
+                          setSavedLeadsLoading(true);
+                          try {
+                            const params = new URLSearchParams();
+                            if (selectionId) params.append("selectionId", String(selectionId));
+                            if (selectedPersonaCriteriaId) params.append("personaCriteriaId", selectedPersonaCriteriaId);
+                            params.append("page", String(newPage));
+                            params.append("perPage", "50");
+                            
+                            const response = await fetch(`/api/company-selection/personas/saved-leads?${params.toString()}`);
+                            const data = await response.json();
+                            if (data.success) {
+                              setSavedLeads(data.leads);
+                              setSavedLeadsTotal(data.pagination.total);
+                            }
+                          } catch (error) {
+                            alert("Błąd pobierania leadów: " + (error instanceof Error ? error.message : String(error)));
+                          } finally {
+                            setSavedLeadsLoading(false);
+                          }
+                        }
+                      }}
+                      disabled={savedLeadsPage >= Math.ceil(savedLeadsTotal / 50)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        backgroundColor: savedLeadsPage >= Math.ceil(savedLeadsTotal / 50) ? "#F3F4F6" : "#059669",
+                        color: savedLeadsPage >= Math.ceil(savedLeadsTotal / 50) ? "#9CA3AF" : "white",
+                        border: "none",
+                        borderRadius: "0.5rem",
+                        cursor: savedLeadsPage >= Math.ceil(savedLeadsTotal / 50) ? "not-allowed" : "pointer",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Następna
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setShowSavedLeadsModal(false)}
+                    style={{
+                      padding: "0.5rem 1.5rem",
+                      backgroundColor: "#6B7280",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "0.5rem",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Zamknij
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Komponent karty "Baza pobranych leadów"
+function LeadsDatabaseTab({ 
+  selectionId, 
+  selectedPersonaCriteriaId 
+}: { 
+  selectionId: number | null; 
+  selectedPersonaCriteriaId: string;
+}) {
+  const [leads, setLeads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({
+    totalCompanies: 0,
+    totalLeads: 0,
+    leadsWithEmail: 0,
+    leadsToFetch: 0,
+  });
+  const [fetchingEmailFor, setFetchingEmailFor] = useState<number | null>(null);
+
+  // Automatyczne ładowanie leadów
+  useEffect(() => {
+    if (!selectionId || !selectedPersonaCriteriaId) {
+      setLoading(false);
+      return;
+    }
+
+    loadLeads();
+  }, [selectionId, selectedPersonaCriteriaId, page]);
+
+  const loadLeads = async () => {
+    if (!selectionId || !selectedPersonaCriteriaId) return;
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("selectionId", String(selectionId));
+      params.append("personaCriteriaId", selectedPersonaCriteriaId);
+      params.append("page", String(page));
+      params.append("perPage", "100"); // Więcej na stronę dla tabeli
+
+      const response = await fetch(`/api/company-selection/personas/saved-leads?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setLeads(data.leads);
+        setTotal(data.pagination.total);
+
+        // Pobierz pełne statystyki (wszystkie leady)
+        const allLeadsResponse = await fetch(`/api/company-selection/personas/saved-leads?${new URLSearchParams({
+          selectionId: String(selectionId),
+          personaCriteriaId: selectedPersonaCriteriaId,
+          page: "1",
+          perPage: "10000", // Duża liczba, aby pobrać wszystkie
+        }).toString()}`);
+        const allLeadsData = await allLeadsResponse.json();
+
+        if (allLeadsData.success) {
+          const allLeads = allLeadsData.leads;
+          const uniqueCompanies = new Set(allLeads.map((l: any) => l.companyId)).size;
+          const totalWithEmail = allLeads.filter((l: any) => l.email).length;
+          const totalToFetch = allLeads.filter((l: any) => !l.email && l.apolloPersonId).length;
+
+          setStats({
+            totalCompanies: uniqueCompanies,
+            totalLeads: allLeadsData.pagination.total,
+            leadsWithEmail: totalWithEmail,
+            leadsToFetch: totalToFetch,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Błąd ładowania leadów:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFetchEmail = async (leadId: number) => {
+    if (!confirm("Czy na pewno chcesz pobrać email z Apollo? To zużyje 1 kredyt Apollo.")) {
+      return;
+    }
+
+    setFetchingEmailFor(leadId);
+    try {
+      const response = await fetch("/api/company-selection/personas/fetch-single-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Odśwież listę leadów
+        await loadLeads();
+        alert(`Email został pobrany: ${data.email}\n\nZużyto 1 kredyt Apollo.`);
+      } else {
+        const errorMsg = data.error || "nieznany błąd";
+        const detailsMsg = data.details ? `\n\nSzczegóły: ${data.details}` : "";
+        const statusMsg = data.emailStatus ? `\n\nStatus emaila w Apollo: ${data.emailStatus}` : "";
+        alert(`Błąd pobierania emaila: ${errorMsg}${detailsMsg}${statusMsg}`);
+      }
+    } catch (error) {
+      alert("Błąd połączenia: " + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setFetchingEmailFor(null);
+    }
+  };
+
+  if (!selectedPersonaCriteriaId) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center", color: "#6B7280" }}>
+        Wybierz kryteria weryfikacji person, aby zobaczyć bazę leadów.
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Sekcja raportu */}
+      <div
+        style={{
+          backgroundColor: "white",
+          borderRadius: "0.75rem",
+          border: "1px solid #E5E7EB",
+          padding: "1.5rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem", color: "#111827" }}>
+          Raport bazy leadów
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+          <div>
+            <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Firmy</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827" }}>{stats.totalCompanies}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Leady</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827" }}>{stats.totalLeads}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Z adresem email</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#059669" }}>{stats.leadsWithEmail}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.25rem" }}>Do pobrania</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#DC2626" }}>{stats.leadsToFetch}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabela leadów */}
+      <div
+        style={{
+          backgroundColor: "white",
+          borderRadius: "0.75rem",
+          border: "1px solid #E5E7EB",
+          padding: "1.5rem",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: 600, color: "#111827" }}>
+            Lista leadów ({total})
+          </h2>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>
+            Ładowanie leadów...
+          </div>
+        ) : leads.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>
+            Brak leadów w bazie danych dla wybranych kryteriów.
+          </div>
+        ) : (
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #E5E7EB" }}>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Nr</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Imię</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Nazwisko</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Stanowisko</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Firma</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Person ID</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: 600 }}>Adres email</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map((lead, index) => (
+                    <tr key={lead.id} style={{ borderBottom: "1px solid #E5E7EB" }}>
+                      <td style={{ padding: "0.75rem" }}>{(page - 1) * 100 + index + 1}</td>
+                      <td style={{ padding: "0.75rem" }}>{lead.firstName || "—"}</td>
+                      <td style={{ padding: "0.75rem" }}>{lead.lastName || "—"}</td>
+                      <td style={{ padding: "0.75rem", color: "#6B7280" }}>{lead.title || "—"}</td>
+                      <td style={{ padding: "0.75rem" }}>{lead.company?.name || "—"}</td>
+                      <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.85rem", color: "#6B7280" }}>
+                        {lead.apolloPersonId || "—"}
+                      </td>
+                      <td style={{ padding: "0.75rem" }}>
+                        {lead.email ? (
+                          <span style={{ color: "#047857", fontWeight: 500 }}>{lead.email}</span>
+                        ) : lead.apolloPersonId ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <span style={{ color: "#DC2626" }}>Wymaga pobrania</span>
+                            <button
+                              onClick={() => handleFetchEmail(lead.id)}
+                              disabled={fetchingEmailFor === lead.id}
+                              style={{
+                                padding: "0.25rem 0.75rem",
+                                backgroundColor: fetchingEmailFor === lead.id ? "#9CA3AF" : "#DC2626",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "0.375rem",
+                                cursor: fetchingEmailFor === lead.id ? "not-allowed" : "pointer",
+                                fontSize: "0.75rem",
+                                fontWeight: 500,
+                              }}
+                            >
+                              {fetchingEmailFor === lead.id ? "Pobieranie..." : "Pobierz"}
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ color: "#6B7280" }}>Brak Apollo ID</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginacja */}
+            {Math.ceil(total / 100) > 1 && (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", marginTop: "1.5rem" }}>
+                <button
+                  onClick={() => setPage(page - 1)}
+                  disabled={page === 1}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: page === 1 ? "#F3F4F6" : "#3B82F6",
+                    color: page === 1 ? "#9CA3AF" : "white",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    cursor: page === 1 ? "not-allowed" : "pointer",
+                    fontWeight: 500,
+                  }}
+                >
+                  Poprzednia
+                </button>
+                <span style={{ fontSize: "0.875rem", color: "#6B7280", padding: "0 1rem" }}>
+                  Strona {page} z {Math.ceil(total / 100)}
+                </span>
+                <button
+                  onClick={() => setPage(page + 1)}
+                  disabled={page >= Math.ceil(total / 100)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: page >= Math.ceil(total / 100) ? "#F3F4F6" : "#3B82F6",
+                    color: page >= Math.ceil(total / 100) ? "#9CA3AF" : "white",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    cursor: page >= Math.ceil(total / 100) ? "not-allowed" : "pointer",
+                    fontWeight: 500,
+                  }}
+                >
+                  Następna
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

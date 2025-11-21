@@ -599,52 +599,315 @@ export async function searchPeopleFromOrganization(
 
 /**
  * Pobiera pełne dane osoby z Apollo (ZUŻYWA KREDYTY!)
- * UWAGA: Użytkownik ma dostęp tylko do /v1/people/search, więc używamy tego endpointu
- * z parametrem reveal_personal_emails=true do odblokowania emaili
+ * UWAGA: Używa mixed_people/search jako fallback, jeśli people/search nie jest dostępny
+ * @param personId - ID osoby w Apollo
+ * @param organizationInfo - Opcjonalne dane organizacji (organizationId, organizationName, domain) - przyspiesza fallback
  */
-export async function enrichPerson(personId: string): Promise<ApolloPerson> {
+export async function enrichPerson(
+  personId: string,
+  organizationInfo?: { organizationId?: string; organizationName?: string; domain?: string }
+): Promise<ApolloPerson> {
   if (!APOLLO_API_KEY) {
     throw new Error("APOLLO_API_KEY nie jest ustawiony w zmiennych środowiskowych");
   }
 
-  try {
+  const performEnrich = async (): Promise<ApolloPerson> => {
     logger.info("apollo", `Pobieranie pełnych danych osoby: ${personId} (ZUŻYWA KREDYT!)`);
     
-    // Użyj /v1/people/search z ID osoby i reveal_personal_emails=true
-    // (nie mamy dostępu do /v1/people/{id})
-    const response = await fetch(`${APOLLO_API_BASE_URL}/people/search`, {
+    // Spróbuj najpierw /v1/people/search z ID osoby i reveal_personal_emails=true
+    try {
+      const response = await fetch(`${APOLLO_API_BASE_URL}/people/search`, {
+        method: "POST",
+        headers: {
+          "Cache-Control": "no-cache",
+          "Content-Type": "application/json",
+          "X-Api-Key": APOLLO_API_KEY,
+        },
+        body: JSON.stringify({
+          person_ids: [personId],
+          reveal_personal_emails: true, // Odblokuj email (zużywa kredyt)
+          per_page: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        // Jeśli 403, użyj fallback
+        if (response.status === 403 || errorText.includes("API_INACCESSIBLE")) {
+          throw new Error("API_INACCESSIBLE");
+        }
+        throw new Error(`Apollo API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      const person = data.people?.[0];
+      
+      if (person) {
+        return mapPersonData(person, personId);
+      }
+    } catch (error: any) {
+      // Jeśli błąd dostępu, użyj fallback
+      if (error.message?.includes("API_INACCESSIBLE") || isAccessDeniedError(error.message)) {
+        logger.warn("apollo", `Endpoint people/search niedostępny - fallback do mixed_people/search dla osoby ${personId}`);
+        throw error; // Rzuć dalej, aby użyć fallback
+      }
+      throw error;
+    }
+
+    throw new Error(`Nie znaleziono osoby o ID: ${personId}`);
+  };
+
+  // Fallback do mixed_people/search
+  // UWAGA: mixed_people/search nie obsługuje person_ids bezpośrednio
+  // Musimy użyć organization_id/name/domain
+  const performFallback = async (): Promise<ApolloPerson> => {
+    logger.info("apollo", `Fallback: używam mixed_people/search dla osoby ${personId}`);
+    
+    // Krok 1: Pobierz dane organizacji (z parametru lub z API)
+    let organizationId: string | undefined = organizationInfo?.organizationId;
+    let organizationName: string | undefined = organizationInfo?.organizationName;
+    let domain: string | undefined = organizationInfo?.domain;
+    
+    // Jeśli nie mamy danych organizacji, spróbuj pobrać z API
+    if (!organizationId && !organizationName && !domain) {
+      try {
+        // Spróbuj pobrać dane osoby bez reveal_personal_emails (darmowe)
+        const basicResponse = await fetch(`${APOLLO_API_BASE_URL}/people/search`, {
+          method: "POST",
+          headers: {
+            "Cache-Control": "no-cache",
+            "Content-Type": "application/json",
+            "X-Api-Key": APOLLO_API_KEY,
+          },
+          body: JSON.stringify({
+            person_ids: [personId],
+            per_page: 1,
+            person_details: false, // Nie pobieraj szczegółów (darmowe)
+          }),
+        });
+
+        if (basicResponse.ok) {
+          const basicData = await basicResponse.json();
+          const basicPerson = basicData.people?.[0];
+          if (basicPerson) {
+            organizationId = basicPerson.organization?.id || basicPerson.organization_id;
+            organizationName = basicPerson.organization?.name || basicPerson.organization_name;
+            domain = basicPerson.organization?.primary_domain || basicPerson.organization?.domain;
+            logger.info("apollo", `Pobrano dane organizacji dla osoby ${personId}: ${organizationId || organizationName || domain}`);
+          }
+        }
+      } catch (error) {
+        logger.warn("apollo", `Nie udało się pobrać danych organizacji dla osoby ${personId}`, { error });
+      }
+    } else {
+      logger.info("apollo", `Używam przekazanych danych organizacji dla osoby ${personId}: ${organizationId || organizationName || domain}`);
+    }
+    
+    // Krok 2: Użyj mixed_people/search z organization_id/name/domain
+    if (!organizationId && !organizationName && !domain) {
+      throw new Error(`Nie można znaleźć organizacji dla osoby ${personId}. Nie można użyć mixed_people/search.`);
+    }
+    
+    // WAŻNE: Najpierw sprawdźmy, czy osoba istnieje (BEZ include_personal_emails - DARMOWE)
+    // To zapobiega zużyciu kredytu, jeśli osoba nie istnieje
+    const checkPayload: any = {
+      page: 1,
+      per_page: 100, // Pobierz więcej, aby znaleźć konkretną osobę
+      contact_scopes: {
+        include_non_exportable_companies: true,
+        // NIE ustawiamy include_personal_emails - to jest darmowe sprawdzenie
+      },
+    };
+    
+    if (organizationId) {
+      checkPayload.organization_ids = [organizationId];
+    } else if (organizationName) {
+      checkPayload.q_organization_name = organizationName;
+    } else if (domain) {
+      const normalizedDomain = normalizeDomain(domain);
+      if (normalizedDomain) {
+        checkPayload.q_company_domains = [normalizedDomain];
+      }
+    }
+    
+    logger.info("apollo", `Sprawdzanie istnienia osoby ${personId} w organizacji (DARMOWE - bez include_personal_emails)`);
+    
+    const checkResponse = await fetch(APOLLO_MIXED_PEOPLE_ENDPOINT, {
       method: "POST",
       headers: {
         "Cache-Control": "no-cache",
         "Content-Type": "application/json",
         "X-Api-Key": APOLLO_API_KEY,
       },
-      body: JSON.stringify({
-        person_ids: [personId],
-        reveal_personal_emails: true, // Odblokuj email (zużywa kredyt)
-        per_page: 1,
-      }),
+      body: JSON.stringify(checkPayload),
+    });
+
+    if (!checkResponse.ok) {
+      const errorText = await checkResponse.text();
+      throw new Error(`Apollo API error (mixed_people check): ${checkResponse.status} - ${errorText}`);
+    }
+
+    const checkData = await checkResponse.json();
+    
+    // Sprawdź w contacts i people - znajdź konkretną osobę po person_id (DARMOWE)
+    let personExists = false;
+    if (Array.isArray(checkData.contacts) && checkData.contacts.length > 0) {
+      personExists = checkData.contacts.some((c: any) => (c.person_id || c.id) === personId);
+    }
+    if (!personExists && Array.isArray(checkData.people) && checkData.people.length > 0) {
+      personExists = checkData.people.some((p: any) => p.id === personId);
+    }
+    
+    if (!personExists) {
+      throw new Error(`Nie znaleziono osoby o ID: ${personId} w organizacji (sprawdzono ${(checkData.contacts?.length || 0) + (checkData.people?.length || 0)} rekordów). Kredyt NIE został zużyty.`);
+    }
+    
+    logger.info("apollo", `Osoba ${personId} istnieje w organizacji. Teraz pobieram email (ZUŻYWA 1 KREDYT)`);
+    
+    // Krok 3: Teraz pobierz email (ZUŻYWA KREDYT) - tylko jeśli osoba istnieje
+    const payload: any = {
+      page: 1,
+      per_page: 100,
+      contact_scopes: {
+        include_non_exportable_companies: true,
+        include_personal_emails: true, // Odblokuj email (zużywa kredyt) - TYLKO jeśli osoba istnieje
+      },
+    };
+    
+    if (organizationId) {
+      payload.organization_ids = [organizationId];
+    } else if (organizationName) {
+      payload.q_organization_name = organizationName;
+    } else if (domain) {
+      const normalizedDomain = normalizeDomain(domain);
+      if (normalizedDomain) {
+        payload.q_company_domains = [normalizedDomain];
+      }
+    }
+    
+    const response = await fetch(APOLLO_MIXED_PEOPLE_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Cache-Control": "no-cache",
+        "Content-Type": "application/json",
+        "X-Api-Key": APOLLO_API_KEY,
+      },
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Apollo API error: ${response.status} - ${errorText}`);
+      throw new Error(`Apollo API error (mixed_people): ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    const person = data.people?.[0];
     
-    if (!person) {
-      throw new Error(`Nie znaleziono osoby o ID: ${personId}`);
+    // Sprawdź w contacts i people - znajdź konkretną osobę po person_id
+    let person = null;
+    if (Array.isArray(data.contacts) && data.contacts.length > 0) {
+      person = data.contacts.find((c: any) => (c.person_id || c.id) === personId);
+    }
+    if (!person && Array.isArray(data.people) && data.people.length > 0) {
+      person = data.people.find((p: any) => p.id === personId);
     }
     
-    logger.info("apollo", `Pobrano pełne dane osoby: ${personId} (email: ${person.email || 'brak'})`);
+    if (!person) {
+      // To nie powinno się zdarzyć, bo już sprawdziliśmy, że osoba istnieje
+      throw new Error(`Nie znaleziono osoby o ID: ${personId} w mixed_people/search (sprawdzono ${(data.contacts?.length || 0) + (data.people?.length || 0)} rekordów). Kredyt został zużyty, ale osoba nie została znaleziona.`);
+    }
     
-    return person;
-  } catch (error) {
+    // Loguj szczegóły odpowiedzi dla debugowania
+    logger.debug("apollo", `Odpowiedź mixed_people/search dla osoby ${personId}`, {
+      hasEmail: !!person.email,
+      email: person.email,
+      hasContactEmails: Array.isArray(person.contact_emails) && person.contact_emails.length > 0,
+      contactEmails: person.contact_emails,
+      emailStatus: person.email_status || person.contact_email_status,
+    });
+    
+    return mapPersonData(person, personId);
+  };
+
+  // Funkcja pomocnicza do mapowania danych osoby
+  const mapPersonData = (person: any, personId: string): ApolloPerson => {
+    // Sprawdź email w różnych miejscach
+    let email = person.email;
+    
+    // Jeśli nie ma bezpośredniego emaila, sprawdź contact_emails
+    if (!email && Array.isArray(person.contact_emails) && person.contact_emails.length > 0) {
+      // Szukaj pierwszego emaila, który nie jest placeholderm
+      const emailEntry = person.contact_emails.find((e: any) => {
+        const eEmail = e?.email || e?.email_address;
+        return eEmail && eEmail !== "email_not_unlocked@domain.com" && eEmail !== "email_not_available@domain.com";
+      });
+      email = emailEntry?.email || emailEntry?.email_address;
+    }
+    
+    // Sprawdź też w innych miejscach (dla różnych formatów odpowiedzi)
+    if (!email && person.email_address) {
+      email = person.email_address;
+    }
+    
+    // Filtruj placeholder email
+    if (email === "email_not_unlocked@domain.com" || email === "email_not_available@domain.com") {
+      email = undefined;
+    }
+    
+    const emailStatus = person.email_status || person.email_true_status || 
+                       (Array.isArray(person.contact_emails) && person.contact_emails[0]?.email_status) ||
+                       person.contact_email_status ||
+                       (Array.isArray(person.contact_emails) && person.contact_emails[0]?.status);
+    
+    logger.info("apollo", `Pobrano pełne dane osoby: ${personId} (email: ${email || 'brak'}, status: ${emailStatus || 'brak'})`);
+    
+    // Mapuj organizację
+    const organization = person.organization || person.account;
+    const mappedOrg = organization ? {
+      id: organization.organization_id || organization.id || "",
+      name: organization.name || "",
+      website_url: organization.website_url,
+      primary_domain: organization.primary_domain || organization.domain || normalizeDomain(organization.website_url),
+      industry: organization.industry,
+      estimated_num_employees: organization.estimated_num_employees,
+      city: organization.city,
+      country: organization.country,
+      linkedin_url: organization.linkedin_url,
+    } : undefined;
+    
+    // Zwróć zmapowaną osobę zgodnie z interfejsem ApolloPerson
+    return {
+      id: person.id || person.person_id || personId,
+      first_name: person.first_name,
+      last_name: person.last_name,
+      name: person.name || [person.first_name, person.last_name].filter(Boolean).join(" "),
+      title: person.title,
+      email: email,
+      email_status: emailStatus,
+      contact_email_status: person.contact_email_status || person.email_status,
+      linkedin_url: person.linkedin_url,
+      organization: mappedOrg,
+      headline: person.headline,
+      departments: person.departments ?? (person.account?.departments) ?? [],
+      subdepartments: person.subdepartments ?? [],
+      seniority: person.seniority ?? person.account?.seniority,
+    };
+  };
+
+  try {
+    return await performEnrich();
+  } catch (error: any) {
+    if (error.message?.includes("API_INACCESSIBLE") || isAccessDeniedError(error.message)) {
+      try {
+        return await performFallback();
+      } catch (fallbackError: any) {
+        const errorObj = fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError));
+        logger.error("apollo", `Błąd pobierania pełnych danych osoby (fallback): ${personId}`, null, errorObj);
+        throw errorObj;
+      }
+    }
     const errorObj = error instanceof Error ? error : new Error(String(error));
     logger.error("apollo", `Błąd pobierania pełnych danych osoby: ${personId}`, null, errorObj);
-    throw error;
+    throw errorObj;
   }
 }
 

@@ -1022,6 +1022,7 @@ model Company {
 
   verificationLogs       CompanyVerificationLog[]
   personaVerifications   PersonaVerificationResult[]
+  apolloEmployees        ApolloEmployee[]
   selectionMemberships   CompanySelectionCompany[]
   classifications        CompanyClassification[]
   createdSpecializations CompanySpecialization[] // Specjalizacje utworzone przez tę firmę
@@ -1113,8 +1114,9 @@ model CompanySelection {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  companies CompanySelectionCompany[]
-  criteria  CompanyVerificationCriteria[]
+  companies       CompanySelectionCompany[]
+  apolloEmployees ApolloEmployee[]
+  criteria        CompanyVerificationCriteria[]
 
   @@index([market])
   @@index([createdAt])
@@ -1243,6 +1245,7 @@ model CompanyPersonaCriteria {
   personaBrief           PersonaBrief?
   personaVerifications   PersonaVerificationResult[]
   titleVerificationCache PersonaTitleVerificationCache[] // Cache decyzji dla stanowisk
+  apolloEmployees        ApolloEmployee[]
 
   @@index([createdAt]) // Indeks dla szybkiego sortowania po dacie utworzenia
 }
@@ -1290,9 +1293,9 @@ model PersonaTitleVerificationCache {
   id                Int      @id @default(autoincrement())
   personaCriteriaId Int // Dla jakich kryteriów person (selekcji)
   titleNormalized   String // Znormalizowany tytuł stanowiska
-  titleEnglish      String  @default("") // Tytuł po angielsku (pusty string zamiast null dla unique constraint)
-  departments       String  @default("") // JSON array z działami (sorted) (pusty string zamiast null)
-  seniority         String  @default("") // Poziom seniority (pusty string zamiast null)
+  titleEnglish      String   @default("") // Tytuł po angielsku (pusty string zamiast null dla unique constraint)
+  departments       String   @default("") // JSON array z działami (sorted) (pusty string zamiast null)
+  seniority         String   @default("") // Poziom seniority (pusty string zamiast null)
   decision          String // "positive" | "negative" (conditional usunięte)
   score             Float? // Score AI (0.0-1.0)
   reason            String? // Uzasadnienie decyzji
@@ -1307,6 +1310,48 @@ model PersonaTitleVerificationCache {
   @@index([decision])
   @@index([useCount])
   @@index([lastUsedAt])
+}
+
+// Pobrane pracownicy z Apollo - zapisane do bazy danych
+model ApolloEmployee {
+  id                Int  @id @default(autoincrement())
+  companyId         Int // FK do Company
+  selectionId       Int? // FK do CompanySelection (opcjonalnie)
+  personaCriteriaId Int? // FK do CompanyPersonaCriteria (jeśli była weryfikacja)
+
+  // Dane z Apollo
+  apolloPersonId String? // ID osoby w Apollo
+  firstName      String?
+  lastName       String?
+  title          String?
+  email          String? // Może być null jeśli nie ma emaila
+  emailStatus    String? // verified, guessed, unverified, unavailable
+  emailUnlocked  Boolean @default(false)
+  linkedinUrl    String?
+  departments    String? // JSON array
+  seniority      String?
+
+  // Weryfikacja AI (jeśli była)
+  decision String? // positive, negative, unknown
+  score    Float?
+  reason   String?
+
+  // Metadata
+  apolloFetchedAt DateTime  @default(now())
+  verifiedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company         Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  selection       CompanySelection?       @relation(fields: [selectionId], references: [id], onDelete: SetNull)
+  personaCriteria CompanyPersonaCriteria? @relation(fields: [personaCriteriaId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([selectionId])
+  @@index([personaCriteriaId])
+  @@index([email])
+  @@index([decision])
+  @@index([apolloFetchedAt])
 }
 
 model IndustrySpecializationRule {

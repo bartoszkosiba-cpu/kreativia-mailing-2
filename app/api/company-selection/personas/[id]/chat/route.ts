@@ -738,12 +738,19 @@ export async function PUT(
 
     const prompt = `Na podstawie historii rozmowy z użytkownikiem przygotuj strukturę person dla prospectingu B2B. 
 
-${existingPositiveRoles || existingNegativeRoles ? `UWAGA: Istnieją już zdefiniowane persony. Jeśli użytkownik chce je zmodyfikować, zaktualizuj odpowiednie pozycje. Jeśli użytkownik chce dodać nowe, dodaj je do listy. Jeśli użytkownik chce usunąć, nie uwzględniaj ich w odpowiedzi.
+${existingPositiveRoles || existingNegativeRoles ? `⚠️ WAŻNE: Istnieją już zdefiniowane persony. MUSISZ ZACHOWAĆ WSZYSTKIE istniejące persony w odpowiedzi, chyba że użytkownik wyraźnie prosi o ich usunięcie lub modyfikację.
 
-Aktualne pozytywne persony:
+Zasady:
+- ZACHOWAJ wszystkie istniejące persony (zarówno pozytywne jak i negatywne) - dodaj je do odpowiedzi
+- Jeśli użytkownik chce dodać nowe persony, dodaj je do odpowiedniej listy
+- Jeśli użytkownik chce zmodyfikować istniejącą personę, zaktualizuj ją w odpowiedzi
+- Jeśli użytkownik wyraźnie prosi o usunięcie persony, nie uwzględniaj jej w odpowiedzi
+- NIE USUWAJ person, o których użytkownik nie wspomniał
+
+Aktualne pozytywne persony (MUSISZ ZACHOWAĆ w odpowiedzi):
 ${existingPositiveRoles || "(brak)"}
 
-Aktualne negatywne persony:
+Aktualne negatywne persony (MUSISZ ZACHOWAĆ w odpowiedzi):
 ${existingNegativeRoles || "(brak)"}
 
 ` : ""}Odpowiedz TYLKO w JSON:

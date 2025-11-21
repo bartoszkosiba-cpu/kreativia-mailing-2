@@ -178,6 +178,18 @@ export default function PersonasPage() {
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [tempName, setTempName] = useState("");
+  
+  // Stan do śledzenia zmian w cache (pending changes)
+  const [pendingCacheChanges, setPendingCacheChanges] = useState<Map<number, {
+    newDecision: "positive" | "negative";
+    justification: string;
+    originalDecision: "positive" | "negative";
+  }>>(new Map());
+  
+  // Stan do edycji uzasadnienia
+  const [editingCacheId, setEditingCacheId] = useState<number | null>(null);
+  const [editingJustification, setEditingJustification] = useState<string>("");
+  const [submittingChanges, setSubmittingChanges] = useState(false);
 
   const loadVerificationCache = async () => {
     if (!personaId) return;
@@ -212,6 +224,16 @@ export default function PersonasPage() {
         : `/api/company-selection/personas/${personaId}/verification-cache`;
       const response = await fetch(url, { method: "DELETE" });
       if (response.ok) {
+        // Usuń też z pending changes jeśli istnieje
+        if (cacheId) {
+          setPendingCacheChanges((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(cacheId);
+            return newMap;
+          });
+        } else {
+          setPendingCacheChanges(new Map());
+        }
         await loadVerificationCache();
         alert(cacheId ? "Wpis został usunięty" : "Cache został wyczyszczony");
       } else {
@@ -220,6 +242,107 @@ export default function PersonasPage() {
     } catch (err) {
       console.error("[Personas Cache] Błąd usuwania cache", err);
       alert("Błąd usuwania cache");
+    }
+  };
+
+  const handleStartChange = (item: typeof verificationCache[0]) => {
+    setEditingCacheId(item.id);
+    setEditingJustification("");
+  };
+
+  const handleSaveChange = (item: typeof verificationCache[0]) => {
+    if (!editingJustification.trim()) {
+      alert("Proszę podać uzasadnienie zmiany");
+      return;
+    }
+    
+    const newDecision: "positive" | "negative" = item.decision === "positive" ? "negative" : "positive";
+    const originalDecision = item.decision as "positive" | "negative";
+    
+    setPendingCacheChanges((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(item.id, {
+        newDecision,
+        justification: editingJustification.trim(),
+        originalDecision,
+      });
+      return newMap;
+    });
+    
+    // Zaktualizuj lokalnie cache (zmiana koloru)
+    setVerificationCache((prev) =>
+      prev.map((cacheItem) =>
+        cacheItem.id === item.id
+          ? { ...cacheItem, decision: newDecision }
+          : cacheItem
+      )
+    );
+    
+    setEditingCacheId(null);
+    setEditingJustification("");
+  };
+
+  const handleCancelChange = (item: typeof verificationCache[0]) => {
+    // Jeśli była zmiana w pending, przywróć oryginalną decyzję
+    const pendingChange = pendingCacheChanges.get(item.id);
+    if (pendingChange) {
+      setVerificationCache((prev) =>
+        prev.map((cacheItem) =>
+          cacheItem.id === item.id
+            ? { ...cacheItem, decision: pendingChange.originalDecision }
+            : cacheItem
+        )
+      );
+      setPendingCacheChanges((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(item.id);
+        return newMap;
+      });
+    }
+    setEditingCacheId(null);
+    setEditingJustification("");
+  };
+
+  const handleSubmitCacheChanges = async () => {
+    if (!personaId || pendingCacheChanges.size === 0) return;
+    
+    if (!confirm(`Czy na pewno chcesz przekazać ${pendingCacheChanges.size} zmian do briefu i zaktualizować istniejące weryfikacje?`)) {
+      return;
+    }
+    
+    setSubmittingChanges(true);
+    try {
+      const changes = Array.from(pendingCacheChanges.entries()).map(([cacheId, change]) => ({
+        cacheId,
+        newDecision: change.newDecision,
+        justification: change.justification,
+      }));
+      
+      const response = await fetch(`/api/company-selection/personas/${personaId}/verification-cache/apply-changes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        alert(`Zmiany zostały przekazane. Zaktualizowano ${data.updatedVerifications || 0} weryfikacji. Brief został zaktualizowany.`);
+        setPendingCacheChanges(new Map());
+        await loadVerificationCache();
+        // Zawsze przeładuj brief i prompt, niezależnie od aktywnej zakładki
+        await loadPersonas(personaId);
+        // Jeśli jesteśmy na zakładce prompt, przeładuj też prompt
+        if (activeTab === "prompt") {
+          await loadPrompt();
+        }
+      } else {
+        alert(`Błąd: ${data.error || "Nie udało się przekazać zmian"}`);
+      }
+    } catch (error) {
+      console.error("[Personas Cache] Błąd przekazywania zmian", error);
+      alert("Błąd przekazywania zmian");
+    } finally {
+      setSubmittingChanges(false);
     }
   };
 
@@ -1738,22 +1861,61 @@ export default function PersonasPage() {
                 )}
               </p>
             </div>
-            {verificationCache.length > 0 && (
-              <button
-                onClick={() => handleDeleteCache()}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#EF4444",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "0.5rem",
-                  cursor: "pointer",
-                  fontSize: "0.9rem",
-                }}
-              >
-                Wyczyść cały cache
-              </button>
-            )}
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+              {verificationCache.length > 0 && (
+                <button
+                  onClick={() => handleDeleteCache()}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#EF4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    cursor: "pointer",
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  Wyczyść cały cache
+                </button>
+              )}
+              {pendingCacheChanges.size > 0 && (
+                <button
+                  onClick={handleSubmitCacheChanges}
+                  disabled={submittingChanges}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: submittingChanges ? "#9CA3AF" : "#3B82F6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    cursor: submittingChanges ? "not-allowed" : "pointer",
+                    fontSize: "0.9rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  {submittingChanges ? "Przekazywanie..." : `Przekaż zmiany (${pendingCacheChanges.size})`}
+                </button>
+              )}
+            </div>
+              {pendingCacheChanges.size > 0 && (
+                <button
+                  onClick={handleSubmitCacheChanges}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#3B82F6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    cursor: "pointer",
+                    fontSize: "0.9rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Przekaż zmiany ({pendingCacheChanges.size})
+                </button>
+              )}
+            </div>
           </div>
 
           {loadingCache ? (
@@ -1875,83 +2037,148 @@ export default function PersonasPage() {
                   return (
                     <>
                       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                        {paginatedItems.map((item) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            padding: "1.25rem",
-                            backgroundColor: cacheTab === "positive" ? "#F0FDF4" : "#FEF2F2",
-                            borderRadius: "0.5rem",
-                            border: cacheTab === "positive" ? "1px solid #D1FAE5" : "1px solid #FEE2E2",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
-                                <h4 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#111827" }}>
-                                  {item.titleNormalized}
-                                </h4>
-                                <span
-                                  style={{
-                                    padding: "0.25rem 0.75rem",
-                                    borderRadius: "0.375rem",
-                                    fontSize: "0.85rem",
-                                    fontWeight: 500,
-                                    backgroundColor: cacheTab === "positive" ? "#D1FAE5" : "#FEE2E2",
-                                    color: cacheTab === "positive" ? "#065F46" : "#991B1B",
-                                  }}
-                                >
-                                  {cacheTab === "positive" ? "Pozytywne" : "Negatywne"}
-                                </span>
-                                <span style={{ fontSize: "0.9rem", color: "#6B7280", fontWeight: 500 }}>
-                                  Score: {item.score !== null ? `${(item.score * 100).toFixed(0)}%` : "brak"}
-                                </span>
+                        {paginatedItems.map((item) => {
+                          const pendingChange = pendingCacheChanges.get(item.id);
+                          const currentDecision = pendingChange ? pendingChange.newDecision : (item.decision as "positive" | "negative");
+                          const isEditing = editingCacheId === item.id;
+                          const isPositive = currentDecision === "positive";
+                          
+                          return (
+                            <div key={item.id}>
+                              <div
+                                style={{
+                                  padding: "1.25rem",
+                                  backgroundColor: isPositive ? "#F0FDF4" : "#FEF2F2",
+                                  borderRadius: "0.5rem",
+                                  border: isPositive ? "1px solid #D1FAE5" : "1px solid #FEE2E2",
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                                      <h4 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#111827" }}>
+                                        {item.titleNormalized}
+                                      </h4>
+                                      <span
+                                        style={{
+                                          padding: "0.25rem 0.75rem",
+                                          borderRadius: "0.375rem",
+                                          fontSize: "0.85rem",
+                                          fontWeight: 500,
+                                          backgroundColor: isPositive ? "#D1FAE5" : "#FEE2E2",
+                                          color: isPositive ? "#065F46" : "#991B1B",
+                                        }}
+                                      >
+                                        {isPositive ? "Pozytywne" : "Negatywne"}
+                                      </span>
+                                      <span style={{ fontSize: "0.9rem", color: "#6B7280", fontWeight: 500 }}>
+                                        Score: {item.score !== null ? `${(item.score * 100).toFixed(0)}%` : "brak"}
+                                      </span>
+                                    </div>
+                                    {item.titleEnglish && item.titleEnglish !== item.titleNormalized && (
+                                      <p style={{ fontSize: "0.9rem", color: "#6B7280", marginBottom: "0.25rem" }}>
+                                        EN: {item.titleEnglish}
+                                      </p>
+                                    )}
+                                    <div style={{ display: "flex", gap: "1rem", fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.5rem" }}>
+                                      {item.departments && item.departments.length > 0 && (
+                                        <span>Działy: {item.departments.join(", ")}</span>
+                                      )}
+                                      {item.seniority && <span>Seniority: {item.seniority}</span>}
+                                    </div>
+                                    {item.reason && (
+                                      <p style={{ fontSize: "0.9rem", color: "#374151", marginTop: "0.5rem", lineHeight: 1.5 }}>
+                                        {item.reason}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => handleStartChange(item)}
+                                    disabled={isEditing || !!pendingChange}
+                                    style={{
+                                      padding: "0.375rem 0.75rem",
+                                      backgroundColor: "transparent",
+                                      color: "#3B82F6",
+                                      border: "1px solid #3B82F6",
+                                      borderRadius: "0.375rem",
+                                      cursor: (isEditing || pendingChange) ? "not-allowed" : "pointer",
+                                      fontSize: "0.85rem",
+                                      marginLeft: "1rem",
+                                      opacity: (isEditing || pendingChange) ? 0.5 : 1,
+                                    }}
+                                    title="Zmień decyzję"
+                                  >
+                                    Zmiana
+                                  </button>
+                                </div>
+                                <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.8rem", color: "#9CA3AF", marginTop: "0.75rem" }}>
+                                  <span>Użyto: {item.useCount} {item.useCount === 1 ? "raz" : "razy"}</span>
+                                  <span>
+                                    Zweryfikowano: {new Date(item.verifiedAt).toLocaleString("pl-PL")}
+                                  </span>
+                                  <span>
+                                    Ostatnie użycie: {new Date(item.lastUsedAt).toLocaleString("pl-PL")}
+                                  </span>
+                                </div>
                               </div>
-                              {item.titleEnglish && item.titleEnglish !== item.titleNormalized && (
-                                <p style={{ fontSize: "0.9rem", color: "#6B7280", marginBottom: "0.25rem" }}>
-                                  EN: {item.titleEnglish}
-                                </p>
-                              )}
-                              <div style={{ display: "flex", gap: "1rem", fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.5rem" }}>
-                                {item.departments && item.departments.length > 0 && (
-                                  <span>Działy: {item.departments.join(", ")}</span>
-                                )}
-                                {item.seniority && <span>Seniority: {item.seniority}</span>}
-                              </div>
-                              {item.reason && (
-                                <p style={{ fontSize: "0.9rem", color: "#374151", marginTop: "0.5rem", lineHeight: 1.5 }}>
-                                  {item.reason}
-                                </p>
+                              
+                              {/* Formularz edycji uzasadnienia */}
+                              {isEditing && (
+                                <div style={{ marginTop: "0.75rem", padding: "1.25rem", backgroundColor: "#F9FAFB", borderRadius: "0.5rem", border: "1px solid #E5E7EB" }}>
+                                  <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: 500, color: "#374151" }}>
+                                    Uzasadnienie zmiany:
+                                  </label>
+                                  <textarea
+                                    value={editingJustification}
+                                    onChange={(e) => setEditingJustification(e.target.value)}
+                                    placeholder="Wyjaśnij dlaczego zmieniasz decyzję..."
+                                    style={{
+                                      width: "100%",
+                                      minHeight: "80px",
+                                      padding: "0.75rem",
+                                      border: "1px solid #D1D5DB",
+                                      borderRadius: "0.375rem",
+                                      fontSize: "0.9rem",
+                                      fontFamily: "inherit",
+                                      resize: "vertical",
+                                    }}
+                                  />
+                                  <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+                                    <button
+                                      onClick={() => handleSaveChange(item)}
+                                      disabled={!editingJustification.trim()}
+                                      style={{
+                                        padding: "0.5rem 1rem",
+                                        backgroundColor: editingJustification.trim() ? "#3B82F6" : "#9CA3AF",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "0.375rem",
+                                        cursor: editingJustification.trim() ? "pointer" : "not-allowed",
+                                        fontSize: "0.9rem",
+                                      }}
+                                    >
+                                      Zapisz
+                                    </button>
+                                    <button
+                                      onClick={() => handleCancelChange(item)}
+                                      style={{
+                                        padding: "0.5rem 1rem",
+                                        backgroundColor: "transparent",
+                                        color: "#6B7280",
+                                        border: "1px solid #D1D5DB",
+                                        borderRadius: "0.375rem",
+                                        cursor: "pointer",
+                                        fontSize: "0.9rem",
+                                      }}
+                                    >
+                                      Anuluj
+                                    </button>
+                                  </div>
+                                </div>
                               )}
                             </div>
-                            <button
-                              onClick={() => handleDeleteCache(item.id)}
-                              style={{
-                                padding: "0.375rem 0.75rem",
-                                backgroundColor: "transparent",
-                                color: "#EF4444",
-                                border: "1px solid #EF4444",
-                                borderRadius: "0.375rem",
-                                cursor: "pointer",
-                                fontSize: "0.85rem",
-                                marginLeft: "1rem",
-                              }}
-                              title="Usuń ten wpis z cache"
-                            >
-                              Usuń
-                            </button>
-                          </div>
-                          <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.8rem", color: "#9CA3AF", marginTop: "0.75rem" }}>
-                            <span>Użyto: {item.useCount} {item.useCount === 1 ? "raz" : "razy"}</span>
-                            <span>
-                              Zweryfikowano: {new Date(item.verifiedAt).toLocaleString("pl-PL")}
-                            </span>
-                            <span>
-                              Ostatnie użycie: {new Date(item.lastUsedAt).toLocaleString("pl-PL")}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                          );
+                        })}
                       </div>
 
                       {/* Paginacja */}
