@@ -20,6 +20,7 @@ export default function CompanySelectionPage() {
     total: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [costs, setCosts] = useState<{
     module: {
       summary: {
@@ -72,8 +73,10 @@ export default function CompanySelectionPage() {
         needsReview: needsReview.pagination?.total || 0,
         total: total.pagination?.total || 0,
       });
+      setStatsError(null);
     } catch (error) {
       console.error("Błąd ładowania statystyk:", error);
+      setStatsError("Nie udało się załadować statystyk. Spróbuj odświeżyć stronę.");
     } finally {
       setLoading(false);
     }
@@ -96,6 +99,22 @@ export default function CompanySelectionPage() {
       <h1 style={{ fontSize: "2rem", marginBottom: "2rem" }}>
         Moduł Wyboru Leadów
       </h1>
+
+      {/* Błąd ładowania statystyk */}
+      {statsError && (
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: "#FEE2E2",
+            border: "1px solid #FCA5A5",
+            color: "#B91C1C",
+            borderRadius: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          {statsError}
+        </div>
+      )}
 
       {/* Statystyki */}
       <div
@@ -148,7 +167,7 @@ export default function CompanySelectionPage() {
         }}
       >
         <Link
-          href="/company-selection/import-mass"
+          href="/company-selection/import"
           style={{
             padding: "0.75rem 1.5rem",
             backgroundColor: "#2563EB",
@@ -478,8 +497,15 @@ function StatCard({
   );
 }
 
+interface CompanyPreview {
+  id: number;
+  name: string;
+  industry: string | null;
+  verificationStatus: string;
+}
+
 function CompanyListPreview() {
-  const [companies, setCompanies] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<CompanyPreview[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

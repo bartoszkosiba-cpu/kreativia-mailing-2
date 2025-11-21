@@ -572,6 +572,13 @@ export default function CompanySelectionsPage() {
     try {
       setFormError(null);
       setFormSuccess(null);
+      
+      // Walidacja: wymagane są specjalizacje
+      if (selectedSubSegments.length === 0) {
+        setFormError("Wybierz przynajmniej jedną specjalizację, aby zobaczyć podgląd firm");
+        return;
+      }
+      
       setPreviewLoading(true);
 
       const response = await fetch("/api/company-selection/selections", {
