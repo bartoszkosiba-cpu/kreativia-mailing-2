@@ -27,15 +27,28 @@ export default function CompanySelectionPage() {
     loadCosts();
   }, [costsPeriod]);
 
+  const [costsLoading, setCostsLoading] = useState(false);
+  const [costsError, setCostsError] = useState<string | null>(null);
+
   const loadCosts = async () => {
     try {
+      setCostsLoading(true);
+      setCostsError(null);
       const response = await fetch(`/api/company-selection/costs?period=${costsPeriod}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Nie udało się pobrać kosztów`);
+      }
       const data = await response.json();
       if (data.module && data.application) {
         setCosts(data);
+      } else {
+        throw new Error("Nieprawidłowy format danych kosztów");
       }
     } catch (error) {
       console.error("Błąd ładowania kosztów:", error);
+      setCostsError(error instanceof Error ? error.message : "Nie udało się załadować kosztów");
+    } finally {
+      setCostsLoading(false);
     }
   };
 
@@ -223,25 +236,24 @@ export default function CompanySelectionPage() {
       </div>
 
       {/* Koszty AI */}
-      {costs && (
+      <div
+        style={{
+          padding: "1.5rem",
+          backgroundColor: "white",
+          borderRadius: "0.5rem",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          marginBottom: "2rem",
+        }}
+      >
         <div
           style={{
-            padding: "1.5rem",
-            backgroundColor: "white",
-            borderRadius: "0.5rem",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-            marginBottom: "2rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "1rem",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "1rem",
-            }}
-          >
-            <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Koszty AI</h2>
+          <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Koszty AI</h2>
             <select
               value={costsPeriod}
               onChange={(e) =>
@@ -263,6 +275,46 @@ export default function CompanySelectionPage() {
             </select>
           </div>
 
+          {costsError && (
+            <div
+              style={{
+                padding: "0.75rem",
+                backgroundColor: "#FEE2E2",
+                border: "1px solid #FCA5A5",
+                color: "#B91C1C",
+                borderRadius: "0.5rem",
+                marginBottom: "1rem",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>{costsError}</span>
+              <button
+                onClick={loadCosts}
+                style={{
+                  marginLeft: "1rem",
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#EF4444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "0.375rem",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                }}
+              >
+                Spróbuj ponownie
+              </button>
+            </div>
+          )}
+
+          {costsLoading && !costs && (
+            <div style={{ padding: "2rem", textAlign: "center", color: "#6B7280" }}>
+              Ładowanie kosztów...
+            </div>
+          )}
+
+          {costs && (
           <div
             style={{
               display: "grid",
@@ -369,8 +421,8 @@ export default function CompanySelectionPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
-      )}
 
       {/* Lista firm - szybki podgląd */}
       {stats.total > 0 && (

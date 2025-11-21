@@ -358,6 +358,7 @@ export default function CompanySelectionsPage() {
       setSelections(data.selections ?? []);
     } catch (error) {
       console.error("Błąd ładowania selekcji", error);
+      // Można dodać toast notification tutaj w przyszłości
     } finally {
       setSelectionsLoading(false);
     }
@@ -671,7 +672,7 @@ export default function CompanySelectionsPage() {
     const debounce = setTimeout(() => {
       setPreviewPage(1);
       void handlePreview();
-    }, 350);
+    }, 600); // Zwiększone z 350ms do 600ms dla lepszej wydajności
     return () => clearTimeout(debounce);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSubSegments, selectedLanguages, selectedBatchIds, onlyPrimary, minScore, minConfidence, market]);
@@ -1473,11 +1474,27 @@ export default function CompanySelectionsPage() {
                 padding: "0.5rem 1rem",
                 borderRadius: "0.5rem",
                 border: "1px solid #D1D5DB",
-                backgroundColor: "#F9FAFB",
-                color: "#374151",
+                backgroundColor: selectionsLoading ? "#E5E7EB" : "#F9FAFB",
+                color: selectionsLoading ? "#9CA3AF" : "#374151",
                 cursor: selectionsLoading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
               }}
             >
+              {selectionsLoading && (
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "12px",
+                    height: "12px",
+                    border: "2px solid #9CA3AF",
+                    borderTopColor: "transparent",
+                    borderRadius: "50%",
+                    animation: "spin 0.6s linear infinite",
+                  }}
+                />
+              )}
               {selectionsLoading ? "Odświeżam..." : "Odśwież listę"}
             </button>
           </div>
