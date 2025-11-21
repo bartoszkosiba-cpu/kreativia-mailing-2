@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { buildPageList } from "@/utils/pagination";
 
 type SpecializationOption = {
   code: string;
@@ -65,23 +66,6 @@ export function PreviewTable(props: {
     [specializations]
   );
 
-  const buildPageList = (totalNum: number, current: number): Array<number | string> => {
-    const pages: Array<number | string> = [];
-    if (!Number.isFinite(totalNum) || totalNum <= 0) return [1];
-    if (totalNum <= 9) {
-      for (let i = 1; i <= totalNum; i++) pages.push(i);
-      return pages;
-    }
-    const add = (p: number | string) => pages.push(p);
-    add(1);
-    if (current > 4) add("…");
-    const start = Math.max(2, current - 2);
-    const end = Math.min(totalNum - 1, current + 2);
-    for (let i = start; i <= end; i++) add(i);
-    if (current < totalNum - 3) add("…");
-    add(totalNum);
-    return pages;
-  };
 
   const formatVerificationStatus = (status: string | null | undefined): { label: string; color: string; bg: string } => {
     switch (status) {

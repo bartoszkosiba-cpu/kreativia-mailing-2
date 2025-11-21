@@ -2,25 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-
-interface CompanyStats {
-  pending: number;
-  qualified: number;
-  rejected: number;
-  needsReview: number;
-  total: number;
-}
+import { useCompanyStats } from "@/hooks/useCompanyStats";
+import { CompanyPreview } from "@/types/company-selection";
 
 export default function CompanySelectionPage() {
-  const [stats, setStats] = useState<CompanyStats>({
-    pending: 0,
-    qualified: 0,
-    rejected: 0,
-    needsReview: 0,
-    total: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [statsError, setStatsError] = useState<string | null>(null);
+  const { stats, loading, error: statsError, refetch: refetchStats } = useCompanyStats();
   const [costs, setCosts] = useState<{
     module: {
       summary: {
@@ -38,49 +24,8 @@ export default function CompanySelectionPage() {
   const [costsPeriod, setCostsPeriod] = useState<"today" | "week" | "month" | "all">("today");
 
   useEffect(() => {
-    loadStats();
-    loadCosts();
-  }, []);
-
-  useEffect(() => {
     loadCosts();
   }, [costsPeriod]);
-
-  const loadStats = async () => {
-    try {
-      const [pendingRes, qualifiedRes, rejectedRes, needsReviewRes, totalRes] =
-        await Promise.all([
-          fetch("/api/company-selection/list?status=PENDING&limit=1"),
-          fetch("/api/company-selection/list?status=QUALIFIED&limit=1"),
-          fetch("/api/company-selection/list?status=REJECTED&limit=1"),
-          fetch("/api/company-selection/list?status=NEEDS_REVIEW&limit=1"),
-          fetch("/api/company-selection/list?limit=1"),
-        ]);
-
-      const [pending, qualified, rejected, needsReview, total] =
-        await Promise.all([
-          pendingRes.json(),
-          qualifiedRes.json(),
-          rejectedRes.json(),
-          needsReviewRes.json(),
-          totalRes.json(),
-        ]);
-
-      setStats({
-        pending: pending.pagination?.total || 0,
-        qualified: qualified.pagination?.total || 0,
-        rejected: rejected.pagination?.total || 0,
-        needsReview: needsReview.pagination?.total || 0,
-        total: total.pagination?.total || 0,
-      });
-      setStatsError(null);
-    } catch (error) {
-      console.error("Błąd ładowania statystyk:", error);
-      setStatsError("Nie udało się załadować statystyk. Spróbuj odświeżyć stronę.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadCosts = async () => {
     try {
@@ -110,9 +55,27 @@ export default function CompanySelectionPage() {
             color: "#B91C1C",
             borderRadius: "0.5rem",
             marginBottom: "1rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          {statsError}
+          <span>{statsError}</span>
+          <button
+            onClick={refetchStats}
+            style={{
+              marginLeft: "1rem",
+              padding: "0.5rem 1rem",
+              backgroundColor: "#EF4444",
+              color: "white",
+              border: "none",
+              borderRadius: "0.375rem",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+            }}
+          >
+            Spróbuj ponownie
+          </button>
         </div>
       )}
 
@@ -495,13 +458,6 @@ function StatCard({
       </div>
     </div>
   );
-}
-
-interface CompanyPreview {
-  id: number;
-  name: string;
-  industry: string | null;
-  verificationStatus: string;
 }
 
 function CompanyListPreview() {

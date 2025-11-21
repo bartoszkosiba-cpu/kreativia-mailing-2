@@ -4,9 +4,9 @@ import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PreviewTable } from "../components/PreviewTable";
+import { buildPageList } from "@/utils/pagination";
+import { MarketOption, LanguageOption, SelectionFilters } from "@/types/company-selection";
 
-type MarketOption = "PL" | "DE" | "FR" | "EN";
-type LanguageOption = "PL" | "EN" | "DE" | "FR";
 
 type SegmentSummary = {
   class: string | null;
@@ -288,24 +288,6 @@ export default function CompanySelectionsPage() {
     setSelectedSubSegments((prev) => prev.filter((c) => !codesToRemove.has(c)));
   };
 
-  // Buduje listę stron z elipsami (np. 1 … 5 6 7 … 20)
-  const buildPageList = (total: number, current: number): Array<number | string> => {
-    const pages: Array<number | string> = [];
-    if (!Number.isFinite(total) || total <= 0) return [1];
-    if (total <= 9) {
-      for (let i = 1; i <= total; i++) pages.push(i);
-      return pages;
-    }
-    const add = (p: number | string) => pages.push(p);
-    add(1);
-    if (current > 4) add("…");
-    const start = Math.max(2, current - 2);
-    const end = Math.min(total - 1, current + 2);
-    for (let i = start; i <= end; i++) add(i);
-    if (current < total - 3) add("…");
-    add(total);
-    return pages;
-  };
 
   useEffect(() => {
     async function loadInitialData() {
