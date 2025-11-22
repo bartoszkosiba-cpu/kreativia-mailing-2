@@ -347,7 +347,7 @@ export default function CompanySelectionsPage() {
   }, []);
 
   useEffect(() => {
-    loadSelectionsList();
+    void loadSelectionsList();
   }, []);
 
   const loadSelectionsList = async () => {
@@ -1322,29 +1322,18 @@ export default function CompanySelectionsPage() {
             </div>
           </div>
         )}
-
         </div>
-        </>
-      ) : null}
-        
-              <SavedSelectionsList
-                selections={selections}
-                specializations={specializations}
-                loading={selectionsLoading}
-                onRefresh={loadSelectionsList}
-              />
-            </div>
-          </>
-        ) : (
-      <div style={{ display: "grid", gap: "1.5rem" }}>
-            <SavedSelectionsList
-              selections={selections}
-              specializations={specializations}
-              loading={selectionsLoading}
-              onRefresh={loadSelectionsList}
-            />
-          </div>
-        )}
+      </>
+      ) : (
+        <div style={{ display: "grid", gap: "1.5rem" }}>
+          <SavedSelectionsList
+            selections={selections}
+            specializations={specializations}
+            loading={selectionsLoading}
+            onRefresh={loadSelectionsList}
+          />
+        </div>
+      )}
     </div>
   );
 }
