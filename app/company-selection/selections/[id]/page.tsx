@@ -520,21 +520,6 @@ export default function SelectionDetailsPage() {
             <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
             <button
               type="button"
-              onClick={() => router.push(`/company-selection/criteria?id=${selection.id}`)}
-              style={{
-                padding: "0.65rem 1rem",
-                borderRadius: "0.75rem",
-                border: "1px solid #2563EB",
-                color: "#2563EB",
-                backgroundColor: "white",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Przejdź do kryteriów AI
-            </button>
-              <button
-                type="button"
                 onClick={handleDelete}
                 style={{
                   padding: "0.65rem 1rem",

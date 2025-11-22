@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CSSProperties } from "react";
 
 const cardStyle: CSSProperties = {
@@ -72,6 +72,8 @@ export function SavedSelectionsList({
   loading,
   onRefresh,
 }: SavedSelectionsListProps) {
+  const router = useRouter();
+  
   return (
     <section style={cardStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -131,19 +133,32 @@ export function SavedSelectionsList({
               <th style={{ padding: "0.65rem", textAlign: "left" }}>Firmy</th>
               <th style={{ padding: "0.65rem", textAlign: "left" }}>Kryteria</th>
               <th style={{ padding: "0.65rem", textAlign: "left" }}>Utworzono</th>
-              <th style={{ padding: "0.65rem", textAlign: "left" }}>Akcje</th>
             </tr>
           </thead>
           <tbody>
             {selections.length === 0 && !loading && (
               <tr>
-                <td colSpan={6} style={{ padding: "1rem", textAlign: "center", color: "#6B7280" }}>
+                <td colSpan={5} style={{ padding: "1rem", textAlign: "center", color: "#6B7280" }}>
                   Brak zapisanych selekcji. Utwórz pierwszą bazę firm.
                 </td>
               </tr>
             )}
             {selections.map((selection) => (
-              <tr key={selection.id} style={{ borderTop: "1px solid #E5E7EB" }}>
+              <tr 
+                key={selection.id} 
+                onClick={() => router.push(`/company-selection/selections/${selection.id}`)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#F3F4F6";
+                  e.currentTarget.style.cursor = "pointer";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+                style={{ 
+                  borderTop: "1px solid #E5E7EB",
+                  transition: "background-color 0.15s ease",
+                }}
+              >
                 <td style={{ padding: "0.75rem" }}>
                   <div style={{ fontWeight: 600 }}>{selection.name}</div>
                   {selection.description && (
@@ -201,19 +216,6 @@ export function SavedSelectionsList({
                 </td>
                 <td style={{ padding: "0.75rem" }}>
                   {new Date(selection.createdAt).toLocaleString("pl-PL")}
-                </td>
-                <td style={{ padding: "0.75rem" }}>
-                  <Link
-                    href={`/company-selection/selections/${selection.id}`}
-                    style={{
-                      color: "#2563EB",
-                      textDecoration: "underline",
-                      fontWeight: 500,
-                    }}
-                    aria-label={`Zobacz szczegóły selekcji ${selection.name}`}
-                  >
-                    Szczegóły
-                  </Link>
                 </td>
               </tr>
             ))}

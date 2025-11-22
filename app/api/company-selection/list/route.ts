@@ -352,7 +352,7 @@ export async function GET(req: NextRequest) {
             classificationSignals: true,
           },
         }),
-        // Pobierz statusy z CompanySelectionCompany dla firm z selekcji (jeśli selectionId jest podane)
+        // Pobierz statusy i powody z CompanySelectionCompany dla firm z selekcji (jeśli selectionId jest podane)
         selectionId != null
           ? db.companySelectionCompany.findMany({
               where: {
@@ -361,6 +361,7 @@ export async function GET(req: NextRequest) {
               select: {
                 companyId: true,
                 status: true,
+                reason: true,
               },
             })
           : Promise.resolve([]),
@@ -419,11 +420,13 @@ export async function GET(req: NextRequest) {
       console.log("[Company List] DEBUG - Wszystkie specjalizacje w odpowiedzi:", specializationAggregation.length);
     }
 
-    // Utwórz mapę statusów z CompanySelectionCompany (jeśli selectionId jest podane)
+    // Utwórz mapy statusów i powodów z CompanySelectionCompany (jeśli selectionId jest podane)
     const membershipStatusMap = new Map<number, string>();
+    const membershipReasonMap = new Map<number, string | null>();
     if (selectionId != null && Array.isArray(membershipsMap)) {
       for (const membership of membershipsMap) {
         membershipStatusMap.set(membership.companyId, membership.status);
+        membershipReasonMap.set(membership.companyId, membership.reason);
       }
     }
 
@@ -470,9 +473,13 @@ export async function GET(req: NextRequest) {
       companies: filteredCompanies.map((company) => {
         // Jeśli mamy status z selekcji, użyj go zamiast verificationStatus z Company
         const selectionStatus = membershipStatusMap.get(company.id);
+        // Jeśli mamy powód z selekcji, użyj go zamiast verificationReason z Company
+        const selectionReason = membershipReasonMap.get(company.id);
         return {
           ...company,
           verificationStatus: selectionStatus || company.verificationStatus,
+          // Użyj powodu z selekcji, jeśli istnieje (może być null - to OK, oznacza brak weryfikacji w tej selekcji)
+          verificationReason: selectionReason !== undefined ? selectionReason : company.verificationReason,
           classificationSignals: company.classificationSignals
             ? JSON.parse(company.classificationSignals)
             : [],

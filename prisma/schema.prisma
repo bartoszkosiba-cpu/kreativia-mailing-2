@@ -664,6 +664,26 @@ model AITokenUsage {
   createdAt DateTime @default(now())
 }
 
+// Apollo credits usage tracking
+model ApolloCreditsUsage {
+  id Int @id @default(autoincrement())
+
+  // Kontekst wywołania
+  operation String // np. "apollo_search", "apollo_enrich", "apollo_bulk_match"
+  endpoint  String // np. "/people/search", "/organizations/enrich"
+
+  // Kredyty
+  creditsUsed Int // Liczba użytych kredytów Apollo
+
+  // Estymowany koszt (w USD)
+  estimatedCost Float @default(0.0)
+
+  // Dodatkowe info
+  metadata String? // JSON z dodatkowymi danymi (np. responseHeaders, options)
+
+  createdAt DateTime @default(now())
+}
+
 // ============================================================================
 // WARMUP EMAILS - Maile wysyłane w ramach rozgrzewania skrzynek
 // ============================================================================
@@ -1218,10 +1238,31 @@ model CompanyVerificationCriteria {
 
   personaCriteria CompanyPersonaCriteria?
   selection       CompanySelection?       @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  brief           CompanyVerificationBrief?
 
   @@index([isActive])
   @@index([isDefault])
   @@index([selectionId])
+}
+
+// Brief strategiczny dla kryteriów weryfikacji firm
+model CompanyVerificationBrief {
+  id                 Int      @id @default(autoincrement())
+  criteriaId         Int      @unique // Powiązanie z CompanyVerificationCriteria
+  summary            String   @default("") // Podsumowanie - jakie firmy szukamy
+  decisionGuidelines String?  // JSON array - wskazówki decyzyjne dla AI
+  targetCompanies    String?  // JSON array - przykłady firm kwalifikowanych
+  avoidCompanies     String?  // JSON array - przykłady firm odrzucanych
+  additionalNotes    String?  // Dodatkowe notatki
+  aiRole             String?  // Rola/perspektywa AI (np. "ekspert od weryfikacji firm B2B")
+  qualifiedThreshold Float    @default(0.8) // Próg kwalifikacji (może być różny od criteria.qualifiedThreshold)
+  generatedPrompt    String?  // Wygenerowany prompt (cache)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  criteria CompanyVerificationCriteria @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+
+  @@index([criteriaId])
 }
 
 model CompanyPersonaCriteria {
@@ -1388,20 +1429,4 @@ model IndustryMappingSuggestion {
 
   @@index([industry])
   @@index([status])
-}
-
-// Śledzenie użycia kredytów Apollo
-model ApolloCreditsUsage {
-  id            Int      @id @default(autoincrement())
-  operation     String // np. "enrich_person", "search_people"
-  endpoint      String // np. "/v1/people/search", "/v1/mixed_people/search"
-  creditsUsed   Int
-  estimatedCost Float    @default(0.0) // Koszt w USD
-  metadata      String? // JSON z dodatkowymi danymi (np. personId, organizationId)
-  responseHeaders String? // JSON z nagłówkami odpowiedzi Apollo
-  createdAt     DateTime @default(now())
-
-  @@index([createdAt])
-  @@index([operation])
-  @@index([endpoint])
 }

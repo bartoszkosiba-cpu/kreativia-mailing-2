@@ -131,6 +131,7 @@ export default function CompanyVerifyPage() {
     qualifiedThreshold?: number;
     rejectedThreshold?: number;
   } | null>(null);
+  const [verificationModel, setVerificationModel] = useState<string>("gpt-4o");
   const [isCriteriaLocked, setIsCriteriaLocked] = useState(false);
   const [stats, setStats] = useState<CompanyStats>({
     pending: 0,
@@ -295,6 +296,12 @@ export default function CompanyVerifyPage() {
   // Załaduj szczegóły kryteriów gdy zmienia się selectedCriteriaId
   useEffect(() => {
     if (selectedCriteriaId) {
+      // Pobierz model z localStorage (domyślnie gpt-4o)
+      const savedModel = typeof window !== "undefined" 
+        ? localStorage.getItem(`criteria-verification-model-${selectedCriteriaId}`) || "gpt-4o"
+        : "gpt-4o";
+      setVerificationModel(savedModel === "gpt-4o" ? "gpt-4o" : "gpt-4o-mini");
+      
       fetch(`/api/company-selection/criteria?id=${selectedCriteriaId}`)
         .then(res => res.json())
         .then(data => {
@@ -314,6 +321,7 @@ export default function CompanyVerifyPage() {
         });
     } else {
       setCriteriaDetails(null);
+      setVerificationModel("gpt-4o");
     }
   }, [selectedCriteriaId]);
 
@@ -934,6 +942,72 @@ export default function CompanyVerifyPage() {
     }
   };
 
+  const handleChangeStatusInList = async (companyId: number, newStatus: string) => {
+    if (!selectedCriteriaId || !selectionId) {
+      alert("Wybierz kryteria weryfikacji przed zmianą statusu");
+      return;
+    }
+
+    setChangingStatus(true);
+    try {
+      const response = await fetch("/api/company-selection/update-status", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          companyId,
+          status: newStatus,
+          selectionId: selectionId,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Aktualizuj lokalny stan firmy w tabeli
+        const oldStatus = companies.find(c => c.id === companyId)?.verificationStatus || "PENDING";
+        let shouldRemoveFromView = false;
+        
+        setCompanies((prevCompanies) => {
+          const updated = prevCompanies.map((c) =>
+            c.id === companyId
+              ? {
+                  ...c,
+                  verificationStatus: newStatus,
+                }
+              : c
+          );
+          
+          // Jeśli status się zmienił i firma nie pasuje do aktualnego filtra, usuń ją z listy
+          if (oldStatus !== newStatus && selectedStatus !== "ALL" && selectedStatus !== newStatus) {
+            shouldRemoveFromView = true;
+            return updated.filter((c) => c.id !== companyId);
+          }
+          
+          return updated;
+        });
+        
+        // Jeśli modal jest otwarty dla tej firmy, zaktualizuj również modal
+        if (detailCompany && detailCompany.id === companyId) {
+          setDetailCompany({
+            ...detailCompany,
+            verificationStatus: newStatus,
+          });
+        }
+        
+        // Odśwież statystyki
+        await loadStats();
+      } else {
+        alert("Błąd: " + (data.error || "Nie udało się zmienić statusu"));
+      }
+    } catch (error) {
+      console.error("Błąd zmiany statusu:", error);
+      alert("Błąd połączenia z serwerem");
+    } finally {
+      setChangingStatus(false);
+    }
+  };
+
   const handleChangeStatusInModal = async (newStatus: string) => {
     if (!detailCompany) return;
 
@@ -1276,6 +1350,9 @@ export default function CompanyVerifyPage() {
                       <div style={{ fontSize: "0.8125rem", color: "#6B7280", marginTop: "0.5rem" }}>
                         <div>Próg kwalifikacji: ≥ {criteriaDetails.qualifiedThreshold}</div>
                         <div>Próg odrzucenia: ≤ {criteriaDetails.rejectedThreshold}</div>
+                        <div style={{ marginTop: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid #E5E7EB" }}>
+                          Model AI: <strong>{verificationModel === "gpt-4o" ? "GPT-4o" : "GPT-4o Mini"}</strong>
+                        </div>
                       </div>
                     </div>
                   </details>
@@ -1562,9 +1639,12 @@ export default function CompanyVerifyPage() {
                         </div>
                       )}
                     </td>
-                    <td style={cellStyle}>
+                    <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        <span
+                        <select
+                          value={company.verificationStatus}
+                          onChange={(e) => handleChangeStatusInList(company.id, e.target.value)}
+                          disabled={changingStatus}
                           style={{
                             padding: "0.25rem 0.5rem",
                             borderRadius: "0.35rem",
@@ -1572,12 +1652,27 @@ export default function CompanyVerifyPage() {
                             color: "white",
                             fontSize: "0.75rem",
                             fontWeight: 600,
-                            display: "inline-block",
+                            border: "none",
+                            cursor: changingStatus ? "not-allowed" : "pointer",
                             width: "fit-content",
+                            minWidth: "140px",
+                            appearance: "none",
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "right 0.5rem center",
+                            paddingRight: "2rem",
                           }}
                         >
-                          {getStatusLabel(company.verificationStatus)}
-                        </span>
+                          <option value="QUALIFIED" style={{ backgroundColor: "#10B981", color: "white" }}>
+                            Zakwalifikowane
+                          </option>
+                          <option value="REJECTED" style={{ backgroundColor: "#EF4444", color: "white" }}>
+                            Odrzucone
+                          </option>
+                          <option value="NEEDS_REVIEW" style={{ backgroundColor: "#F59E0B", color: "white" }}>
+                            Do przeglądu
+                          </option>
+                        </select>
                         <div style={{ fontSize: "0.75rem", color: "#6B7280" }}>
                           ID: {company.id}
                         </div>
@@ -1836,12 +1931,12 @@ export default function CompanyVerifyPage() {
                   onClick={() => detailCompany && handleBlockCompany(detailCompany.id, detailCompany.name, detailCompany.website)}
                   disabled={!detailCompany?.website}
                   style={{
-                    padding: "0.5rem 1rem",
-                    borderRadius: "0.5rem",
+                    padding: "0.375rem 0.75rem",
+                    borderRadius: "0.375rem",
                     border: "none",
                     backgroundColor: !detailCompany?.website ? "#9CA3AF" : "#EF4444",
                     color: "white",
-                    fontSize: "0.875rem",
+                    fontSize: "0.8125rem",
                     fontWeight: 600,
                     cursor: !detailCompany?.website ? "not-allowed" : "pointer",
                     whiteSpace: "nowrap",
@@ -1849,6 +1944,23 @@ export default function CompanyVerifyPage() {
                   title={!detailCompany?.website ? "Firma musi mieć adres www, aby można było ją zablokować" : ""}
                 >
                   Blokuj firmę
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailCompany(null)}
+                  style={{
+                    padding: "0.375rem 0.75rem",
+                    borderRadius: "0.375rem",
+                    border: "1px solid #D1D5DB",
+                    backgroundColor: "white",
+                    color: "#374151",
+                    fontSize: "0.8125rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Zamknij
                 </button>
               </div>
             </section>

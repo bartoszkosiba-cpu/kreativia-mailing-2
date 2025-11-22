@@ -66,6 +66,9 @@ export async function verifyCompanyWithAI(
     activityDescription?: string | null;
     industry?: string | null;
     website?: string | null;
+    employeeCount?: string | null;
+    companySize?: string | null;
+    locationCount?: number | null;
   },
   criteria?: VerificationCriteria | null
 ): Promise<VerificationResult> {
@@ -107,6 +110,17 @@ export async function verifyCompanyWithAI(
     apiKey: process.env.OPENAI_API_KEY,
   });
 
+  // Przygotuj informacje o liczbie pracowników i lokalizacji
+  const employeeInfo = companyData.employeeCount 
+    ? `Liczba pracowników: ${companyData.employeeCount}`
+    : companyData.companySize
+    ? `Wielkość firmy: ${companyData.companySize}`
+    : "Liczba pracowników: Brak danych";
+  
+  const locationInfo = companyData.locationCount !== null && companyData.locationCount !== undefined
+    ? `Liczba lokalizacji: ${companyData.locationCount}`
+    : "Liczba lokalizacji: Brak danych";
+
   const prompt = `Jesteś ekspertem od weryfikacji firm pod kątem przydatności do prospectingu.
 
 ${criteria.criteriaText}
@@ -114,7 +128,14 @@ ${criteria.criteriaText}
 DANE FIRMY:
 Nazwa: ${companyData.name}
 Branża: ${companyData.industry || "Nie podano"}
+${employeeInfo}
+${locationInfo}
 Opis: ${contentToAnalyze}
+
+WAŻNE - INTERPRETACJA BRAKU DANYCH:
+- Jeśli liczba pracowników to "Brak danych" (0 lub null w bazie), to NIE oznacza że firma nie ma pracowników - oznacza tylko brak informacji w bazie
+- W takim przypadku firma powinna być traktowana jako POZYTYWNA w kontekście liczby pracowników (brak danych nie może dyskwalifikować)
+- Podobnie z liczbą lokalizacji - brak danych nie oznacza że firma nie ma lokalizacji
 
 WAŻNE INSTRUKCJE DLA POLA "reason":
 - Dla firm QUALIFIED (zakwalifikowanych): Napisz krótko dlaczego firma pasuje (np. "Buduje stoiska targowe i struktury wystawiennicze")
@@ -343,6 +364,9 @@ export async function verifyAndSaveCompany(
       activityDescription: company.activityDescription ?? company.activityDescriptionPl,
       industry: company.industry,
       website: company.website,
+      employeeCount: company.employeeCount,
+      companySize: company.companySize,
+      locationCount: company.locationCount,
     },
     criteria
   );

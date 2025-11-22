@@ -92,7 +92,7 @@ export async function trackApolloCredits(params: {
       responseHeaders: params.responseHeaders,
     };
 
-    await (db as any).apolloCreditsUsage.create({
+    await db.apolloCreditsUsage.create({
       data: {
         operation: params.operation,
         endpoint: params.endpoint,
@@ -135,7 +135,7 @@ export async function getApolloCreditsStats(period: "today" | "month" = "today")
       endDate = new Date();
   }
 
-  const usage = await (db as any).apolloCreditsUsage.findMany({
+  const usage = await db.apolloCreditsUsage.findMany({
     where: {
       createdAt: {
         gte: startDate,
@@ -172,7 +172,7 @@ export async function getMonthlyApolloCreditsStats() {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const usage = await (db as any).apolloCreditsUsage.findMany({
+  const usage = await db.apolloCreditsUsage.findMany({
     where: {
       createdAt: {
         gte: startOfMonth,
@@ -203,7 +203,7 @@ export async function getDailyApolloCreditsStats() {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const usage = await (db as any).apolloCreditsUsage.findMany({
+  const usage = await db.apolloCreditsUsage.findMany({
     where: {
       createdAt: {
         gte: startOfDay,

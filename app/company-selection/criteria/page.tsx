@@ -106,11 +106,11 @@ export default function CriteriaListPage() {
       // Sprawdź czy domyślna nazwa już istnieje
       const checkResponse = await fetch("/api/company-selection/criteria");
       const checkData = await checkResponse.json();
-      let newName = "Nowe kryteria weryfikacji";
+      let newName = "Kryteria weryfikacji firm";
       if (checkData.success && Array.isArray(checkData.criteria)) {
         let counter = 1;
         while (checkData.criteria.some((c: { name: string }) => c.name === newName)) {
-          newName = `Nowe kryteria weryfikacji ${counter}`;
+          newName = `Kryteria weryfikacji firm ${counter}`;
           counter++;
         }
       }
@@ -228,15 +228,12 @@ export default function CriteriaListPage() {
               <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.875rem", fontWeight: 600, color: "#374151", borderBottom: "1px solid #E5E7EB" }}>
                 Zaktualizowano
               </th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "right", fontSize: "0.875rem", fontWeight: 600, color: "#374151", borderBottom: "1px solid #E5E7EB" }}>
-                Akcje
-              </th>
             </tr>
           </thead>
           <tbody>
             {criteriaList.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: "2rem", textAlign: "center", color: "#6B7280" }}>
+                <td colSpan={4} style={{ padding: "2rem", textAlign: "center", color: "#6B7280" }}>
                   Brak kryteriów. Utwórz nowe kryteria, aby rozpocząć.
                 </td>
               </tr>
@@ -244,22 +241,29 @@ export default function CriteriaListPage() {
               criteriaList.map((criteria, index) => (
                 <tr
                   key={criteria.id}
+                  onClick={() => router.push(`/company-selection/criteria/${criteria.id}`)}
                   style={{
                     backgroundColor: index % 2 === 0 ? "white" : "#F9FAFB",
                     borderBottom: "1px solid #E5E7EB",
+                    cursor: "pointer",
+                    transition: "background-color 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#F3F4F6";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = index % 2 === 0 ? "white" : "#F9FAFB";
                   }}
                 >
                   <td style={{ padding: "0.75rem 1rem", borderBottom: "1px solid #E5E7EB" }}>
-                    <Link
-                      href={`/company-selection/criteria/${criteria.id}`}
+                    <span
                       style={{
                         color: "#2563EB",
-                        textDecoration: "none",
                         fontWeight: 600,
                       }}
                     >
                       {criteria.name}
-                    </Link>
+                    </span>
                   </td>
                   <td style={{ padding: "0.75rem 1rem", borderBottom: "1px solid #E5E7EB", color: "#4B5563" }}>
                     {criteria.description || "—"}
@@ -292,23 +296,6 @@ export default function CriteriaListPage() {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
-                  </td>
-                  <td style={{ padding: "0.75rem 1rem", borderBottom: "1px solid #E5E7EB", textAlign: "right" }}>
-                    <Link
-                      href={`/company-selection/criteria/${criteria.id}`}
-                        style={{
-                        padding: "0.5rem 1rem",
-                        backgroundColor: "#2563EB",
-                          color: "white",
-                        borderRadius: "0.5rem",
-                        textDecoration: "none",
-                          fontSize: "0.875rem",
-                        fontWeight: 500,
-                        display: "inline-block",
-                      }}
-                    >
-                      Otwórz
-                    </Link>
                   </td>
                 </tr>
               ))
