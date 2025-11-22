@@ -1346,7 +1346,6 @@ export default function CompanySelectionsPage() {
           </div>
         )}
                         </div>
-    </CompanySelectionErrorBoundary>
   );
 }
 
