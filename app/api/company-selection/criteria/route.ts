@@ -90,6 +90,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Sprawdź czy nazwa już istnieje
+    const existingCriteria = await db.companyVerificationCriteria.findFirst({
+      where: { name: name.trim() },
+    });
+
+    if (existingCriteria) {
+      return NextResponse.json(
+        { success: false, error: `Kryteria o nazwie "${name.trim()}" już istnieją. Wybierz inną nazwę.` },
+        { status: 400 }
+      );
+    }
+
     // Sprawdź czy użytkownik chce ustawić jako domyślne
     const setAsDefault = Boolean(data.isDefault);
 
@@ -148,6 +160,23 @@ export async function PUT(req: NextRequest) {
         { error: "ID konfiguracji jest wymagane" },
         { status: 400 }
       );
+    }
+
+    // Jeśli zmieniamy nazwę, sprawdź czy nowa nazwa już istnieje (ale nie dla tego samego rekordu)
+    if (name) {
+      const existingCriteria = await db.companyVerificationCriteria.findFirst({
+        where: { 
+          name: name.trim(),
+          id: { not: id },
+        },
+      });
+
+      if (existingCriteria) {
+        return NextResponse.json(
+          { success: false, error: `Kryteria o nazwie "${name.trim()}" już istnieją. Wybierz inną nazwę.` },
+          { status: 400 }
+        );
+      }
     }
 
     // Jeśli ustawiamy jako domyślne, usuń flagę isDefault z innych

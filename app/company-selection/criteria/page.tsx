@@ -103,12 +103,24 @@ export default function CriteriaListPage() {
   const handleCreateNew = async () => {
     setCreating(true);
     try {
+      // Sprawdź czy domyślna nazwa już istnieje
+      const checkResponse = await fetch("/api/company-selection/criteria");
+      const checkData = await checkResponse.json();
+      let newName = "Nowe kryteria weryfikacji";
+      if (checkData.success && Array.isArray(checkData.criteria)) {
+        let counter = 1;
+        while (checkData.criteria.some((c: { name: string }) => c.name === newName)) {
+          newName = `Nowe kryteria weryfikacji ${counter}`;
+          counter++;
+        }
+      }
+
       // Utwórz nowe puste kryterium
       const response = await fetch("/api/company-selection/criteria", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: "Nowe kryteria weryfikacji",
+          name: newName,
           description: "",
           criteriaText: "Wpisz kryteria weryfikacji firm...",
           qualifiedThreshold: 0.8,
@@ -261,7 +273,10 @@ export default function CriteriaListPage() {
                           backgroundColor: "#E5E7EB",
                           color: "#374151",
                           fontSize: "0.75rem",
+                          whiteSpace: "nowrap",
+                          display: "inline-block",
                         }}
+                        title={criteria.selection.name}
                       >
                         {criteria.selection.name}
                       </span>

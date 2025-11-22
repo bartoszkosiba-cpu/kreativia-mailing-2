@@ -126,6 +126,12 @@ export default function CompanyVerifyPage() {
   const [criteriaLoading, setCriteriaLoading] = useState(false);
   const [savingCriteria, setSavingCriteria] = useState(false);
   const [selectionName, setSelectionName] = useState<string>("");
+  const [criteriaDetails, setCriteriaDetails] = useState<{
+    criteriaText?: string;
+    qualifiedThreshold?: number;
+    rejectedThreshold?: number;
+  } | null>(null);
+  const [isCriteriaLocked, setIsCriteriaLocked] = useState(false);
   const [stats, setStats] = useState<CompanyStats>({
     pending: 0,
     qualified: 0,
@@ -286,6 +292,31 @@ export default function CompanyVerifyPage() {
     }
   }, [selectionId]);
 
+  // Załaduj szczegóły kryteriów gdy zmienia się selectedCriteriaId
+  useEffect(() => {
+    if (selectedCriteriaId) {
+      fetch(`/api/company-selection/criteria?id=${selectedCriteriaId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.criteria) {
+            setCriteriaDetails({
+              criteriaText: data.criteria.criteriaText,
+              qualifiedThreshold: data.criteria.qualifiedThreshold,
+              rejectedThreshold: data.criteria.rejectedThreshold,
+            });
+          } else {
+            setCriteriaDetails(null);
+          }
+        })
+        .catch(err => {
+          console.error("Błąd pobierania szczegółów kryteriów:", err);
+          setCriteriaDetails(null);
+        });
+    } else {
+      setCriteriaDetails(null);
+    }
+  }, [selectedCriteriaId]);
+
   useEffect(() => {
     setPage(1);
   }, [selectedStatus, searchQuery]);
@@ -392,18 +423,23 @@ export default function CompanyVerifyPage() {
   const loadSelectionCriteria = async () => {
     if (!selectionId) {
       setSelectedCriteriaId("");
+      setIsCriteriaLocked(false);
       return;
     }
 
     try {
+      // Najpierw sprawdź, czy selekcja ma przypisane kryteria
       const response = await fetch(`/api/company-selection/criteria?selectionId=${selectionId}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
+      
       if (data.success && Array.isArray(data.criteria) && data.criteria.length > 0) {
+        // Selekcja ma przypisane kryteria - użyj ich
         setSelectedCriteriaId(String(data.criteria[0].id));
-      } else {
+        
+        // Sprawdź, czy są już zweryfikowane firmy - jeśli tak, zablokuj zmianę kryteriów
         const baseUrl = `/api/company-selection/list?selectionId=${selectionId}&limit=1`;
         const [qualifiedRes, rejectedRes, needsReviewRes] = await Promise.all([
           fetch(`${baseUrl}&status=QUALIFIED`),
@@ -422,37 +458,28 @@ export default function CompanyVerifyPage() {
           (rejectedData.pagination?.total || 0) > 0 ||
           (needsReviewData.pagination?.total || 0) > 0;
         
-        if (hasVerifiedCompanies) {
-          const allCriteriaResponse = await fetch("/api/company-selection/criteria");
-          if (allCriteriaResponse.ok) {
-            const allCriteriaData = await allCriteriaResponse.json();
-            if (allCriteriaData.success && Array.isArray(allCriteriaData.criteria) && allCriteriaData.criteria.length > 0) {
-              const sortedCriteria = [...allCriteriaData.criteria].sort((a, b) => {
-                const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-                const dateB = new Date(b.updatedAt || b.createdAt).getTime();
-                return dateB - dateA;
-              });
-              
-              setSelectedCriteriaId(String(sortedCriteria[0].id));
-            } else {
-              setSelectedCriteriaId("");
-            }
-          } else {
-            setSelectedCriteriaId("");
-          }
-        } else {
-          setSelectedCriteriaId("");
-        }
+        setIsCriteriaLocked(hasVerifiedCompanies);
+      } else {
+        // Selekcja nie ma przypisanych kryteriów
+        setSelectedCriteriaId("");
+        setIsCriteriaLocked(false);
       }
     } catch (error) {
       console.error("Błąd ładowania kryteriów selekcji:", error);
       setSelectedCriteriaId("");
+      setIsCriteriaLocked(false);
     }
   };
 
   const handleCriteriaChange = async (criteriaId: string) => {
     if (!selectionId) {
       setSelectedCriteriaId(criteriaId);
+      return;
+    }
+
+    // Sprawdź, czy kryteria są zablokowane (selekcja ma już zweryfikowane firmy)
+    if (isCriteriaLocked) {
+      alert("Nie można zmienić kryteriów weryfikacji, ponieważ selekcja zawiera już zweryfikowane firmy. Aby zmienić kryteria, najpierw usuń wszystkie weryfikacje z tej selekcji.");
       return;
     }
 
@@ -1176,15 +1203,15 @@ export default function CompanyVerifyPage() {
           <select
             value={selectedCriteriaId}
             onChange={(event) => handleCriteriaChange(event.target.value)}
-            disabled={criteriaLoading || savingCriteria}
+            disabled={criteriaLoading || savingCriteria || isCriteriaLocked}
             style={{
               width: "100%",
               padding: "0.65rem",
               borderRadius: "0.5rem",
               border: "1px solid #D1D5DB",
               fontSize: "0.95rem",
-              backgroundColor: criteriaLoading || savingCriteria ? "#F3F4F6" : "white",
-              cursor: criteriaLoading || savingCriteria ? "not-allowed" : "pointer",
+              backgroundColor: criteriaLoading || savingCriteria || isCriteriaLocked ? "#F3F4F6" : "white",
+              cursor: criteriaLoading || savingCriteria || isCriteriaLocked ? "not-allowed" : "pointer",
             }}
           >
             <option value="">-- Wybierz kryteria --</option>
@@ -1203,11 +1230,60 @@ export default function CompanyVerifyPage() {
               Zapisuję wybór...
             </div>
           )}
+          {isCriteriaLocked && (
+            <div style={{ fontSize: "0.875rem", color: "#B91C1C", marginTop: "0.5rem", fontWeight: 500 }}>
+              ⚠️ Wybór kryteriów jest zablokowany, ponieważ selekcja zawiera już zweryfikowane firmy. Aby zmienić kryteria, najpierw usuń wszystkie weryfikacje z tej selekcji.
+            </div>
+          )}
         </div>
       </div>
 
       {selectedCriteriaId && (
         <>
+          {/* Wyświetl informacje o kryteriach weryfikacji */}
+          {(() => {
+            const currentCriteria = criteriaList.find(c => String(c.id) === selectedCriteriaId);
+            if (!currentCriteria) return null;
+            
+            return (
+              <div
+                style={{
+                  backgroundColor: "#F0F9FF",
+                  borderRadius: "0.75rem",
+                  border: "1px solid #BAE6FD",
+                  padding: "1.25rem",
+                  marginBottom: "1.5rem",
+                  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "0.75rem", color: "#0C4A6E", fontSize: "1rem" }}>
+                  Używane kryteria weryfikacji: {currentCriteria.name}
+                </div>
+                {currentCriteria.description && (
+                  <div style={{ marginBottom: "0.75rem", color: "#075985", fontSize: "0.875rem" }}>
+                    {currentCriteria.description}
+                  </div>
+                )}
+                {criteriaDetails && (
+                  <details style={{ marginTop: "0.75rem" }}>
+                    <summary style={{ cursor: "pointer", color: "#0369A1", fontWeight: 500, fontSize: "0.875rem" }}>
+                      Pokaż szczegóły kryteriów
+                    </summary>
+                    <div style={{ marginTop: "0.75rem", padding: "0.75rem", backgroundColor: "white", borderRadius: "0.5rem", border: "1px solid #BAE6FD" }}>
+                      <div style={{ marginBottom: "0.5rem", fontSize: "0.875rem", color: "#1F2937", whiteSpace: "pre-wrap" }}>
+                        {criteriaDetails.criteriaText}
+                      </div>
+                      <div style={{ fontSize: "0.8125rem", color: "#6B7280", marginTop: "0.5rem" }}>
+                        <div>Próg kwalifikacji: ≥ {criteriaDetails.qualifiedThreshold}</div>
+                        <div>Próg odrzucenia: ≤ {criteriaDetails.rejectedThreshold}</div>
+                      </div>
+                    </div>
+                  </details>
+                )}
+              </div>
+            );
+          })()}
+          
           <StatsOverview
             stats={stats}
             selectedStatus={selectedStatus}
