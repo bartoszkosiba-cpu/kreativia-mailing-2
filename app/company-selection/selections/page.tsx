@@ -6,6 +6,11 @@ import { useSearchParams } from "next/navigation";
 import { PreviewTable } from "../components/PreviewTable";
 import { buildPageList } from "@/utils/pagination";
 import { MarketOption, LanguageOption, SelectionFilters } from "@/types/company-selection";
+import { CompanySelectionErrorBoundary } from "../components/ErrorBoundary";
+import { SelectionInfoBox } from "./components/SelectionInfoBox";
+import { SelectionDataForm } from "./components/SelectionDataForm";
+import { SelectionSaveSection } from "./components/SelectionSaveSection";
+import { SavedSelectionsList } from "./components/SavedSelectionsList";
 
 
 type SegmentSummary = {
@@ -237,7 +242,6 @@ export default function CompanySelectionsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [selectionSaved, setSelectionSaved] = useState(false);
-  const [infoExpanded, setInfoExpanded] = useState(false);
 
   // Grupowanie specjalizacji: PS / WK / WKK (z podgrupą Retail dla WKK)
   type GroupKey = "PS" | "WK" | "WKK_RETAIL" | "WKK_OTHER";
@@ -744,6 +748,7 @@ export default function CompanySelectionsPage() {
   };
 
   return (
+    <CompanySelectionErrorBoundary>
     <div style={{ padding: "2rem", maxWidth: "1280px", margin: "0 auto" }}>
       <Link
         href="/company-selection/processes/selections"
@@ -756,6 +761,7 @@ export default function CompanySelectionsPage() {
           marginBottom: "1.5rem",
           fontWeight: 500,
         }}
+          aria-label="Powrót do procesu selekcji"
       >
         ← Powrót do procesu selekcji
       </Link>
@@ -766,177 +772,32 @@ export default function CompanySelectionsPage() {
 
       {isCreateMode ? (
         <>
-            <div
-              style={{
-          padding: "1rem",
-          backgroundColor: "#F0FDF4",
-          borderRadius: "0.75rem",
-          border: "1px solid #BBF7D0",
-          marginBottom: "2rem",
-          maxWidth: "900px",
-        }}
-      >
-        <button
-          onClick={() => setInfoExpanded(!infoExpanded)}
-          style={{
-            width: "100%",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            backgroundColor: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: "0",
-            textAlign: "left",
-          }}
-        >
-          <h2 style={{ fontSize: "1rem", fontWeight: 600, color: "#111827", margin: 0 }}>
-            Do czego służy ta strona? {infoExpanded ? "▼" : "▶"}
-          </h2>
-        </button>
-
-        {infoExpanded ? (
-          <div style={{ marginTop: "1rem" }}>
-            <p style={{ fontSize: "0.95rem", lineHeight: 1.7, color: "#374151", marginBottom: "1rem" }}>
-              To jest <strong>kreator selekcji firm</strong> – wybierasz filtry, oglądasz podgląd firm, wykluczasz niechciane i zapisujesz selekcję do
-              etapu weryfikacji person.
-            </p>
-            <div
-              style={{
-                marginTop: "1rem",
-                padding: "0.75rem",
-                backgroundColor: "#DBEAFE",
-                borderRadius: "0.5rem",
-                borderLeft: "3px solid #2563EB",
-              }}
-            >
-              <strong style={{ fontSize: "0.85rem", color: "#1E40AF" }}>Ważne:</strong>
-              <span style={{ fontSize: "0.85rem", color: "#4B5563", marginLeft: "0.5rem" }}>
-                Firmy zablokowane są automatycznie wykluczane. Najpierw ustaw filtry, kliknij „Pokaż podgląd”, sprawdź wyniki i zapisz selekcję.
-              </span>
-            </div>
-          </div>
-        ) : null}
-      </div>
+            <SelectionInfoBox />
 
       <div style={{ display: "grid", gap: "1.5rem" }}>
-        {/* Sekcja danych selekcji – przeniesiona powyżej Parametrów selekcji */}
-        <section style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Dane selekcji</h2>
-          <div
-            style={{
-              display: "grid",
-              gap: "1rem",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              marginBottom: "1.25rem",
-            }}
-          >
-            <div>
-              <label style={labelStyle}>Nazwa selekcji *</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Np. Wykonawcy stoisk targowych PL"
-                style={inputStyle}
+              <SelectionDataForm
+                name={name}
+                description={description}
+                market={market}
+                language={language}
+                onNameChange={setName}
+                onDescriptionChange={setDescription}
+                onMarketChange={setMarket}
+                onLanguageChange={setLanguage}
                 disabled={createLoading}
               />
-            </div>
-            <div>
-              <label style={labelStyle}>
-                Rynek *
-                <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280", marginLeft: "0.5rem" }}>
-                  Kraj lub region (PL, DE, FR, EN)
-                </span>
-              </label>
-              <select
-                value={market}
-                onChange={(event) => setMarket(event.target.value as MarketOption)}
-                style={inputStyle}
-                disabled={createLoading}
-              >
-                {MARKET_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>Preferowany język</label>
-              <select
-                value={language}
-                onChange={(event) => setLanguage(event.target.value as LanguageOption)}
-                style={inputStyle}
-                disabled={createLoading}
-              >
-                {LANGUAGE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <label style={labelStyle}>Opis selekcji (opcjonalnie)</label>
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Krótko opisz, kogo zawiera baza i do czego będzie używana."
-            style={{ ...inputStyle, minHeight: "90px" }}
-            disabled={createLoading}
-          />
-        </section>
 
-        {/* Nowa sekcja: Zapis selekcji (przeniesiona pod Dane selekcji) */}
-        <section
-            style={{
-            ...cardStyle,
-            backgroundColor: "#D1FAE5", // ciemniejsza zieleń niż wcześniej
-            border: "1px solid #34D399",
-            padding: "0.6rem",
-          }}
-        >
-          <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-              gap: "0.75rem",
-              flexWrap: "wrap",
-            }}
-          >
-            {selectionSaved ? (
-              <div style={{ color: "#064E3B", fontSize: "1rem", fontWeight: 700 }}>
-                Selekcja zapisana
-              </div>
-            ) : (
-            <button
-              type="button"
-              onClick={handleCreateSelection}
-                disabled={createLoading || loading || !name.trim() || selectedSubSegments.length === 0}
-              style={{
-                padding: "0.5rem 1rem",
-                borderRadius: "0.5rem",
-                border: "none",
-                  backgroundColor: createLoading || !name.trim() || selectedSubSegments.length === 0 ? "#9CA3AF" : "#059669", // szary gdy disabled, zielony gdy aktywny
-                color: "#FFFFFF",
-                fontWeight: 700,
-                  cursor: createLoading || !name.trim() || selectedSubSegments.length === 0 ? "not-allowed" : "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {createLoading ? "Tworzę..." : "Zapisz selekcję"}
-            </button>
-            )}
-            <div style={{ height: "1.25rem", width: "1px", background: "#10B981" }} />
-            <div style={{ color: "#064E3B", fontSize: "0.9rem", display: "flex", gap: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ whiteSpace: "nowrap" }}><strong>Nazwa:</strong> {name || "—"}</span>
-              <span style={{ whiteSpace: "nowrap" }}><strong>Rynek/Język:</strong> {market} • {language}</span>
-              <span style={{ whiteSpace: "nowrap" }}><strong>Firm po wykl.:</strong> {previewTotals.afterExclusions.toLocaleString("pl-PL")}</span>
-              <span style={{ whiteSpace: "nowrap" }}><strong>Specjalizacje:</strong> {selectedSubSegments.length}</span>
-              </div>
-            </div>
-        </section>
+              <SelectionSaveSection
+                selectionSaved={selectionSaved}
+                name={name}
+                market={market}
+                language={language}
+                totalAfterExclusions={previewTotals.afterExclusions}
+                selectedSubSegmentsCount={selectedSubSegments.length}
+                onCreate={handleCreateSelection}
+                createLoading={createLoading}
+                canCreate={!loading && name.trim().length > 0 && selectedSubSegments.length > 0}
+              />
 
         <section style={cardStyle}>
           <h2 style={sectionTitleStyle}>Parametry selekcji</h2>
@@ -1070,7 +931,7 @@ export default function CompanySelectionsPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.75rem", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
                     <strong>PS – Pośrednicy</strong>
                     <div style={{ display: "flex", gap: "0.35rem" }}>
-                      <button type="button" onClick={() => clearGroup("PS")} style={{ border: "1px solid #D1D5DB", background: "white", borderRadius: "0.35rem", padding: "0.2rem 0.45rem", fontSize: "0.75rem", cursor: "pointer" }}>Wyczyść</button>
+                      <button type="button" onClick={() => clearGroup("PS")} style={{ border: "1px solid #D1D5DB", background: "white", borderRadius: "0.35rem", padding: "0.2rem 0.45rem", fontSize: "0.75rem", cursor: "pointer" }} aria-label="Wyczyść wszystkie specjalizacje PS">Wyczyść</button>
                     </div>
                   </div>
                   {!collapsedGroups.PS && (
@@ -1089,7 +950,7 @@ export default function CompanySelectionsPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.75rem", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
                     <strong>WK – Wykonawcy</strong>
                     <div style={{ display: "flex", gap: "0.35rem" }}>
-                      <button type="button" onClick={() => clearGroup("WK")} style={{ border: "1px solid #D1D5DB", background: "white", borderRadius: "0.35rem", padding: "0.2rem 0.45rem", fontSize: "0.75rem", cursor: "pointer" }}>Wyczyść</button>
+                      <button type="button" onClick={() => clearGroup("WK")} style={{ border: "1px solid #D1D5DB", background: "white", borderRadius: "0.35rem", padding: "0.2rem 0.45rem", fontSize: "0.75rem", cursor: "pointer" }} aria-label="Wyczyść wszystkie specjalizacje WK">Wyczyść</button>
                     </div>
                   </div>
                   {!collapsedGroups.WK && (
@@ -1115,6 +976,7 @@ export default function CompanySelectionsPage() {
                           clearGroup("WKK_OTHER");
                         }}
                         style={{ border: "1px solid #D1D5DB", background: "white", borderRadius: "0.35rem", padding: "0.2rem 0.45rem", fontSize: "0.75rem", cursor: "pointer" }}
+                        aria-label="Wyczyść wszystkie specjalizacje WKK"
                       >
                         Wyczyść
                       </button>
@@ -1247,7 +1109,12 @@ export default function CompanySelectionsPage() {
                 Alternatywne klasyfikacje będą ukryte.
               </div>
               <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <input type="checkbox" checked={onlyPrimary} onChange={(e) => setOnlyPrimary(e.target.checked)} />
+                <input 
+                  type="checkbox" 
+                  checked={onlyPrimary} 
+                  onChange={(e) => setOnlyPrimary(e.target.checked)}
+                  aria-label="Uwzględnij wyłącznie główne specjalizacje"
+                />
                 <span>Uwzględnij wyłącznie główne specjalizacje</span>
             </label>
             </div>
@@ -1462,149 +1329,26 @@ export default function CompanySelectionsPage() {
         </>
       ) : null}
         
+              <SavedSelectionsList
+                selections={selections}
+                specializations={specializations}
+                loading={selectionsLoading}
+                onRefresh={loadSelectionsList}
+              />
+            </div>
+          </>
+        ) : (
       <div style={{ display: "grid", gap: "1.5rem" }}>
-        <section style={cardStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={sectionTitleStyle}>Zapisane selekcje</h2>
-            <button
-              type="button"
-              onClick={loadSelectionsList}
-              disabled={selectionsLoading}
-              style={{
-                padding: "0.5rem 1rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #D1D5DB",
-                backgroundColor: selectionsLoading ? "#E5E7EB" : "#F9FAFB",
-                color: selectionsLoading ? "#9CA3AF" : "#374151",
-                cursor: selectionsLoading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
-            >
-              {selectionsLoading && (
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: "12px",
-                    height: "12px",
-                    border: "2px solid #9CA3AF",
-                    borderTopColor: "transparent",
-                    borderRadius: "50%",
-                    animation: "spin 0.6s linear infinite",
-                  }}
-                />
-              )}
-              {selectionsLoading ? "Odświeżam..." : "Odśwież listę"}
-            </button>
+            <SavedSelectionsList
+              selections={selections}
+              specializations={specializations}
+              loading={selectionsLoading}
+              onRefresh={loadSelectionsList}
+            />
           </div>
-          <div style={{ overflowX: "auto", borderRadius: "0.75rem", border: "1px solid #E5E7EB" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.9rem",
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: "#F3F4F6" }}>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Nazwa</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Rynek</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Firmy</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Kryteria</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Utworzono</th>
-                  <th style={{ padding: "0.65rem", textAlign: "left" }}>Akcje</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selections.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: "1rem", textAlign: "center", color: "#6B7280" }}>
-                      Brak zapisanych selekcji. Utwórz pierwszą bazę firm.
-                    </td>
-                  </tr>
-                )}
-                {selections.map((selection) => (
-                  <tr key={selection.id} style={{ borderTop: "1px solid #E5E7EB" }}>
-                    <td style={{ padding: "0.75rem" }}>
-                      <div style={{ fontWeight: 600 }}>{selection.name}</div>
-                      {selection.description && (
-                        <div style={{ color: "#6B7280", fontSize: "0.8rem" }}>{selection.description}</div>
-                      )}
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <span style={chipStyle}>
-                        {selection.market}
-                        {selection.language ? ` • ${selection.language}` : ""}
-                      </span>
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <div style={{ fontWeight: 600 }}>{selection.totalCompanies}</div>
-                      <div style={{ color: "#6B7280", fontSize: "0.75rem" }}>aktywnych: {selection.activeCompanies}</div>
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      {(() => {
-                        // 1) Pokaż wybrane specjalizacje z filters.specializationCodes (jeśli są)
-                        let specializationSummary: string | null = null;
-                        try {
-                          if (selection.filters) {
-                            const parsed = JSON.parse(selection.filters || "{}") as {
-                              specializationCodes?: string[];
-                            };
-                            const codes = Array.isArray(parsed.specializationCodes) ? parsed.specializationCodes : [];
-                            if (codes.length > 0) {
-                              const labelMap = new Map(specializations.map((s) => [s.code, s.label]));
-                              const labels = codes.map((c) => labelMap.get(c) ?? c);
-                              const shown = labels.slice(0, 3).join(", ");
-                              const rest = labels.length > 3 ? ` +${labels.length - 3}` : "";
-                              specializationSummary = `Specjalizacje: ${shown}${rest}`;
-                            }
-                          }
-                        } catch {
-                          // ignorable
-                        }
-                        if (specializationSummary) {
-                          return <span style={{ fontSize: "0.8rem" }}>{specializationSummary}</span>;
-                        }
-                        // 2) Jeśli brak specjalizacji, pokaż ewentualne kryteria (jak dotychczas)
-                        if (selection.criteria && selection.criteria.length > 0) {
-                          return (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                          {selection.criteria.map((criterion) => (
-                            <span key={criterion.id} style={{ fontSize: "0.8rem" }}>
-                              {criterion.name} {criterion.isActive ? "" : "(nieaktywne)"}
-                            </span>
-                          ))}
+        )}
                         </div>
-                          );
-                        }
-                        // 3) W przeciwnym razie pokaż placeholder
-                        return <span style={{ color: "#9CA3AF", fontSize: "0.8rem" }}>Brak kryteriów</span>;
-                      })()}
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      {new Date(selection.createdAt).toLocaleString("pl-PL")}
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <Link
-                        href={`/company-selection/selections/${selection.id}`}
-                        style={{
-                          color: "#2563EB",
-                          textDecoration: "underline",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Szczegóły
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </div>
+    </CompanySelectionErrorBoundary>
   );
 }
 

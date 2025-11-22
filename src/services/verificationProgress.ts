@@ -71,6 +71,26 @@ export function createProgress(total: number): string {
 }
 
 /**
+ * Utwórz postęp weryfikacji z konkretnym ID (jeśli nie istnieje)
+ */
+export function createProgressWithId(progressId: string, total: number): void {
+  if (!verificationProgress.has(progressId)) {
+    verificationProgress.set(progressId, {
+      total,
+      processed: 0,
+      current: 0,
+      qualified: 0,
+      rejected: 0,
+      needsReview: 0,
+      errors: 0,
+      status: 'processing',
+      startTime: Date.now(),
+      lastUpdate: Date.now(),
+    });
+  }
+}
+
+/**
  * Pobierz postęp weryfikacji
  */
 export function getProgress(progressId: string) {

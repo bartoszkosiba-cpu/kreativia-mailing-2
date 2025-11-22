@@ -33,11 +33,12 @@ export async function GET(req: NextRequest, { params }: { params: { companyId: s
       // Email jest dostępny jeśli:
       // 1. Ma faktyczny adres email
       // 2. Lub emailUnlocked === true
-      // 3. Lub emailStatus jest w: "verified", "guessed", "unverified", "extrapolated"
+      // 3. Lub emailStatus jest w: "verified", "guessed", "unverified", "extrapolated", "available"
+      // Dla bezpłatnego API (/mixed_people/api_search) mamy emailStatus: "available" (z has_email: true)
       if (person.email) return true;
       if (person.emailUnlocked) return true;
       const status = (person.emailStatus || person.email_status || person.contact_email_status)?.toLowerCase();
-      return status === "verified" || status === "guessed" || status === "unverified" || status === "extrapolated";
+      return status === "verified" || status === "guessed" || status === "unverified" || status === "extrapolated" || status === "available";
     };
 
     // Policz persony z dostępnym e-mailem

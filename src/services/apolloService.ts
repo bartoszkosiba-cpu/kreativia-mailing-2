@@ -7,8 +7,10 @@ import { logger } from "./logger";
 import { trackApolloCredits, calculateCreditsUsed } from "./apolloCreditsTracker";
 
 const APOLLO_API_KEY = process.env.APOLLO_API_KEY;
+const APOLLO_API_KEY_MIXED_PEOPLE = process.env.APOLLO_API_KEY_MIXED_PEOPLE; // API Key z dostępem do /mixed_people/api_search
 const APOLLO_API_BASE_URL = "https://api.apollo.io/v1";
 const APOLLO_MIXED_PEOPLE_ENDPOINT = `${APOLLO_API_BASE_URL}/mixed_people/search`;
+const APOLLO_MIXED_PEOPLE_API_SEARCH_ENDPOINT = `${APOLLO_API_BASE_URL}/mixed_people/api_search`; // DARMOWE (no credit charge)
 
 function normalizeDomain(domain?: string | null): string | undefined {
   if (!domain) {
@@ -100,6 +102,24 @@ function filterPeopleByCriteria(
           )})`
         );
       });
+    }
+
+    // UWAGA: Dla /mixed_people/api_search format preview może nie mieć primary_domain
+    // W takim przypadku, jeśli wyszukiwaliśmy po domenie i znaleźliśmy osoby, 
+    // prawdopodobnie wszystkie pasują (bo wyszukiwanie było już po domenie)
+    // Jeśli nie mamy primary_domain, ale wyszukiwaliśmy po domenie, zaakceptuj wszystkie
+    const hasDomainInfo = filteredPeople.some((p: ApolloPerson) => 
+      p.organization?.primary_domain || (p.email && p.email !== "email_not_unlocked@domain.com")
+    );
+
+    if (!hasDomainInfo && beforeFilter > 0) {
+      // Brak informacji o domenie w odpowiedzi - prawdopodobnie format preview
+      // Jeśli wyszukiwaliśmy po domenie i znaleźliśmy osoby, zaakceptuj je wszystkie
+      logger.info(
+        "apollo",
+        `⚠️ Format preview - brak informacji o domenie w odpowiedzi. Akceptuję wszystkie ${beforeFilter} znalezione osoby (wyszukiwanie było już po domenie: ${domainLower})`
+      );
+      return filteredPeople; // Zwróć wszystkie, bo wyszukiwanie było już po domenie
     }
 
     filteredPeople = filteredPeople.filter((person: ApolloPerson) => {
@@ -474,6 +494,24 @@ export async function searchOrganizations(
     return mappedData;
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
+    const errorMessage = errorObj.message || String(error);
+    
+    // Jeśli to błąd 403 (API_INACCESSIBLE), to jest oczekiwane dla bezpłatnego API key
+    // Zmieniam z ERROR na INFO, bo kod kontynuuje z wyszukiwaniem po domenie
+    if (isAccessDeniedError(errorMessage)) {
+      logger.info("apollo", `Brak dostępu do accounts/search - to jest oczekiwane dla bezpłatnego API key. Kontynuuję z wyszukiwaniem po domenie.`);
+      // Zwróć pustą odpowiedź zamiast rzucać błąd
+      return {
+        organizations: [],
+        pagination: {
+          page: 1,
+          per_page: 50,
+          total_entries: 0,
+          total_pages: 0,
+        },
+      };
+    }
+    
     logger.error("apollo", `Błąd wyszukiwania firm w Apollo: ${companyName}`, null, errorObj);
     throw error;
   }
@@ -505,11 +543,68 @@ export async function searchPeopleFromOrganization(
   };
 
   const performPeopleSearch = async (): Promise<ApolloSearchPeopleResponse> => {
+    // WAŻNE: Najpierw próbujemy darmowego /mixed_people/api_search (jeśli revealEmails=false)
+    // Zgodnie z dokumentacją Apollo: /mixed_people/api_search jest DARMOWE (no credit charge)
+    // Ale tylko jeśli revealEmails=false - jeśli revealEmails=true, musimy użyć płatnego endpointu
+    let endpoint = `${APOLLO_API_BASE_URL}/people/search`; // Domyślnie używamy /people/search
+    let endpointName = "/people/search";
+    
+    // Wybierz odpowiedni API Key i endpoint
+    // WAŻNE: Używamy /mixed_people/api_search z dedykowanym API key (bezpłatne)
+    let apiKeyToUse = APOLLO_API_KEY;
+    let useMixedPeopleApiSearch = (options?.revealEmails === false || options?.revealEmails === undefined);
+    
+    if (useMixedPeopleApiSearch) {
+      // Używamy darmowego /mixed_people/api_search z dedykowanym API key
+      endpoint = APOLLO_MIXED_PEOPLE_API_SEARCH_ENDPOINT;
+      endpointName = "/mixed_people/api_search";
+      // Użyj dedykowanego API Key dla /mixed_people/api_search (BEZPŁATNE)
+      apiKeyToUse = APOLLO_API_KEY_MIXED_PEOPLE || APOLLO_API_KEY;
+      logger.info("apollo", `Używam darmowego endpointu /mixed_people/api_search (no credit charge)${APOLLO_API_KEY_MIXED_PEOPLE ? " - używam dedykowanego API Key" : " - używam domyślnego API Key"}`);
+    } else {
+      logger.info(
+        "apollo",
+        `Wyszukiwanie pracowników (revealEmails=true) - ZUŻYWA kredyty - używam /people/search`
+      );
+    }
+
+    // Przygotuj parametry w zależności od endpointu
+    // /mixed_people/api_search używa innych nazw parametrów niż /people/search
     const searchParams: any = {
       page: options?.page || 1,
       per_page: options?.perPage || 50,
     };
 
+    if (useMixedPeopleApiSearch) {
+      // Parametry dla /mixed_people/api_search (podobne do /mixed_people/search)
+      if (organizationId) {
+        searchParams.organization_ids = [organizationId];
+        logger.info("apollo", `Wyszukiwanie pracowników po organization_ids: ${organizationId}`);
+      } else if (organizationName) {
+        searchParams.q_organization_name = organizationName;
+        logger.info("apollo", `Wyszukiwanie pracowników po q_organization_name: ${organizationName}`);
+      } else if (domain) {
+        const normalizedDomain = normalizeDomain(domain);
+        if (!normalizedDomain) {
+          throw new Error("Musisz podać organizationId, organizationName lub poprawną domenę");
+        }
+        searchParams.q_company_domains = [normalizedDomain]; // UWAGA: q_company_domains, nie q_organization_domains!
+        if (!searchParams.q_organization_name) {
+          searchParams.q_organization_name = normalizedDomain;
+        }
+        logger.info("apollo", `Wyszukiwanie pracowników po q_company_domains: ${normalizedDomain}`);
+      } else {
+        throw new Error("Musisz podać organizationId, organizationName lub domain");
+      }
+      
+      // Dodaj contact_scopes dla /mixed_people/api_search
+      // UWAGA: include_personal_emails: true może zwrócić więcej informacji o emailu (ale nie ujawni emaila)
+      searchParams.contact_scopes = {
+        include_non_exportable_companies: true,
+        include_personal_emails: true, // Spróbuj true - może zwrócić więcej informacji o statusie emaila
+      };
+    } else {
+      // Parametry dla /people/search
     if (organizationId) {
       searchParams.organization_ids = [organizationId];
       logger.info("apollo", `Wyszukiwanie pracowników po organization_ids: ${organizationId}`);
@@ -526,38 +621,95 @@ export async function searchPeopleFromOrganization(
       logger.info("apollo", `Wyszukiwanie pracowników po q_organization_domains: ${normalizedDomain}`);
     } else {
       throw new Error("Musisz podać organizationId, organizationName lub domain");
+      }
     }
 
     if (options?.titles && options.titles.length > 0) {
       searchParams.person_titles = options.titles;
     }
 
+    if (!useMixedPeopleApiSearch) {
+      // Parametry revealEmails tylko dla /people/search
     if (options?.revealEmails === false || options?.revealEmails === undefined) {
       searchParams.person_details = false;
     } else if (options?.revealEmails === true) {
       searchParams.reveal_personal_emails = true;
+      }
     }
 
-    logger.info(
-      "apollo",
-      `Wyszukiwanie pracowników (revealEmails=${options?.revealEmails || false}) - ${
-        options?.revealEmails ? "ZUŻYWA kredyty" : "DARMOWE"
-      }`
-    );
+    if (!apiKeyToUse) {
+      throw new Error("APOLLO_API_KEY nie jest ustawiony w zmiennych środowiskowych");
+    }
 
-    const response = await fetch(`${APOLLO_API_BASE_URL}/people/search`, {
+    let response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Cache-Control": "no-cache",
         "Content-Type": "application/json",
-        "X-Api-Key": APOLLO_API_KEY,
+        "X-Api-Key": apiKeyToUse,
       },
       body: JSON.stringify(searchParams),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      // Jeśli /mixed_people/api_search nie działa (403/404), fallback do /people/search
+      if (endpointName === "/mixed_people/api_search" && (response.status === 403 || response.status === 404)) {
+        logger.warn("apollo", `Endpoint /mixed_people/api_search niedostępny (${response.status}) - fallback do /people/search`);
+        // Fallback do /people/search - musimy zmienić parametry na format dla /people/search
+        endpoint = `${APOLLO_API_BASE_URL}/people/search`;
+        endpointName = "/people/search";
+        
+        // Przekonwertuj parametry z formatu /mixed_people/api_search na format /people/search
+        const fallbackParams: any = {
+          page: searchParams.page || 1,
+          per_page: searchParams.per_page || 50,
+        };
+        
+        if (organizationId) {
+          fallbackParams.organization_ids = [organizationId];
+        } else if (organizationName) {
+          fallbackParams.organization_name = organizationName;
+          fallbackParams.q_keywords = organizationName;
+        } else if (domain) {
+          const normalizedDomain = normalizeDomain(domain);
+          if (normalizedDomain) {
+            fallbackParams.q_organization_domains = [normalizedDomain]; // q_organization_domains dla /people/search
+          }
+        }
+        
+        if (options?.titles && options.titles.length > 0) {
+          fallbackParams.person_titles = options.titles;
+        }
+        
+        if (options?.revealEmails === false || options?.revealEmails === undefined) {
+          fallbackParams.person_details = false;
+        } else if (options?.revealEmails === true) {
+          fallbackParams.reveal_personal_emails = true;
+        }
+        
+        const fallbackResponse = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Cache-Control": "no-cache",
+            "Content-Type": "application/json",
+            "X-Api-Key": APOLLO_API_KEY || apiKeyToUse,
+          },
+          body: JSON.stringify(fallbackParams),
+        });
+        
+        if (!fallbackResponse.ok) {
+          const fallbackErrorText = await fallbackResponse.text();
+          throw new Error(`Apollo API error: ${fallbackResponse.status} - ${fallbackErrorText}`);
+        }
+        
+        // Użyj odpowiedzi z fallback
+        response = fallbackResponse;
+        // Ustaw flagę, że używamy /people/search (nie /mixed_people/api_search)
+        useMixedPeopleApiSearch = false;
+      } else {
       throw new Error(`Apollo API error: ${response.status} - ${errorText}`);
+      }
     }
 
     // Sprawdź nagłówki odpowiedzi dla informacji o kredytach
@@ -568,17 +720,171 @@ export async function searchPeopleFromOrganization(
     const creditsUsed = creditsUsedHeader ? parseInt(creditsUsedHeader, 10) : null;
 
     const data = await response.json();
-    const rawPeople: ApolloPerson[] = data.people || [];
+    
+    // Loguj surową odpowiedź dla debugowania
+    if (useMixedPeopleApiSearch) {
+      // Loguj pełną surową odpowiedź (ograniczoną do 5000 znaków, żeby zobaczyć wszystkie pola)
+      const rawResponseStr = JSON.stringify(data, null, 2);
+      logger.info("apollo", `[DEBUG] /mixed_people/api_search PEŁNA surowa odpowiedź (${rawResponseStr.length} znaków):`);
+      logger.info("apollo", rawResponseStr.substring(0, 5000) + (rawResponseStr.length > 5000 ? "\n... (obcięto)" : ""));
+      
+      // Szczegółowa analiza pól związanych z emailem
+      if (Array.isArray(data.people) && data.people.length > 0) {
+        const firstPerson = data.people[0];
+        logger.info("apollo", `[DEBUG] Analiza pól emailowych dla pierwszej osoby:`, {
+          id: firstPerson.id,
+          first_name: firstPerson.first_name,
+          allKeys: Object.keys(firstPerson),
+          emailFields: {
+            has_email: firstPerson.has_email,
+            email: firstPerson.email,
+            email_status: firstPerson.email_status,
+            email_true_status: firstPerson.email_true_status,
+            contact_email_status: firstPerson.contact_email_status,
+            contact_emails: firstPerson.contact_emails,
+          },
+          fullPerson: JSON.stringify(firstPerson, null, 2).substring(0, 2000), // Pełny obiekt pierwszej osoby
+        });
+      }
+      
+      logger.info("apollo", `[DEBUG] /mixed_people/api_search struktura:`, {
+        keys: Object.keys(data),
+        hasContacts: Array.isArray(data.contacts),
+        contactsLength: Array.isArray(data.contacts) ? data.contacts.length : 0,
+        hasPeople: Array.isArray(data.people),
+        peopleLength: Array.isArray(data.people) ? data.people.length : 0,
+        pagination: data.pagination,
+        searchParams: { domain, organizationId, organizationName },
+      });
+    }
+    
+    // /mixed_people/api_search zwraca dane w formacie podobnym do /mixed_people/search
+    // Może zwracać zarówno `people` jak i `contacts` w odpowiedzi
+    let rawPeople: ApolloPerson[] = [];
+    
+    if (useMixedPeopleApiSearch) {
+      // Dla /mixed_people/api_search, dane mogą być w `people` lub `contacts`
+      const peopleMap = new Map<string, ApolloPerson>();
+      
+      // Przetwórz contacts (jeśli istnieją)
+      if (Array.isArray(data.contacts)) {
+        data.contacts.forEach((contact: any) => {
+          const emailEntry = Array.isArray(contact.contact_emails)
+            ? contact.contact_emails.find((item: any) => item?.email)
+            : null;
+          const rawEmail = emailEntry?.email || (contact.email !== "email_not_unlocked@domain.com" ? contact.email : null);
+          const emailStatus = emailEntry?.email_status || emailEntry?.email_true_status || contact.email_true_status || contact.email_status;
+          
+          const person: ApolloPerson = {
+            id: contact.person_id || contact.id,
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            name: contact.name || [contact.first_name, contact.last_name].filter(Boolean).join(" "),
+            title: contact.title,
+            email: rawEmail || undefined,
+            email_status: emailStatus,
+            linkedin_url: contact.linkedin_url,
+            organization: contact.account || contact.organization ? {
+              id: contact.account?.organization_id || contact.organization?.id || contact.organization_id || "",
+              name: contact.account?.name || contact.organization?.name || contact.organization_name || "",
+              primary_domain: contact.account?.primary_domain || contact.organization?.primary_domain || normalizeDomain(contact.account?.website_url),
+            } : undefined,
+            headline: contact.headline,
+            contact_email_status: contact.email_status,
+            departments: contact.departments ?? contact.account?.departments ?? [],
+            subdepartments: contact.subdepartments ?? [],
+            seniority: contact.seniority ?? contact.account?.seniority,
+          };
+          
+          if (person.id) {
+            peopleMap.set(person.id, person);
+          }
+        });
+      }
+      
+      // Przetwórz people (jeśli istnieją)
+      // UWAGA: /mixed_people/api_search zwraca format "preview" z ograniczonymi danymi
+      if (Array.isArray(data.people)) {
+        data.people.forEach((personData: any) => {
+          // Format /mixed_people/api_search ma inne pola niż /people/search
+          // - last_name_obfuscated zamiast last_name
+          // - has_email zamiast email_status
+          // - organization ma tylko flagi has_*, nie pełne dane
+          const lastName = personData.last_name || personData.last_name_obfuscated || "";
+          const fullName = [personData.first_name, lastName].filter(Boolean).join(" ");
+          
+          // UWAGA: /mixed_people/api_search (bezpłatny endpoint) zwraca TYLKO has_email: true/false
+          // NIE zwraca: email_status, email_true_status, contact_email_status
+          // has_email: true = email jest w bazie Apollo (ale nie ujawniony w preview)
+          // has_email: false = email NIE jest w bazie Apollo LUB nie jest ujawniony w preview
+          // Bez dodatkowych informacji, nie możemy określić dokładnego statusu
+          let emailStatus: string | undefined;
+          
+          // Najpierw sprawdź, czy jest bezpośredni email_status (może być w innych formatach)
+          if (personData.email_status) {
+            emailStatus = personData.email_status;
+          } else if (personData.email_true_status) {
+            emailStatus = personData.email_true_status;
+          } else if (personData.contact_email_status) {
+            emailStatus = personData.contact_email_status;
+          } else if (personData.has_email === true) {
+            // has_email: true = email jest w bazie Apollo (ale nie ujawniony)
+            // Ustawiamy "available" jako ogólny status
+            emailStatus = "available";
+          } else if (personData.has_email === false) {
+            // has_email: false = email NIE jest w bazie Apollo
+            // Ustawiamy "unavailable" - zgodnie z dokumentacją Apollo, to oznacza brak emaila w bazie
+            emailStatus = "unavailable";
+          }
+          
+          // Sprawdź, czy jest email (nawet jeśli zablokowany)
+          const rawEmail = personData.email && personData.email !== "email_not_unlocked@domain.com" 
+            ? personData.email 
+            : undefined;
+          
+          const person: ApolloPerson = {
+            id: personData.id,
+            first_name: personData.first_name,
+            last_name: lastName,
+            name: personData.name || fullName,
+            title: personData.title,
+            email: rawEmail,
+            email_status: emailStatus,
+            linkedin_url: personData.linkedin_url,
+            organization: personData.organization ? {
+              id: personData.organization.id || personData.organization_id || "",
+              name: personData.organization.name || personData.organization_name || "",
+              primary_domain: personData.organization.primary_domain || personData.organization.domain || normalizeDomain(personData.organization.website_url),
+            } : undefined,
+            headline: personData.headline,
+            contact_email_status: personData.contact_email_status || emailStatus,
+            departments: personData.departments ?? [],
+            subdepartments: personData.subdepartments ?? [],
+            seniority: personData.seniority,
+          };
+          
+          if (person.id) {
+            peopleMap.set(person.id, person);
+          }
+        });
+      }
+      
+      rawPeople = Array.from(peopleMap.values());
+    } else {
+      // Dla /people/search, dane są w `people`
+      rawPeople = data.people || [];
+    }
+    
     const filteredPeople = filterPeopleByCriteria(rawPeople, criteria);
 
     // Jeśli nie ma informacji w nagłówkach, oblicz na podstawie logiki
     let finalCreditsUsed = creditsUsed;
     if (finalCreditsUsed === null || isNaN(finalCreditsUsed)) {
-      // WAŻNE: /people/search kosztuje 1 kredyt za każde wywołanie (za firmę),
-      // niezależnie od liczby stron wyników czy revealEmails.
-      // To jest inne niż /mixed_people/search (1 kredyt za stronę).
+      // /mixed_people/api_search jest DARMOWE (0 kredytów)
+      // /people/search kosztuje 1 kredyt za każde wywołanie (za firmę)
+      // /mixed_people/search kosztuje 1 kredyt za stronę
       finalCreditsUsed = calculateCreditsUsed({
-        endpoint: "/people/search",
+        endpoint: endpointName,
         options: {
           revealEmails: options?.revealEmails || false,
           perPage: options?.perPage,
@@ -591,7 +897,7 @@ export async function searchPeopleFromOrganization(
       });
     }
 
-    // Zapisz użycie kredytów do bazy
+    // Zapisz użycie kredytów do bazy (tylko jeśli > 0)
     if (finalCreditsUsed > 0) {
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
@@ -600,7 +906,7 @@ export async function searchPeopleFromOrganization(
 
       await trackApolloCredits({
         operation: `searchPeopleFromOrganization (${organizationId || organizationName || domain})`,
-        endpoint: "/people/search",
+        endpoint: endpointName,
         creditsUsed: finalCreditsUsed,
         metadata: {
           organizationId,
@@ -619,17 +925,51 @@ export async function searchPeopleFromOrganization(
       });
     }
 
+    // Loguj szczegóły odpowiedzi dla debugowania
+    if (useMixedPeopleApiSearch) {
+      logger.info("apollo", `[DEBUG] /mixed_people/api_search odpowiedź:`, {
+        hasContacts: Array.isArray(data.contacts),
+        contactsCount: Array.isArray(data.contacts) ? data.contacts.length : 0,
+        hasPeople: Array.isArray(data.people),
+        peopleCount: Array.isArray(data.people) ? data.people.length : 0,
+        rawPeopleCount: rawPeople.length,
+        filteredPeopleCount: filteredPeople.length,
+        pagination: data.pagination,
+        searchParams: { domain, organizationId, organizationName },
+      });
+    }
+
     logger.info(
       "apollo",
       `Znaleziono ${filteredPeople.length} pracowników (z ${data.pagination?.total_entries || 0} wyników)${finalCreditsUsed > 0 ? ` | Zużyto ${finalCreditsUsed} kredytów` : ""}`
     );
 
+    // Przygotuj paginację - dla /mixed_people/api_search może być inny format
+    let pagination = data.pagination;
+    if (useMixedPeopleApiSearch && !pagination) {
+      // Jeśli brak paginacji w odpowiedzi, utwórz ją na podstawie danych
+      pagination = {
+        page: searchParams.page || 1,
+        per_page: searchParams.per_page || 50,
+        total_entries: rawPeople.length,
+        total_pages: Math.max(1, Math.ceil(rawPeople.length / (searchParams.per_page || 50))),
+      };
+    } else if (pagination) {
+      // Zaktualizuj total_entries na podstawie przefiltrowanych wyników
+      pagination = {
+        ...pagination,
+        total_entries: filteredPeople.length,
+      };
+    }
+
     return {
       ...data,
       people: filteredPeople,
-      pagination: {
-        ...data.pagination,
+      pagination: pagination || {
+        page: 1,
+        per_page: filteredPeople.length,
         total_entries: filteredPeople.length,
+        total_pages: 1,
       },
       creditsUsed: finalCreditsUsed, // Dodaj informację o kredytach do odpowiedzi
     };

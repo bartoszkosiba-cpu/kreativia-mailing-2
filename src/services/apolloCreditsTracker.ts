@@ -36,7 +36,11 @@ export function calculateCreditsUsed(params: ApolloCreditParams): number {
   let credits = 0;
 
   // Logika naliczania kredytów na podstawie dokumentacji Apollo
-  if (endpoint.includes("/mixed_people/search")) {
+  if (endpoint.includes("/mixed_people/api_search")) {
+    // /mixed_people/api_search jest DARMOWE (no credit charge) - zgodnie z dokumentacją Apollo
+    credits = 0;
+    logger.debug("apollo-credits", `Calculated ${credits} credits for /mixed_people/api_search (FREE - no credit charge)`);
+  } else if (endpoint.includes("/mixed_people/search")) {
     // 1 credit / page returned (tylko jeśli includePersonalEmails=true)
     if (options?.includePersonalEmails) {
       credits = responseData?.pagination?.total_pages || 1;

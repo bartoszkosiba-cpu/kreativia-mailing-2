@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useCompanyStats } from "@/hooks/useCompanyStats";
 import { CompanyPreview } from "@/types/company-selection";
+import { CompanySelectionErrorBoundary } from "./components/ErrorBoundary";
 
 export default function CompanySelectionPage() {
   const { stats, loading, error: statsError, refetch: refetchStats } = useCompanyStats();
@@ -53,7 +54,8 @@ export default function CompanySelectionPage() {
   };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>
+    <CompanySelectionErrorBoundary>
+      <div style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>
       <h1 style={{ fontSize: "2rem", marginBottom: "2rem" }}>
         Moduł Wyboru Leadów
       </h1>

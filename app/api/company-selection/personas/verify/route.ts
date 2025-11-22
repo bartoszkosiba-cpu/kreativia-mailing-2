@@ -9,6 +9,7 @@ import {
   getPersonaVerification,
 } from "@/services/personaVerificationService";
 import { analyseJobTitle } from "@/utils/jobTitleHelpers";
+import { logger } from "@/services/logger";
 
 function buildEmployeeKey(person: any) {
   if (person.id) return String(person.id);
@@ -137,11 +138,12 @@ export async function POST(req: NextRequest) {
       // Email jest dostępny jeśli:
       // 1. Ma faktyczny adres email
       // 2. Lub emailUnlocked === true
-      // 3. Lub emailStatus jest w: "verified", "guessed", "unverified", "extrapolated"
+      // 3. Lub emailStatus jest w: "verified", "guessed", "unverified", "extrapolated", "available"
+      // Dla bezpłatnego API (/mixed_people/api_search) mamy emailStatus: "available" (z has_email: true)
       if (person.email) return true;
       if (person.emailUnlocked) return true;
-      const status = (person.emailStatus || person.email_status)?.toLowerCase();
-      return status === "verified" || status === "guessed" || status === "unverified" || status === "extrapolated";
+      const status = (person.emailStatus || person.email_status || person.contact_email_status)?.toLowerCase();
+      return status === "verified" || status === "guessed" || status === "unverified" || status === "extrapolated" || status === "available";
     };
     
     // Filtruj persony - weryfikuj tylko te z dostępnym e-mailem
@@ -174,10 +176,11 @@ export async function POST(req: NextRequest) {
       // Użyj matchKey jeśli jest dostępny, w przeciwnym razie id
       const key = result.matchKey || result.id;
       if (!key) {
-        console.warn("[personas.verify] Brak klucza w wyniku AI:", result);
+        logger.warn("personas-verify", "Brak klucza w wyniku AI", { result });
         continue;
       }
-      classificationMap.set(String(key).toLowerCase(), {
+      const normalizedKey = String(key).toLowerCase();
+      classificationMap.set(normalizedKey, {
         decision: result.decision,
         reason: result.reason || "",
         score: typeof result.score === "number" ? result.score : undefined,
@@ -188,7 +191,16 @@ export async function POST(req: NextRequest) {
     // Dodaj też persony bez dostępnego e-maila, ale bez weryfikacji AI (dla kompletności danych)
     const enrichedEmployees = (employeesResult.people || []).map((person: any) => {
       const key = buildEmployeeKey(person);
-      const aiInfo = classificationMap.get(key.toLowerCase());
+      const normalizedKey = String(key).toLowerCase();
+      const aiInfo = classificationMap.get(normalizedKey);
+      
+      // Jeśli nie znaleziono dopasowania, spróbuj też znaleźć po ID (jeśli person ma ID)
+      // To pomaga w przypadku, gdy AI zwróciło matchKey jako ID, ale buildEmployeeKey zwróciło name|title
+      let finalAiInfo = aiInfo;
+      if (!finalAiInfo && person.id) {
+        const idKey = String(person.id).toLowerCase();
+        finalAiInfo = classificationMap.get(idKey);
+      }
       
       // Jeśli person nie ma dostępnego e-maila, nie weryfikuj go przez AI
       if (!hasAvailableEmail(person)) {
@@ -204,8 +216,18 @@ export async function POST(req: NextRequest) {
       // Zawsze używamy progu do konwersji score na decision (nie ufamy decyzji AI)
       const positiveThreshold = personaBrief?.positiveThreshold ?? 0.5; // Domyślnie 50%
       
+      // Użyj finalAiInfo (może być z matchKey lub ID)
+      const aiInfoToUse = finalAiInfo || aiInfo;
+      
       // Jeśli nie znaleziono dopasowania AI, użyj domyślnej decyzji
-      if (!aiInfo) {
+      if (!aiInfoToUse) {
+        logger.warn("personas-verify", "Brak klasyfikacji AI dla persony", {
+          companyId,
+          personKey: key,
+          personId: person.id,
+          personName: person.name,
+          personTitle: person.title,
+        });
         return {
           ...person,
           personaMatchStatus: "negative" as const,
@@ -215,14 +237,14 @@ export async function POST(req: NextRequest) {
       }
       
       const finalDecision: "positive" | "negative" = 
-        typeof aiInfo.score === "number" && aiInfo.score >= positiveThreshold 
+        typeof aiInfoToUse.score === "number" && aiInfoToUse.score >= positiveThreshold 
           ? "positive" 
           : "negative";
       
       // Upewnij się że score jest zawsze liczbą (użyj domyślnego jeśli null)
-      const scoreValue = typeof aiInfo?.score === "number" ? aiInfo.score : (finalDecision === "positive" ? 1.0 : 0.0);
+      const scoreValue = typeof aiInfoToUse?.score === "number" ? aiInfoToUse.score : (finalDecision === "positive" ? 1.0 : 0.0);
       const scoreText = `Ocena: ${(scoreValue * 100).toFixed(0)}%`;
-      const combinedReason = [scoreText, aiInfo?.reason].filter(Boolean).join(" — ");
+      const combinedReason = [scoreText, aiInfoToUse?.reason].filter(Boolean).join(" — ");
       return {
         ...person,
         personaMatchStatus: finalDecision,
@@ -282,7 +304,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    console.error("[personas.verify] Błąd:", err);
+    logger.error("personas-verify", "Błąd weryfikacji person", { companyId, error: err.message }, err);
     return NextResponse.json(
       { success: false, error: "Błąd weryfikacji person", details: err.message },
       { status: 500 }

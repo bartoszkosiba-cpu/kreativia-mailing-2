@@ -96,7 +96,9 @@ export async function fetchApolloEmployeesForCompany(companyId: number): Promise
     }
   } catch (error: any) {
     if (error.message?.includes("403") || error.message?.includes("404") || error.message?.includes("API_INACCESSIBLE")) {
-      logger.warn("apollo", `⚠️ Brak dostępu do accounts/search - kontynuuję po domenie`);
+      // To jest oczekiwane dla bezpłatnego API key - nie ma dostępu do accounts/search
+      // Zmieniam z WARN na INFO, bo to normalne zachowanie
+      logger.info("apollo", `Brak dostępu do accounts/search - to jest oczekiwane dla bezpłatnego API key. Kontynuuję z wyszukiwaniem po domenie.`);
     } else {
       logger.warn("apollo", `Błąd wyszukiwania organizacji: ${error.message || error}`);
     }
@@ -210,13 +212,20 @@ export async function fetchApolloEmployeesForCompany(companyId: number): Promise
     const hasEmail = person.email && person.email !== "email_not_unlocked@domain.com";
     // Apollo może zwracać status w email_status lub contact_email_status
     // contact_email_status jest dostępny bez kredytów i może zawierać: "verified", "guessed", "unverified", "unavailable"
+    // Dla /mixed_people/api_search mamy tylko has_email: true/false, które jest mapowane na email_status: "available"/"unavailable"
     // Normalizujemy status do lowercase, aby obsłużyć różne warianty pisowni
     const rawStatus = person.email_status || person.contact_email_status;
     const emailStatus = rawStatus ? String(rawStatus).toLowerCase() : null;
+    
+    // DEBUG: Loguj, jeśli brak emailStatus
+    if (!emailStatus && person.has_email !== undefined) {
+      logger.info("apollo-employees", `Brak emailStatus dla osoby ${person.id}, has_email: ${person.has_email}`);
+    }
+    
     return {
       ...person,
       email: hasEmail ? person.email : null,
-      emailStatus,
+      emailStatus: emailStatus || (person.has_email === false ? "unavailable" : person.has_email === true ? "available" : null),
       emailUnlocked: hasEmail,
     };
   });

@@ -183,7 +183,9 @@ export default function PersonaVerifyPage() {
   // Pobierz aktywną kartę z query params (domyślnie "verification")
   const activeTab = useMemo(() => {
     const tab = searchParams.get("tab");
-    return tab === "leads" ? "leads" : "verification";
+    if (tab === "leads") return "leads";
+    if (tab === "cache") return "cache";
+    return "verification";
   }, [searchParams]);
   
   const selectionId = useMemo(() => {
@@ -198,7 +200,6 @@ export default function PersonaVerifyPage() {
   const [filteredAllCompanies, setFilteredAllCompanies] = useState<Company[]>([]); // Wszystkie firmy po filtrowaniu (przed paginacją)
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
-  const [forceRefreshCache, setForceRefreshCache] = useState(false); // Wymuś ponowną weryfikację (wyłącz cache)
   const [detailCompany, setDetailCompany] = useState<Company | null>(null);
   const [showModal, setShowModal] = useState(false); // Kontrola widoczności modala - opóźnione renderowanie
   const [selectedRowCompanyId, setSelectedRowCompanyId] = useState<number | null>(null); // ID firmy, której wiersz jest zaznaczony
@@ -362,6 +363,20 @@ export default function PersonaVerifyPage() {
     () => Math.max(1, Math.ceil(total / pageSize)),
     [total, pageSize]
   );
+
+  // Oblicz prawdziwą liczbę leadów (suma wszystkich positiveCount ze wszystkich firm)
+  const totalLeadsCount = useMemo(() => {
+    if (!selectedPersonaCriteriaId) return 0;
+    return allCompanies.reduce((sum, company) => {
+      const verification = company.personaVerification;
+      if (verification && 
+          verification.personaCriteriaId === Number(selectedPersonaCriteriaId) &&
+          verification.positiveCount > 0) {
+        return sum + verification.positiveCount;
+      }
+      return sum;
+    }, 0);
+  }, [allCompanies, selectedPersonaCriteriaId]);
 
   // Resetuj do strony 1 gdy zmienia się pageSize
   useEffect(() => {
@@ -669,6 +684,44 @@ export default function PersonaVerifyPage() {
       setVerificationModel("gpt-4o-mini"); // Reset do domyślnego
     }
   }, [selectedPersonaCriteriaId, loadCacheCount]);
+
+  // Załaduj dane cache gdy otwieramy kartę "Znalezione stanowiska"
+  useEffect(() => {
+    if (activeTab === "cache" && selectedPersonaCriteriaId && !loadingCacheModal && cacheModalData.length === 0) {
+      const loadCacheData = async () => {
+        setLoadingCacheModal(true);
+        try {
+          const response = await fetch(`/api/company-selection/personas/${selectedPersonaCriteriaId}/verification-cache`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data) {
+              setCacheModalData(data.data.map((item: any) => ({
+                ...item,
+                verifiedAt: item.verifiedAt ? new Date(item.verifiedAt).toISOString() : "",
+                lastUsedAt: item.lastUsedAt ? new Date(item.lastUsedAt).toISOString() : "",
+              })));
+              // Ustaw domyślną kartę na podstawie dostępnych danych
+              const positiveCount = data.data.filter((item: any) => item.decision === "positive").length;
+              const negativeCount = data.data.filter((item: any) => item.decision === "negative").length;
+              if (positiveCount > 0) {
+                setCacheModalTab("positive");
+              } else if (negativeCount > 0) {
+                setCacheModalTab("negative");
+              }
+              setCacheModalPage({ positive: 1, negative: 1 });
+              // Zaktualizuj cache count
+              setCacheCount({ positive: positiveCount, negative: negativeCount, total: data.data.length });
+            }
+          }
+        } catch (error) {
+          console.error("Błąd ładowania cache:", error);
+        } finally {
+          setLoadingCacheModal(false);
+        }
+      };
+      loadCacheData();
+    }
+  }, [activeTab, selectedPersonaCriteriaId, loadingCacheModal, cacheModalData.length]);
 
   // Filtruj lokalnie wszystkie pobrane dane gdy zmienia się selectedStatus, hideZeroPersonas, hideZeroEmails lub searchQuery
   useEffect(() => {
@@ -1710,7 +1763,6 @@ export default function PersonaVerifyPage() {
       }
 
       // Uruchom weryfikację w tle (PUT request do endpointu batch) - tylko dla firm z pobranymi personami
-      // forceRefresh: jeśli true, wyłącza cache i wymusza ponowną weryfikację przez AI (przydatne do wypełnienia cache)
       const response = await fetch("/api/company-selection/personas/verify-batch", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1718,7 +1770,7 @@ export default function PersonaVerifyPage() {
           companyIds: companiesWithPersonas, // Tylko firmy z pobranymi personami
           progressId: newProgressId,
           personaCriteriaId: criteriaIdNum,
-          forceRefresh: forceRefreshCache, // Jeśli true, wyłącza cache i wymusza ponowną weryfikację (przydatne do wypełnienia cache)
+          forceRefresh: false, // Cache jest zawsze używany - jeśli trzeba zaktualizować cache, usuń go dla kryteriów
           model: verificationModel, // Model AI do użycia
         }),
       });
@@ -1888,6 +1940,23 @@ export default function PersonaVerifyPage() {
             Weryfikacja person
           </button>
           <button
+            onClick={() => router.push(`/company-selection/verify-personas/${selectionId}?tab=cache`)}
+            style={{
+              padding: "0.75rem 1.5rem",
+              backgroundColor: activeTab === "cache" ? "#3B82F6" : "transparent",
+              color: activeTab === "cache" ? "white" : "#6B7280",
+              border: "none",
+              borderBottom: activeTab === "cache" ? "2px solid #3B82F6" : "2px solid transparent",
+              borderRadius: "0.5rem 0.5rem 0 0",
+              cursor: "pointer",
+              fontWeight: activeTab === "cache" ? 600 : 500,
+              fontSize: "0.95rem",
+              marginBottom: "-2px",
+            }}
+          >
+            Znalezione stanowiska
+          </button>
+          <button
             onClick={() => router.push(`/company-selection/verify-personas/${selectionId}?tab=leads`)}
             style={{
               padding: "0.75rem 1.5rem",
@@ -1950,54 +2019,6 @@ export default function PersonaVerifyPage() {
               {selectedPersonaCriteriaId && (
               <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flex: 1, justifyContent: "space-between" }}>
                 <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-                  <button
-                    onClick={async () => {
-                      setShowCacheModal(true);
-                      setLoadingCacheModal(true);
-                      try {
-                        const response = await fetch(`/api/company-selection/personas/${selectedPersonaCriteriaId}/verification-cache`);
-                        if (response.ok) {
-                          const data = await response.json();
-                          if (data.success && data.data) {
-                            setCacheModalData(data.data.map((item: any) => ({
-                              ...item,
-                              verifiedAt: item.verifiedAt ? new Date(item.verifiedAt).toISOString() : "",
-                              lastUsedAt: item.lastUsedAt ? new Date(item.lastUsedAt).toISOString() : "",
-                            })));
-                            // Ustaw domyślną kartę na podstawie dostępnych danych
-                            const positiveCount = data.data.filter((item: any) => item.decision === "positive").length;
-                            const negativeCount = data.data.filter((item: any) => item.decision === "negative").length;
-                            if (positiveCount > 0) {
-                              setCacheModalTab("positive");
-                            } else if (negativeCount > 0) {
-                              setCacheModalTab("negative");
-                            }
-                            setCacheModalPage({ positive: 1, negative: 1 });
-                            // Zaktualizuj cache count
-                            setCacheCount({ positive: positiveCount, negative: negativeCount, total: data.data.length });
-                          }
-                        }
-                      } catch (error) {
-                        console.error("Błąd ładowania cache:", error);
-                      } finally {
-                        setLoadingCacheModal(false);
-                      }
-                    }}
-                    disabled={cacheCount.total === 0}
-                    style={{
-                      padding: "0.5rem 1rem",
-                      backgroundColor: cacheCount.total === 0 ? "#D1D5DB" : "#3B82F6",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "0.5rem",
-                      cursor: cacheCount.total === 0 ? "not-allowed" : "pointer",
-                      fontSize: "0.9rem",
-                      whiteSpace: "nowrap",
-                      opacity: cacheCount.total === 0 ? 0.6 : 1,
-                    }}
-                  >
-                    Znalezione stanowiska
-                  </button>
                   {loadingCacheCount ? (
                     <span style={{ fontSize: "0.85rem", color: "#6B7280" }}>Ładowanie...</span>
                   ) : cacheCount.total > 0 ? (
@@ -2079,7 +2100,7 @@ export default function PersonaVerifyPage() {
                 >
                   Zobacz zapisane leady
                 </button>
-                {cacheCount.positive > 0 && (
+                {totalLeadsCount > 0 && (
                   <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
                     <button
                       onClick={async () => {
@@ -2179,21 +2200,21 @@ export default function PersonaVerifyPage() {
                         alert("Błąd połączenia z serwerem: " + (error instanceof Error ? error.message : String(error)));
                       }
                     }}
-                    disabled={fetchingAndSaving || cacheCount.positive === 0}
+                    disabled={fetchingAndSaving || totalLeadsCount === 0}
                     style={{
                       padding: "0.5rem 1rem",
                       borderRadius: "0.5rem",
-                      backgroundColor: fetchingAndSaving || cacheCount.positive === 0 ? "#9CA3AF" : "#8B5CF6",
+                      backgroundColor: fetchingAndSaving || totalLeadsCount === 0 ? "#9CA3AF" : "#8B5CF6",
                       color: "white",
                       border: "none",
                       fontWeight: 600,
-                      cursor: fetchingAndSaving || cacheCount.positive === 0 ? "not-allowed" : "pointer",
+                      cursor: fetchingAndSaving || totalLeadsCount === 0 ? "not-allowed" : "pointer",
                       fontSize: "0.9rem",
                       whiteSpace: "nowrap",
                     }}
-                      title={cacheCount.positive === 0 ? "Brak pozytywnych leadów do zapisania" : "Pobiera i zapisuje do bazy danych tylko pozytywne leady (osoby z emailami) dla wszystkich firm z pozytywnymi personami"}
+                      title={totalLeadsCount === 0 ? "Brak pozytywnych leadów do zapisania" : `Pobiera i zapisuje do bazy danych ${totalLeadsCount} pozytywnych leadów (osoby z emailami) dla wszystkich firm z pozytywnymi personami`}
                     >
-                      {fetchingAndSaving ? "Zapisywanie..." : `Pobierz i zapisz leady (${cacheCount.positive})`}
+                      {fetchingAndSaving ? "Zapisywanie..." : `Pobierz i zapisz leady (${totalLeadsCount})`}
                     </button>
                     <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", cursor: "pointer" }}>
                       <input
@@ -2289,50 +2310,60 @@ export default function PersonaVerifyPage() {
               </option>
             ))}
           </select>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
               <input
                 type="checkbox"
                 id="hideZeroPersonas"
                 checked={hideZeroPersonas}
                 onChange={(e) => setHideZeroPersonas(e.target.checked)}
                 style={{
-                  width: "16px",
-                  height: "16px",
+                  width: "14px",
+                  height: "14px",
                   cursor: "pointer",
+                  margin: 0,
+                  flexShrink: 0,
                 }}
               />
               <label
                 htmlFor="hideZeroPersonas"
                 style={{
-                  fontSize: "0.85rem",
+                  fontSize: "0.8rem",
                   color: "#374151",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
+                  lineHeight: "1",
+                  display: "flex",
+                  alignItems: "center",
                 }}
               >
                 Ukryj firmy z pobranymi personami = 0
               </label>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
               <input
                 type="checkbox"
                 id="hideZeroEmails"
                 checked={hideZeroEmails}
                 onChange={(e) => setHideZeroEmails(e.target.checked)}
                 style={{
-                  width: "16px",
-                  height: "16px",
+                  width: "14px",
+                  height: "14px",
                   cursor: "pointer",
+                  margin: 0,
+                  flexShrink: 0,
                 }}
               />
               <label
                 htmlFor="hideZeroEmails"
                 style={{
-                  fontSize: "0.85rem",
+                  fontSize: "0.8rem",
                   color: "#374151",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
+                  lineHeight: "1",
+                  display: "flex",
+                  alignItems: "center",
                 }}
               >
                 Ukryj firmy z dostępnym adresem e-mail = 0
@@ -2408,30 +2439,6 @@ export default function PersonaVerifyPage() {
               ? `Zweryfikuj stanowiska (${selectedWithPersonasCount})` 
               : "Zweryfikuj stanowiska"}
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
-            <input
-              type="checkbox"
-              id="forceRefreshCache"
-              checked={forceRefreshCache}
-              onChange={(e) => setForceRefreshCache(e.target.checked)}
-              style={{
-                width: "16px",
-                height: "16px",
-                cursor: "pointer",
-              }}
-            />
-            <label
-              htmlFor="forceRefreshCache"
-              style={{
-                fontSize: "0.85rem",
-                color: "#374151",
-                cursor: "pointer",
-              }}
-              title="Wymuś ponowną weryfikację przez AI (wyłącz cache). Przydatne do wypełnienia cache dla już zweryfikowanych firm."
-            >
-              Wymuś ponowną weryfikację (wypełnij cache)
-            </label>
-          </div>
         </div>
       </div>
 
@@ -3932,6 +3939,25 @@ export default function PersonaVerifyPage() {
         </>
       )}
 
+      {/* Karta: Znalezione stanowiska */}
+      {activeTab === "cache" && (
+        <CacheTab
+          selectedPersonaCriteriaId={selectedPersonaCriteriaId}
+          cacheCount={cacheCount}
+          loadingCacheCount={loadingCacheCount}
+          cacheModalData={cacheModalData}
+          setCacheModalData={setCacheModalData}
+          loadingCacheModal={loadingCacheModal}
+          setLoadingCacheModal={setLoadingCacheModal}
+          cacheModalTab={cacheModalTab}
+          setCacheModalTab={setCacheModalTab}
+          cacheModalPage={cacheModalPage}
+          setCacheModalPage={setCacheModalPage}
+          cacheModalItemsPerPage={cacheModalItemsPerPage}
+          setCacheCount={setCacheCount}
+        />
+      )}
+
       {/* Karta: Baza pobranych leadów */}
       {activeTab === "leads" && (
         <LeadsDatabaseTab 
@@ -4126,6 +4152,341 @@ export default function PersonaVerifyPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Komponent karty "Znalezione stanowiska"
+function CacheTab({
+  selectedPersonaCriteriaId,
+  cacheCount,
+  loadingCacheCount,
+  cacheModalData,
+  setCacheModalData,
+  loadingCacheModal,
+  setLoadingCacheModal,
+  cacheModalTab,
+  setCacheModalTab,
+  cacheModalPage,
+  setCacheModalPage,
+  cacheModalItemsPerPage,
+  setCacheCount,
+}: {
+  selectedPersonaCriteriaId: string;
+  cacheCount: { positive: number; negative: number; total: number };
+  loadingCacheCount: boolean;
+  cacheModalData: Array<{
+    id: number;
+    titleNormalized: string;
+    titleEnglish: string | null;
+    departments: string[] | null;
+    seniority: string | null;
+    decision: string;
+    score: number | null;
+    reason: string | null;
+    useCount: number;
+    verifiedAt: string;
+    lastUsedAt: string;
+  }>;
+  setCacheModalData: React.Dispatch<React.SetStateAction<Array<{
+    id: number;
+    titleNormalized: string;
+    titleEnglish: string | null;
+    departments: string[] | null;
+    seniority: string | null;
+    decision: string;
+    score: number | null;
+    reason: string | null;
+    useCount: number;
+    verifiedAt: string;
+    lastUsedAt: string;
+  }>>>;
+  loadingCacheModal: boolean;
+  setLoadingCacheModal: React.Dispatch<React.SetStateAction<boolean>>;
+  cacheModalTab: "positive" | "negative";
+  setCacheModalTab: React.Dispatch<React.SetStateAction<"positive" | "negative">>;
+  cacheModalPage: { positive: number; negative: number };
+  setCacheModalPage: React.Dispatch<React.SetStateAction<{ positive: number; negative: number }>>;
+  cacheModalItemsPerPage: number;
+  setCacheCount: React.Dispatch<React.SetStateAction<{ positive: number; negative: number; total: number }>>;
+}) {
+  if (!selectedPersonaCriteriaId) {
+    return (
+      <div style={{ backgroundColor: "white", borderRadius: "0.75rem", border: "1px solid #E5E7EB", padding: "2rem", textAlign: "center" }}>
+        <p style={{ color: "#6B7280", fontSize: "1rem" }}>Wybierz kryteria weryfikacji person, aby zobaczyć znalezione stanowiska.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ backgroundColor: "white", borderRadius: "0.75rem", border: "1px solid #E5E7EB", padding: "2rem" }}>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#111827", marginBottom: "0.5rem" }}>
+          Zapisane decyzje weryfikacji stanowisk
+        </h2>
+        <p style={{ fontSize: "0.95rem", color: "#6B7280" }}>
+          System zapisuje decyzje AI dla stanowisk, aby przyspieszyć weryfikację dla powtarzających się stanowisk w różnych firmach.
+        </p>
+      </div>
+
+      {/* Podsumowanie */}
+      {loadingCacheCount ? (
+        <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>Ładowanie...</div>
+      ) : cacheCount.total > 0 ? (
+        <div
+          style={{
+            padding: "1rem 1.5rem",
+            backgroundColor: "#F9FAFB",
+            borderRadius: "0.5rem",
+            border: "1px solid #E5E7EB",
+            display: "flex",
+            gap: "2rem",
+            alignItems: "center",
+            marginBottom: "1.5rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>Pozytywne:</span>
+            <span style={{ fontSize: "1.1rem", fontWeight: 600, color: "#065F46" }}>
+              {cacheCount.positive}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.9rem", color: "#6B7280" }}>Negatywne:</span>
+            <span style={{ fontSize: "1.1rem", fontWeight: 600, color: "#991B1B" }}>
+              {cacheCount.negative}
+            </span>
+          </div>
+          <div style={{ marginLeft: "auto", fontSize: "0.9rem", color: "#6B7280" }}>
+            Razem: {cacheCount.total}
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "3rem",
+            backgroundColor: "#F9FAFB",
+            borderRadius: "0.5rem",
+            color: "#6B7280",
+            marginBottom: "1.5rem",
+          }}
+        >
+          <p style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Brak zapisanych decyzji</p>
+          <p style={{ fontSize: "0.9rem" }}>
+            Decyzje będą zapisywane automatycznie podczas weryfikacji person przez AI.
+          </p>
+        </div>
+      )}
+
+      {/* Zawartość */}
+      {loadingCacheModal ? (
+        <div style={{ textAlign: "center", padding: "2rem", color: "#6B7280" }}>Ładowanie...</div>
+      ) : cacheModalData.length === 0 ? (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "3rem",
+            backgroundColor: "#F9FAFB",
+            borderRadius: "0.5rem",
+            color: "#6B7280",
+          }}
+        >
+          <p style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Brak zapisanych decyzji</p>
+          <p style={{ fontSize: "0.9rem" }}>
+            Decyzje będą zapisywane automatycznie podczas weryfikacji person przez AI.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* Podkarty */}
+          <div>
+            <div style={{ display: "flex", gap: "0.5rem", borderBottom: "2px solid #E5E7EB", marginBottom: "1.5rem" }}>
+              <button
+                onClick={() => {
+                  setCacheModalTab("positive");
+                  setCacheModalPage((prev) => ({ ...prev, positive: 1 }));
+                }}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  border: "none",
+                  backgroundColor: "transparent",
+                  color: cacheModalTab === "positive" ? "#065F46" : "#6B7280",
+                  fontWeight: cacheModalTab === "positive" ? 600 : 400,
+                  borderBottom: cacheModalTab === "positive" ? "2px solid #065F46" : "2px solid transparent",
+                  cursor: "pointer",
+                  marginBottom: "-2px",
+                }}
+              >
+                Pozytywne ({cacheModalData.filter((item) => item.decision === "positive").length})
+              </button>
+              <button
+                onClick={() => {
+                  setCacheModalTab("negative");
+                  setCacheModalPage((prev) => ({ ...prev, negative: 1 }));
+                }}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  border: "none",
+                  backgroundColor: "transparent",
+                  color: cacheModalTab === "negative" ? "#991B1B" : "#6B7280",
+                  fontWeight: cacheModalTab === "negative" ? 600 : 400,
+                  borderBottom: cacheModalTab === "negative" ? "2px solid #991B1B" : "2px solid transparent",
+                  cursor: "pointer",
+                  marginBottom: "-2px",
+                }}
+              >
+                Negatywne ({cacheModalData.filter((item) => item.decision === "negative").length})
+              </button>
+            </div>
+
+            {/* Zawartość karty */}
+            {(() => {
+              const filteredItems = cacheModalData.filter((item) => item.decision === cacheModalTab);
+              const currentPage = cacheModalPage[cacheModalTab];
+              const totalPages = Math.ceil(filteredItems.length / cacheModalItemsPerPage);
+              const startIndex = (currentPage - 1) * cacheModalItemsPerPage;
+              const endIndex = startIndex + cacheModalItemsPerPage;
+              const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+              if (filteredItems.length === 0) {
+                return (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "3rem",
+                      backgroundColor: "#F9FAFB",
+                      borderRadius: "0.5rem",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <p style={{ fontSize: "1rem" }}>
+                      Brak {cacheModalTab === "positive" ? "pozytywnych" : "negatywnych"} decyzji
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    {paginatedItems.map((item) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          padding: "1.25rem",
+                          backgroundColor: cacheModalTab === "positive" ? "#F0FDF4" : "#FEF2F2",
+                          borderRadius: "0.5rem",
+                          border: cacheModalTab === "positive" ? "1px solid #D1FAE5" : "1px solid #FEE2E2",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                              <h4 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#111827" }}>
+                                {item.titleNormalized}
+                              </h4>
+                              <span
+                                style={{
+                                  padding: "0.25rem 0.75rem",
+                                  borderRadius: "0.375rem",
+                                  fontSize: "0.85rem",
+                                  fontWeight: 500,
+                                  backgroundColor: cacheModalTab === "positive" ? "#D1FAE5" : "#FEE2E2",
+                                  color: cacheModalTab === "positive" ? "#065F46" : "#991B1B",
+                                }}
+                              >
+                                {cacheModalTab === "positive" ? "Pozytywne" : "Negatywne"}
+                              </span>
+                              <span style={{ fontSize: "0.9rem", color: "#6B7280", fontWeight: 500 }}>
+                                Score: {item.score !== null ? `${(item.score * 100).toFixed(0)}%` : "brak"}
+                              </span>
+                            </div>
+                            {item.titleEnglish && item.titleEnglish !== item.titleNormalized && (
+                              <p style={{ fontSize: "0.9rem", color: "#6B7280", marginBottom: "0.25rem" }}>
+                                EN: {item.titleEnglish}
+                              </p>
+                            )}
+                            <div style={{ display: "flex", gap: "1rem", fontSize: "0.85rem", color: "#6B7280", marginBottom: "0.5rem" }}>
+                              {item.departments && item.departments.length > 0 && (
+                                <span>Działy: {item.departments.join(", ")}</span>
+                              )}
+                              {item.seniority && <span>Seniority: {item.seniority}</span>}
+                            </div>
+                            {item.reason && (
+                              <p style={{ fontSize: "0.9rem", color: "#374151", marginTop: "0.5rem", lineHeight: 1.5 }}>
+                                {item.reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.8rem", color: "#9CA3AF", marginTop: "0.75rem" }}>
+                          <span>Użyto: {item.useCount} {item.useCount === 1 ? "raz" : "razy"}</span>
+                          <span>
+                            Zweryfikowano: {new Date(item.verifiedAt).toLocaleString("pl-PL")}
+                          </span>
+                          <span>
+                            Ostatnie użycie: {new Date(item.lastUsedAt).toLocaleString("pl-PL")}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Paginacja */}
+                  {totalPages > 1 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        marginTop: "1.5rem",
+                        paddingTop: "1rem",
+                        borderTop: "1px solid #E5E7EB",
+                      }}
+                    >
+                      <button
+                        onClick={() => setCacheModalPage((prev) => ({ ...prev, [cacheModalTab]: Math.max(1, currentPage - 1) }))}
+                        disabled={currentPage === 1}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          backgroundColor: currentPage === 1 ? "#F3F4F6" : "white",
+                          color: currentPage === 1 ? "#9CA3AF" : "#374151",
+                          border: "1px solid #D1D5DB",
+                          borderRadius: "0.375rem",
+                          cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                          fontSize: "0.9rem",
+                        }}
+                      >
+                        Poprzednia
+                      </button>
+                      <span style={{ fontSize: "0.9rem", color: "#6B7280", padding: "0 1rem" }}>
+                        Strona {currentPage} z {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCacheModalPage((prev) => ({ ...prev, [cacheModalTab]: Math.min(totalPages, currentPage + 1) }))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          backgroundColor: currentPage === totalPages ? "#F3F4F6" : "white",
+                          color: currentPage === totalPages ? "#9CA3AF" : "#374151",
+                          border: "1px solid #D1D5DB",
+                          borderRadius: "0.375rem",
+                          cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                          fontSize: "0.9rem",
+                        }}
+                      >
+                        Następna
+                      </button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

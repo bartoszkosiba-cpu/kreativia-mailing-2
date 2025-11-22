@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fetchApolloEmployeesForCompany } from "@/services/apolloEmployeesService";
 import { logger } from "@/services/logger";
-import { updateProgress, getProgress } from "@/services/verificationProgress";
+import { updateProgress, getProgress, createProgressWithId } from "@/services/verificationProgress";
 
 /**
  * Pobiera i zapisuje persony z Apollo dla wielu firm (batch) - z śledzeniem postępu
@@ -27,12 +27,12 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const progress = getProgress(progressId);
+    let progress = getProgress(progressId);
+    // Jeśli progressId nie istnieje, utwórz go z podanym ID (dla pojedynczych zapisów)
     if (!progress) {
-      return NextResponse.json(
-        { success: false, error: "Nie znaleziono postępu dla podanego progressId" },
-        { status: 404 }
-      );
+      createProgressWithId(progressId, companyIds.length);
+      progress = getProgress(progressId);
+      logger.info("persona-apollo-batch", `Utworzono nowy progressId: ${progressId} dla ${companyIds.length} firm`);
     }
 
     logger.info("persona-apollo-batch", `Rozpoczynam pobieranie person z Apollo dla ${companyIds.length} firm (progressId: ${progressId})`);

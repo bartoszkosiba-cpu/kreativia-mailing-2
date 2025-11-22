@@ -110,16 +110,16 @@ export async function POST(req: NextRequest) {
         })
       : await db.personaVerificationResult.create({
           data: {
-            companyId,
-            personaCriteriaId: null, // Brak weryfikacji AI
-            verifiedAt: new Date(),
-            positiveCount: 0,
-            negativeCount: 0,
-            unknownCount: apolloResult.people?.length || 0, // Wszystkie jako unknown, bo nie było weryfikacji
-            employees: employeesJson,
-            metadata: metadataJson,
-          },
-        });
+        companyId,
+        personaCriteriaId: null, // Brak weryfikacji AI
+        verifiedAt: new Date(),
+        positiveCount: 0,
+        negativeCount: 0,
+        unknownCount: apolloResult.people?.length || 0, // Wszystkie jako unknown, bo nie było weryfikacji
+        employees: employeesJson,
+        metadata: metadataJson,
+      },
+    });
 
     logger.info("persona-apollo-save", `Zapisano persony z Apollo dla firmy ${companyId}`, { companyId, count: apolloResult.people?.length || 0 });
 
