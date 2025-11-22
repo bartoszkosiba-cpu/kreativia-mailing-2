@@ -1345,7 +1345,7 @@ export default function CompanySelectionsPage() {
             />
           </div>
         )}
-                        </div>
+    </div>
   );
 }
 
