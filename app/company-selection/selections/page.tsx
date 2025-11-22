@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import { PreviewTable } from "../components/PreviewTable";
 import { buildPageList } from "@/utils/pagination";
 import { MarketOption, LanguageOption, SelectionFilters } from "@/types/company-selection";
-import { CompanySelectionErrorBoundary } from "../components/ErrorBoundary";
 import { SelectionInfoBox } from "./components/SelectionInfoBox";
 import { SelectionDataForm } from "./components/SelectionDataForm";
 import { SelectionSaveSection } from "./components/SelectionSaveSection";
@@ -748,7 +747,6 @@ export default function CompanySelectionsPage() {
   };
 
   return (
-    <CompanySelectionErrorBoundary>
     <div style={{ padding: "2rem", maxWidth: "1280px", margin: "0 auto" }}>
       <Link
         href="/company-selection/processes/selections"
